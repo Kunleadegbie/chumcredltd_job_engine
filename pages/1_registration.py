@@ -38,4 +38,4 @@ if st.button("Register"):
         st.error("Registration failed. Email may already exist.")
     else:
         st.success("Account created successfully! Please log in.")
-        st.switch_page("../app.py")
+	st.switch_page("pages/2_Dashboard.py")
