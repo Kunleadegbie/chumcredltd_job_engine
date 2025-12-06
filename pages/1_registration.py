@@ -1,30 +1,41 @@
 import streamlit as st
-from services.auth import create_user
+from services.auth import hash_password
+from services.supabase_client import supabase_rest_insert
 
-st.set_page_config(page_title="Register", page_icon="📝")
+st.title("📝 Create Your Account")
 
-# -------------------------------------------------------
-# IMPORTANT:
-# Registration must NOT redirect automatically.
-# -------------------------------------------------------
-if "user" in st.session_state and st.session_state.user:
-    st.info("You are already logged in. If you want to create a new account, please log out first.")
+# Prevent redirect loop
+if "user" not in st.session_state:
+    st.session_state.user = None
 
-st.title("👤 Create an Account")
+if st.session_state.user:
+    st.warning("You are already logged in.")
+    if st.button("Go to Dashboard"):
+        st.switch_page("2_Dashboard.py")
+    st.stop()
 
 full_name = st.text_input("Full Name")
-email = st.text_input("Email Address")
+email = st.text_input("Email")
 password = st.text_input("Password", type="password")
 
-if st.button("Create Account"):
+if st.button("Register"):
+
     if not full_name or not email or not password:
         st.error("All fields are required.")
         st.stop()
 
-    result = create_user(full_name, email, password)
+    hashed = hash_password(password)
 
-    if isinstance(result, dict) and "error" in result:
-        st.error(result["error"])
+    result = supabase_rest_insert("users", {
+        "full_name": full_name,
+        "email": email,
+        "password": hashed,
+        "is_active": True,
+        "status": "active"
+    })
+
+    if "error" in str(result).lower():
+        st.error("Registration failed. Email may already exist.")
     else:
-        st.success("Account created successfully! Proceed to login.")
-        st.switch_page("app.py")
+        st.success("Account created successfully! Please log in.")
+        st.switch_page("../app.py")

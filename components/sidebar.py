@@ -1,36 +1,72 @@
+# ==============================
+# components/sidebar.py
+# ==============================
 import streamlit as st
 
+
 def show_sidebar(user):
-    # -------------------------------
-    # SAFETY FIX: Ensure user is a dict
-    # -------------------------------
-    if isinstance(user, tuple):
-        user = user[0]
+    """Render the full sidebar navigation for logged-in users."""
 
-    # -------------------------------
-    # Extract safe fields
-    # -------------------------------
+    st.sidebar.title("📌 Chumcred Job Engine")
+
     full_name = user.get("full_name", "User")
-    role = user.get("role", "user")
+    email = user.get("email", "")
 
-    # -------------------------------
-    # Sidebar UI
-    # -------------------------------
-    with st.sidebar:
-        st.markdown(f"### 👋 Welcome, **{full_name}**")
-        st.markdown("---")
+    # ---------------------------
+    # User Info Box
+    # ---------------------------
+    with st.sidebar.expander("👤 Logged in as", expanded=True):
+        st.write(f"**{full_name}**")
+        st.write(email)
 
-        st.page_link("pages/2_Dashboard.py", label="🏠 Dashboard")
-        st.page_link("pages/3_Job_Search.py", label="🔍 Job Search")
-        st.page_link("pages/10_subscription.py", label="💳 Subscription & Credits")
+    st.sidebar.markdown("---")
 
-        if role == "admin":
-            st.markdown("---")
-            st.page_link("pages/5_Admin_Panel.py", label="🛠 Admin Panel")
+    # ---------------------------
+    # MAIN NAVIGATION BUTTONS
+    # ---------------------------
+    st.sidebar.subheader("📂 Navigation")
 
-        st.markdown("---")
-        st.page_link("pages/7_Profile.py", label="🙍 Profile")
-        st.page_link("pages/4_Saved_Jobs.py", label="⭐ Saved Jobs")
+    if st.sidebar.button("🏠 Dashboard"):
+        st.switch_page("pages/2_Dashboard.py")
 
-        st.markdown("---")
-        st.page_link("app.py", label="🚪 Logout")
+    if st.sidebar.button("🔍 Global Job Search"):
+        st.switch_page("pages/3_Job_Search.py")
+
+    if st.sidebar.button("💾 Saved Jobs"):
+        st.switch_page("pages/4_Saved_Jobs.py")
+
+    if st.sidebar.button("📄 AI Tools"):
+        st.switch_page("pages/3a_Match_Score.py")
+
+    if st.sidebar.button("⚙️ Profile & Settings"):
+        st.switch_page("pages/7_Profile.py")
+
+    st.sidebar.markdown("---")
+
+    # ---------------------------
+    # ADMIN PANEL (optional)
+    # ---------------------------
+    if user.get("role") == "admin":
+        st.sidebar.subheader("🛠 Admin Panel")
+
+        if st.sidebar.button("📊 Analytics"):
+            st.switch_page("pages/8_Admin_Analytics.py")
+
+        if st.sidebar.button("💰 Revenue"):
+            st.switch_page("pages/9_Admin_Revenue.py")
+
+        if st.sidebar.button("💳 Payment Approvals"):
+            st.switch_page("pages/12_Admin_Payments.py")
+
+        st.sidebar.markdown("---")
+
+    # ---------------------------
+    # LOGOUT BUTTON — final correct logic
+    # ---------------------------
+    if st.sidebar.button("🚪 Logout"):
+        # SAFELY CLEAR ALL SESSION STATE
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+
+        st.success("You have been logged out.")
+        st.switch_page("app.py")  # ALWAYS go back to login page
