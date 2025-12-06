@@ -3,6 +3,20 @@ from components.sidebar import show_sidebar
 from services.utils import get_subscription, auto_expire_subscription
 from services.supabase_client import supabase_rest_query
 
+# --------------------------------------------
+# ACCESS CONTROL — MUST BE FIRST
+# --------------------------------------------
+if "user" not in st.session_state or not st.session_state.user:
+    st.switch_page("0_Login.py")
+
+user = st.session_state.user
+user_id = user["id"]
+
+# ALWAYS fetch latest subscription
+auto_expire_subscription(user)
+subscription = get_subscription(user_id)
+
+
 # -----------------------------------------
 # SESSION CHECK
 # -----------------------------------------

@@ -3,14 +3,21 @@
 # ==============================
 import streamlit as st
 
-
 def show_sidebar(user):
-    """Render the full sidebar navigation for logged-in users."""
+    with st.sidebar:
+        st.header("🌍 Chumcred Job Engine")
+        st.write(f"**Logged in as:** {user.get('full_name')}")
 
-    st.sidebar.title("📌 Chumcred Job Engine")
+        st.page_link("pages/2_Dashboard.py", label="🏠 Dashboard")
+        st.page_link("pages/3_Job_Search.py", label="🔍 Job Search")
+        st.page_link("pages/4_Saved_Jobs.py", label="💾 Saved Jobs")
+        st.page_link("pages/6_Settings.py", label="⚙ Settings")
 
-    full_name = user.get("full_name", "User")
-    email = user.get("email", "")
+        st.write("---")
+
+        if st.button("🚪 Log Out"):
+            st.session_state.clear()
+            st.switch_page("0_Login.py")
 
     # ---------------------------
     # User Info Box

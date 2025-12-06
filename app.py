@@ -1,6 +1,16 @@
 import streamlit as st
 from services.auth import login_user
 
+st.set_page_config(
+    page_title="Chumcred Job Engine",
+    page_icon="🌍",
+    layout="wide"
+)
+
+# Force the app to load the Login page
+st.switch_page("pages/0_Login.py")
+
+
 # ----------------------------------------------------
 # PAGE CONFIG
 # ----------------------------------------------------
