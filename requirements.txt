@@ -1,6 +1,5 @@
-streamlit==1.39.0
-httpx==0.25.2
-openai==1.3.5
-requests==2.31.0
-python-dotenv==1.0.0
-pydantic==2.5.2
+streamlit
+httpx
+requests
+python-dotenv
+openai
