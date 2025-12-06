@@ -2,18 +2,22 @@ import streamlit as st
 import requests
 
 # ==========================================================
-# GLOBAL JOB SEARCH (JSearch API)
+# GLOBAL JOB SEARCH — JSearch API
 # ==========================================================
 def fetch_global_jobs(keyword="", location="", company=""):
     """
-    Fetches global job listings from the JSearch API.
+    Fetch global jobs using the JSearch API on RapidAPI.
     """
 
     api_key = st.secrets["JSEARCH_API_KEY"]
     url = "https://jsearch.p.rapidapi.com/search"
 
+    # Build search query
     query = keyword or "jobs"
-    params = {"query": query, "num_pages": 1}
+    params = {
+        "query": query,
+        "num_pages": 1
+    }
 
     if location:
         params["location"] = location
@@ -31,6 +35,7 @@ def fetch_global_jobs(keyword="", location="", company=""):
         data = response.json()
 
         jobs = []
+
         for item in data.get("data", []):
             jobs.append({
                 "id": item.get("job_id"),
@@ -47,5 +52,5 @@ def fetch_global_jobs(keyword="", location="", company=""):
         return jobs
 
     except Exception as e:
-        print("Error fetching jobs:", e)
+        print("❌ Error fetching jobs:", e)
         return []
