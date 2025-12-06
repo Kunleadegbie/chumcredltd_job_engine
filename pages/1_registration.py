@@ -46,4 +46,5 @@ if st.button("Register"):
 
 st.write("---")
 if st.button("⬅ Back to Login"):
-    st.switch_page("0_Login.py")
+    st.switch_page("pages/0_Login.py")
+

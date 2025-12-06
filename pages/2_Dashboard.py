@@ -7,7 +7,7 @@ from services.supabase_client import supabase_rest_query
 # ACCESS CONTROL — MUST BE FIRST
 # --------------------------------------------
 if "user" not in st.session_state or not st.session_state.user:
-    st.switch_page("0_Login.py")
+    st.switch_page("pages/0_Login.py")
 
 user = st.session_state.user
 user_id = user["id"]

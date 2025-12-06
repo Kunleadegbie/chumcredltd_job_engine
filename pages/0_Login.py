@@ -7,7 +7,7 @@ st.set_page_config(page_title="Chumcred Job Engine", page_icon="🌍", layout="w
 # IF ALREADY LOGGED IN → GO TO DASHBOARD
 # --------------------------------------------
 if "user" in st.session_state and st.session_state.user:
-    st.switch_page("2_Dashboard.py")
+    st.switch_page("pages/2_Dashboard.py")
 
 # --------------------------------------------
 # LOGIN UI
@@ -32,4 +32,4 @@ if st.button("Login"):
 st.write("---")
 st.caption("Don't have an account?")
 if st.button("📝 Register Now"):
-    st.switch_page("1_Registration.py")
+    st.switch_page("pages/1_Registration.py")

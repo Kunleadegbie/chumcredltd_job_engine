@@ -17,7 +17,7 @@ def show_sidebar(user):
 
         if st.button("🚪 Log Out"):
             st.session_state.clear()
-            st.switch_page("0_Login.py")
+            st.switch_page("pages/0_Login.py")
 
     # ---------------------------
     # User Info Box
