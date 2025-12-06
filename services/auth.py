@@ -71,6 +71,28 @@ def create_user(full_name: str, email: str, password: str, role="user", is_activ
 
 
 # --------------------------------------------------------
+# REGISTER  USER
+# --------------------------------------------------------
+
+def register_user(full_name, email, password_hash):
+    payload = {
+        "full_name": full_name,
+        "email": email,
+        "password": password_hash,
+        "status": "active",
+        "is_active": True
+    }
+
+    result = supabase_rest_insert("users", payload)
+
+    if isinstance(result, dict) and "error" in result:
+        return False, result["error"]
+
+    return True, "OK"
+
+
+
+# --------------------------------------------------------
 # CHECK ADMIN ROLE
 # --------------------------------------------------------
 def is_admin(user: dict):

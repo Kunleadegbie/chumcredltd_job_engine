@@ -1,41 +1,19 @@
 import streamlit as st
 from services.auth import login_user
 
-st.set_page_config(
-    page_title="Chumcred Job Engine",
-    page_icon="🌍",
-    layout="wide"
-)
-
-# Force the app to load the Login page
-st.switch_page("pages/0_Login.py")
-
+st.set_page_config(page_title="Chumcred Job Engine", page_icon="🌍", layout="wide")
 
 # ----------------------------------------------------
-# PAGE CONFIG
+# If user already logged in → go to Dashboard
 # ----------------------------------------------------
-st.set_page_config(
-    page_title="Chumcred Job Engine",
-    page_icon="🌍",
-    layout="wide"
-)
-
-# ----------------------------------------------------
-# CLEAR SESSION ON FIRST LOAD
-# ----------------------------------------------------
-if "user" not in st.session_state:
-    st.session_state.user = None
-
-# ----------------------------------------------------
-# IF USER LOGGED IN → SEND TO DASHBOARD
-# ----------------------------------------------------
-if st.session_state.user:
+if "user" in st.session_state and st.session_state.user is not None:
     st.switch_page("pages/2_Dashboard.py")
 
 # ----------------------------------------------------
 # LOGIN UI
 # ----------------------------------------------------
 st.title("🔐 Login to Chumcred Job Engine")
+st.write("Enter your credentials to continue.")
 
 email = st.text_input("Email Address")
 password = st.text_input("Password", type="password")
