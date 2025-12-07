@@ -1,3 +1,24 @@
+import os
+import streamlit as st
+
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+st.write("BASE PATH:", BASE)
+
+# Check what files really exist
+st.write("ROOT CONTENTS:", os.listdir(BASE))
+
+# Check if services folder exists at all
+services_path = os.path.join(BASE, "services")
+st.write("SERVICES FOLDER EXISTS:", os.path.isdir(services_path))
+
+# If exists, list contents
+if os.path.isdir(services_path):
+    st.write("SERVICES CONTENTS:", os.listdir(services_path))
+else:
+    st.write("NO SERVICES FOLDER IN DEPLOYMENT")
+
+
 import sys, os
 
 # ----------------------------------------------------
