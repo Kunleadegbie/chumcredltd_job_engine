@@ -1,48 +1,16 @@
-import sys, os
 import streamlit as st
-
-# ----------------------------------------------------
-# FIX IMPORT PATHS ABSOLUTELY FOR STREAMLIT CLOUD
-# ----------------------------------------------------
-
-# Step 1: Find the project root by searching for app.py
-def find_project_root():
-    current = os.path.abspath(__file__)
-    while True:
-        current = os.path.dirname(current)
-        if "app.py" in os.listdir(current):
-            return current
-        if current == "/" or current == "":
-            break
-    return None
-
-PROJECT_ROOT = find_project_root()
-
-if PROJECT_ROOT and PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
-# Debug (optional)
-# st.write("PROJECT ROOT:", PROJECT_ROOT)
-
-# ----------------------------------------------------
-# SAFE IMPORTS
-# ----------------------------------------------------
 from components.sidebar import render_sidebar
-from services.utils import get_subscription, auto_expire_subscription, deduct_credits
-from services.ai_engine import (
-    ai_generate_match_score,
-    ai_extract_skills,
-    ai_generate_cover_letter,
-    ai_check_eligibility,
-    ai_generate_resume
+from services.utils import (
+    get_subscription,
+    auto_expire_subscription,
+    deduct_credits
 )
+from services.ai_engine import ai_extract_skills
 
-
-COST = 5
-
+COST = 3
 st.set_page_config(page_title="Skills Extractor | Chumcred", page_icon="🧠")
 
-# AUTH CHECK
+# -------------------- AUTH CHECK --------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
@@ -52,21 +20,24 @@ if not isinstance(user, dict):
 
 user_id = user["id"]
 
+# Sidebar
 render_sidebar()
 
+# -------------------- SUBSCRIPTION --------------------
 auto_expire_subscription(user)
 subscription = get_subscription(user_id)
 
 if not subscription or subscription.get("subscription_status") != "active":
-    st.error("Your subscription is inactive.")
+    st.error("You need an active subscription to use Skills Extractor.")
     st.stop()
 
 credits = subscription.get("credits", 0)
 
-st.title("🧠 AI Skills Extraction")
+# -------------------- PAGE UI --------------------
+st.title("🧠 Extract Skills from Resume")
 st.info(f"💳 Credits Available: **{credits}**")
 
-resume_text = st.text_area("Paste your Resume to extract skills")
+resume_text = st.text_area("Paste your Resume Content")
 
 if st.button(f"Extract Skills (Cost {COST} credits)", disabled=credits < COST):
 
@@ -74,14 +45,13 @@ if st.button(f"Extract Skills (Cost {COST} credits)", disabled=credits < COST):
         st.warning("Please paste your resume text.")
         st.stop()
 
-    ok, new_credits = deduct_credits(user_id, COST)
+    ok, new_balance = deduct_credits(user_id, COST)
     if not ok:
-        st.error(new_credits)
+        st.error(new_balance)
         st.stop()
 
     st.session_state.subscription = get_subscription(user_id)
-
-    st.success(f"{COST} credits deducted. Remaining: {new_credits}")
+    st.success(f"✔ {COST} credits deducted. New balance: {new_balance}")
 
     result = ai_extract_skills(resume_text)
     st.write(result)
