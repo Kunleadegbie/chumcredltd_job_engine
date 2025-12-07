@@ -1,3 +1,13 @@
+import os
+import streamlit as st
+
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+st.write("ROOT:", BASE)
+
+st.write("LISTING ALL FOLDERS IN ROOT...")
+for item in os.listdir(BASE):
+    st.write(" →", item)
+
 import sys, os
 
 # ----------------------------------------------------
