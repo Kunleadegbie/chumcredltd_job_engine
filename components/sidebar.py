@@ -17,17 +17,23 @@ def show_sidebar(user):
             "Logout"
         ])
 
+        # --- Correct Streamlit Cloud routing ---
         if page == "Dashboard":
-            st.switch_page("2_Dashboard.py")
+            st.switch_page("pages/2_Dashboard.py")
+
         elif page == "Job Search":
-            st.switch_page("3_Job_Search.py")
+            st.switch_page("pages/3_Job_Search.py")
+
         elif page == "Saved Jobs":
-            st.switch_page("4_Saved_Jobs.py")
+            st.switch_page("pages/4_Saved_Jobs.py")
+
         elif page == "AI Tools":
-            st.switch_page("3a_Match_Score.py")
+            st.switch_page("pages/3a_Match_Score.py")
+
         elif page == "Profile":
-            st.switch_page("7_Profile.py")
+            st.switch_page("pages/7_Profile.py")
+
         elif page == "Logout":
             st.session_state.user = None
             st.success("Logged out successfully.")
-            st.switch_page("../app.py")
+            st.switch_page("app.py")
