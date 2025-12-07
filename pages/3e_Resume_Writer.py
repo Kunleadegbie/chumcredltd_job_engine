@@ -1,30 +1,56 @@
 import streamlit as st
-from services.utils import get_subscription, deduct_credits
+from components.sidebar import render_sidebar
+from services.utils import (
+    get_subscription,
+    auto_expire_subscription,
+    deduct_credits
+)
 from services.ai_engine import ai_generate_resume
 
 COST = 20
 
-st.title("📄 AI Resume Writer")
+st.set_page_config(page_title="Resume Writer | Chumcred", page_icon="📄")
 
-user_id = st.session_state.user["id"]
+# AUTH CHECK
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
+
+user = st.session_state.get("user")
+if not isinstance(user, dict):
+    st.switch_page("app.py")
+
+user_id = user["id"]
+
+render_sidebar()
+
+auto_expire_subscription(user)
 subscription = get_subscription(user_id)
+
+if not subscription or subscription.get("subscription_status") != "active":
+    st.error("Active subscription required.")
+    st.stop()
+
 credits = subscription.get("credits", 0)
 
+st.title("📄 AI Resume Writer")
 st.info(f"💳 Credits Available: **{credits}**")
 
-profile = st.text_area("Paste Your Professional Profile")
-job_title = st.text_input("Target Job Title (optional)")
+resume_text = st.text_area("Paste your Resume or Career Summary")
 
-if st.button(f"Generate Resume (Cost {COST})", disabled=credits < COST):
+if st.button(f"Generate Resume (Cost {COST} credits)", disabled=credits < COST):
 
-    ok, result = deduct_credits(user_id, COST)
+    if not resume_text.strip():
+        st.warning("Please paste some career or resume details.")
+        st.stop()
+
+    ok, new_credits = deduct_credits(user_id, COST)
     if not ok:
-        st.error(result)
+        st.error(new_credits)
         st.stop()
 
     st.session_state.subscription = get_subscription(user_id)
 
-    st.success(f"✔ {COST} credits deducted. New balance: {result}")
+    st.success(f"{COST} credits deducted. Remaining: {new_credits}")
 
-    output = ai_generate_resume(profile, job_title)
-    st.write(output)
+    result = ai_generate_resume(resume_text)
+    st.write(result)

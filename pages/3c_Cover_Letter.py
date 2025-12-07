@@ -1,30 +1,56 @@
 import streamlit as st
-from services.utils import get_subscription, deduct_credits
+from components.sidebar import render_sidebar
+from services.utils import (
+    get_subscription,
+    auto_expire_subscription,
+    deduct_credits
+)
 from services.ai_engine import ai_generate_cover_letter
 
-COST = 5
+COST = 10
 
-st.title("✉️ AI Cover Letter Generator")
+st.set_page_config(page_title="Cover Letter Generator | Chumcred", page_icon="✍️")
 
-user_id = st.session_state.user["id"]
+# AUTH CHECK
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
+
+user = st.session_state.get("user")
+if not isinstance(user, dict):
+    st.switch_page("app.py")
+
+user_id = user["id"]
+
+render_sidebar()
+
+auto_expire_subscription(user)
 subscription = get_subscription(user_id)
+
+if not subscription or subscription.get("subscription_status") != "active":
+    st.error("Your subscription must be active to use this tool.")
+    st.stop()
+
 credits = subscription.get("credits", 0)
 
+st.title("✍️ AI Cover Letter Generator")
 st.info(f"💳 Credits Available: **{credits}**")
 
-resume = st.text_area("Paste your Resume")
-job_description = st.text_area("Paste Job Description")
+resume_text = st.text_area("Paste your Resume")
+job_description = st.text_area("Paste the Job Description")
 
-if st.button(f"Generate Cover Letter (Cost {COST})", disabled=credits < COST):
+if st.button(f"Generate Cover Letter (Cost {COST} credits)", disabled=credits < COST):
 
-    ok, result = deduct_credits(user_id, COST)
+    if not resume_text.strip() or not job_description.strip():
+        st.warning("Resume and Job Description are required.")
+        st.stop()
+
+    ok, new_credits = deduct_credits(user_id, COST)
     if not ok:
-        st.error(result)
+        st.error(new_credits)
         st.stop()
 
     st.session_state.subscription = get_subscription(user_id)
+    st.success(f"{COST} credits deducted. Remaining: {new_credits}")
 
-    st.success(f"✔ {COST} credits deducted. New balance: {result}")
-
-    output = ai_generate_cover_letter(resume, job_description)
-    st.write(output)
+    result = ai_generate_cover_letter(resume_text, job_description)
+    st.write(result)

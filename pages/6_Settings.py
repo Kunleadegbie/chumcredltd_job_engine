@@ -1,96 +1,48 @@
 import streamlit as st
-from components.sidebar import show_sidebar
+from components.sidebar import render_sidebar
 from services.supabase_client import (
     supabase_rest_query,
     supabase_rest_update
 )
 
-# ----------------------------------------------------
-# ACCESS CONTROL
-# ----------------------------------------------------
-if "user" not in st.session_state or st.session_state.user is None:
-    st.error("You must log in to access this page.")
-    st.stop()
-
-user = st.session_state.user
-show_sidebar(user)
+st.set_page_config(page_title="Settings | Chumcred", page_icon="⚙️")
 
 # ----------------------------------------------------
-# PAGE HEADER
+# AUTH CHECK
+# ----------------------------------------------------
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
+
+user = st.session_state.get("user")
+if not isinstance(user, dict):
+    st.session_state.authenticated = False
+    st.session_state.user = None
+    st.switch_page("app.py")
+
+user_id = user.get("id")
+
+render_sidebar()
+
+# ----------------------------------------------------
+# PAGE UI
 # ----------------------------------------------------
 st.title("⚙️ Account Settings")
-st.write("Update your profile information.")
-
+st.write("Update your personal information.")
 st.write("---")
 
-# ----------------------------------------------------
-# FETCH USER PROFILE
-# ----------------------------------------------------
-profile_rows = supabase_rest_query(
-    "users",
-    filters={"id": user["id"]}
-)
+full_name = st.text_input("Full Name", user.get("full_name", ""))
+email = st.text_input("Email", user.get("email", ""))
 
-if isinstance(profile_rows, dict) and "error" in profile_rows:
-    st.error("Failed to load profile.")
-    st.stop()
+if st.button("Save Changes"):
+    updates = {
+        "full_name": full_name,
+        "email": email
+    }
+    supabase_rest_update("users", {"id": user_id}, updates)
 
-profile = profile_rows[0]
+    # Update session state
+    user["full_name"] = full_name
+    user["email"] = email
+    st.session_state.user = user
 
-st.subheader("🧑 Personal Information")
-
-with st.form("update_profile_form"):
-    full_name = st.text_input("Full Name", value=profile.get("full_name", ""))
-    email = st.text_input("Email", value=profile.get("email", ""))
-
-    submitted = st.form_submit_button("Update Profile")
-
-    if submitted:
-        update_result = supabase_rest_update(
-            "users",
-            filters={"id": user["id"]},
-            updates={
-                "full_name": full_name,
-                "email": email
-            }
-        )
-
-        if isinstance(update_result, dict) and "error" in update_result:
-            st.error("Failed to update profile.")
-        else:
-            st.success("Profile updated successfully!")
-            # Update session
-            st.session_state.user["full_name"] = full_name
-            st.session_state.user["email"] = email
-            st.rerun()
-
-st.write("---")
-
-# ----------------------------------------------------
-# CHANGE PASSWORD
-# ----------------------------------------------------
-st.subheader("🔐 Change Password")
-
-with st.form("change_password_form"):
-    new_password = st.text_input("New Password", type="password")
-    confirm_password = st.text_input("Confirm Password", type="password")
-
-    change_pass = st.form_submit_button("Update Password")
-
-    if change_pass:
-        if new_password != confirm_password:
-            st.warning("Passwords do not match.")
-        elif len(new_password) < 6:
-            st.warning("Password must be at least 6 characters.")
-        else:
-            pwd_update = supabase_rest_update(
-                "users",
-                filters={"id": user["id"]},
-                updates={"password": new_password}
-            )
-
-            if isinstance(pwd_update, dict) and "error" in pwd_update:
-                st.error("Failed to update password.")
-            else:
-                st.success("Password updated successfully!")
-                st.rerun()
+    st.success("Account updated successfully.")

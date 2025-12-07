@@ -1,95 +1,70 @@
 import streamlit as st
-from components.sidebar import show_sidebar
-from services.supabase_client import supabase_rest_query, supabase_rest_update
+from components.sidebar import render_sidebar
+from services.supabase_client import (
+    supabase_rest_query,
+    supabase_rest_update
+)
 
-# ===============================
-# ACCESS CONTROL
-# ===============================
-if "user" not in st.session_state or not st.session_state.user:
-    st.error("Access denied. Please log in as admin.")
-    st.stop()
+st.set_page_config(page_title="Admin Panel | Chumcred", page_icon="🛠️")
 
-user = st.session_state.user
-show_sidebar(user)
+# ----------------------------------------------------
+# AUTH CHECK
+# ----------------------------------------------------
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
 
+user = st.session_state.get("user")
+if not isinstance(user, dict):
+    st.session_state.authenticated = False
+    st.session_state.user = None
+    st.switch_page("app.py")
+
+# Admin check
 if user.get("role") != "admin":
-    st.error("Only admin can view this page.")
+    st.error("Access denied — Admins only.")
     st.stop()
 
-# ===============================
-# PAGE HEADER
-# ===============================
-st.title("🛠 Admin Panel — Manage Activations & Credits")
+user_id = user.get("id")
+
+render_sidebar()
+
+# ----------------------------------------------------
+# PAGE UI
+# ----------------------------------------------------
+st.title("🛠️ Admin Panel")
+st.write("Administrative controls for managing users and subscriptions.")
 st.write("---")
 
-# ===============================
-# FETCH ALL SUBSCRIPTIONS
-# ===============================
-subscriptions = supabase_rest_query("subscriptions")
+# Load all users
+users = supabase_rest_query("users")
 
-if isinstance(subscriptions, dict) and "error" in subscriptions:
-    st.error("Error loading subscriptions table")
-    st.json(subscriptions)
+if not users:
+    st.info("No users found.")
     st.stop()
 
-# ===============================
-# PENDING ACTIVATION REQUESTS
-# ===============================
-st.subheader("📌 Pending Activation Requests")
+st.write(f"### 👥 Total Users: {len(users)}")
 
-pending = [s for s in subscriptions if s.get("status") == "pending"]
+for u in users:
 
-if not pending:
-    st.info("No pending activation requests.")
-else:
-    for sub in pending:
+    uid = u.get("id")
+    full_name = u.get("full_name")
+    email = u.get("email")
+    role = u.get("role", "user")
+
+    with st.expander(f"{full_name} — {email}"):
+
+        st.write(f"**Role:** {role}")
+        st.write(f"**User ID:** {uid}")
         st.write("---")
-        st.markdown(f"### {sub.get('full_name', 'Unknown User')}")
-        st.write(f"📧 **Email:** {sub.get('email')}")
-        st.write(f"📦 **Plan:** {sub.get('plan_name')}")
-        st.write(f"💳 **Amount Paid:** ₦{sub.get('amount')}")
-        st.write(f"🕒 **Requested:** {sub.get('created_at')}")
 
-        # APPROVE BUTTON
-        if st.button(f"Approve Activation — {sub['id']}", key=f"approve_{sub['id']}"):
-            supabase_rest_update(
-                "subscriptions",
-                {"id": sub["id"]},
-                {
-                    "status": "active",
-                    "credits": sub.get("credits", 0),
-                }
-            )
-            st.success("Activation Approved Successfully!")
+        new_role = st.selectbox(
+            "Change Role",
+            ["user", "admin"],
+            index=(0 if role == "user" else 1),
+            key=f"role_{uid}"
+        )
+
+        if st.button("Update Role", key=f"update_{uid}"):
+            supabase_rest_update("users", {"id": uid}, {"role": new_role})
+            st.success("Role updated successfully.")
             st.rerun()
-
-# ===============================
-# ACTIVE SUBSCRIPTIONS LIST
-# ===============================
-st.subheader("🟢 Active Subscriptions")
-
-active = [s for s in subscriptions if s.get("status") == "active"]
-
-if not active:
-    st.info("No active subscriptions.")
-else:
-    for sub in active:
-        st.write("---")
-        st.markdown(f"### {sub.get('full_name')} ({sub.get('email')})")
-        st.write(f"🔥 **Credits Remaining:** {sub.get('credits', 0)}")
-        st.write(f"⏳ **Expires:** {sub.get('expiry_date')}")
-
-# ===============================
-# EXPIRED SUBSCRIPTIONS LIST
-# ===============================
-st.subheader("🔴 Expired Subscriptions")
-
-expired = [s for s in subscriptions if s.get("status") == "expired"]
-
-if not expired:
-    st.info("No expired subscriptions.")
-else:
-    for sub in expired:
-        st.write("---")
-        st.markdown(f"### {sub.get('full_name')} ({sub.get('email')})")
-        st.write(f"❌ **Expired On:** {sub.get('expiry_date')}")

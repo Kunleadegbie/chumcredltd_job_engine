@@ -1,33 +1,116 @@
 import streamlit as st
-from services.auth import login_user
+from supabase import create_client, Client
 
+# -----------------------------
+# PAGE CONFIGURATION
+# -----------------------------
 st.set_page_config(page_title="Chumcred Job Engine", page_icon="🚀")
 
-st.title("🔐 Login to Chumcred Job Engine")
+# -----------------------------
+# INITIALIZE SESSION STATE
+# -----------------------------
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 
-# Create session_state user placeholder
 if "user" not in st.session_state:
     st.session_state.user = None
 
-email = st.text_input("Email Address")
-password = st.text_input("Password", type="password")
 
-if st.button("Login"):
-    user = login_user(email, password)
+# -----------------------------
+# SUPABASE CLIENT
+# -----------------------------
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-    if user:
-        st.session_state.user = user
-        st.success("Login successful!")
 
-        # Correct page routing
-        st.switch_page("pages/2_Dashboard.py")
-    else:
-        st.error("Invalid email or password")
+# -----------------------------
+# AUTH FUNCTIONS
+# -----------------------------
+def login_user(email, password):
+    """Authenticate user via Supabase."""
+    try:
+        res = supabase.table("users_app").select("*").eq("email", email).eq("password", password).execute()
+        if res.data:
+            return res.data[0]
+        return None
+    except Exception as e:
+        st.error("Login error: " + str(e))
+        return None
 
-# Registration link
-st.write("---")
-if st.button("Create an Account"):
-    st.switch_page("pages/1_Registration.py")
+
+def register_user(name, email, password):
+    """Register new user."""
+    try:
+        check = supabase.table("users_app").select("*").eq("email", email).execute()
+        if check.data:
+            return False, "Email already registered."
+
+        data = {
+            "full_name": name,
+            "email": email,
+            "password": password,
+        }
+        supabase.table("users_app").insert(data).execute()
+        return True, "Registration successful."
+    except Exception as e:
+        return False, "Registration error: " + str(e)
+
+
+# -----------------------------
+# AUTH PAGE UI (TABS)
+# -----------------------------
+st.title("🔐 Welcome to Chumcred Job Engine")
+st.write("Please sign in or register to continue.")
+
+tab1, tab2 = st.tabs(["🔓 Sign In", "📝 Register"])
+
+# -----------------------------
+# TAB 1 — SIGN IN
+# -----------------------------
+with tab1:
+    st.subheader("Login to your account")
+    email = st.text_input("Email", key="login_email")
+    password = st.text_input("Password", type="password", key="login_password")
+
+    if st.button("Sign In", key="login_btn"):
+        user = login_user(email, password)
+        if user:
+            st.session_state.authenticated = True
+            st.session_state.user = user
+            st.success("Login successful! Redirecting...")
+            st.rerun()
+        else:
+            st.error("Invalid email or password")
+
+
+# -----------------------------
+# TAB 2 — REGISTER
+# -----------------------------
+with tab2:
+    st.subheader("Create a new account")
+    full_name = st.text_input("Full Name", key="reg_name")
+    reg_email = st.text_input("Email", key="reg_email")
+    reg_password = st.text_input("Password", type="password", key="reg_password")
+    reg_confirm = st.text_input("Confirm Password", type="password", key="reg_confirm")
+
+    if st.button("Register", key="reg_btn"):
+        if reg_password != reg_confirm:
+            st.error("Passwords do not match.")
+        else:
+            success, msg = register_user(full_name, reg_email, reg_password)
+            if success:
+                st.success(msg)
+                st.info("Please sign in using the Login tab.")
+            else:
+                st.error(msg)
+
+
+# -----------------------------
+# AUTO REDIRECT IF LOGGED IN
+# -----------------------------
+if st.session_state.authenticated:
+    st.switch_page("pages/2_Dashboard.py")
 
 st.write("---")
 st.caption("Powered by Chumcred Limited © 2025")

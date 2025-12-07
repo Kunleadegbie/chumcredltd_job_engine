@@ -1,40 +1,71 @@
 import streamlit as st
+from components.sidebar import render_sidebar
 from services.supabase_client import supabase_rest_insert
-from datetime import datetime
 
-st.title("💳 Submit Payment for Subscription Activation")
-st.write("After making payment, submit your payment reference below.")
+st.set_page_config(page_title="Submit Payment | Chumcred", page_icon="💸")
 
-PLANS = {
-    "Monthly (₦3,000)": 3000,
-    "Quarterly (₦7,500)": 7500,
-    "Yearly (₦25,000)": 25000
-}
+# ----------------------------------------------------
+# AUTH CHECK
+# ----------------------------------------------------
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
 
-if "user" not in st.session_state:
-    st.error("You must log in to submit a payment.")
+user = st.session_state.get("user")
+if not isinstance(user, dict):
+    st.session_state.authenticated = False
+    st.session_state.user = None
+    st.switch_page("app.py")
+
+user_id = user.get("id")
+
+render_sidebar()
+
+# ----------------------------------------------------
+# SELECTED PLAN
+# ----------------------------------------------------
+selected = st.session_state.get("selected_plan")
+
+if not selected:
+    st.error("No plan selected. Please choose a plan first.")
     st.stop()
 
-user = st.session_state.user
+plan = selected["plan"]
+amount = selected["amount"]
+credits = selected["credits"]
+days = selected["days"]
 
-plan = st.selectbox("Select Plan", list(PLANS.keys()))
-amount = PLANS[plan]
+# ----------------------------------------------------
+# PAGE UI
+# ----------------------------------------------------
+st.title("💸 Submit Payment")
+st.write("Complete your subscription request.")
+st.write("---")
 
-payment_ref = st.text_input("Payment Reference")
-proof = st.file_uploader("Upload Proof of Payment (Optional)", type=["jpg", "png", "pdf"])
+st.markdown(f"""
+### Selected Plan: **{plan}**
+**Amount:** ₦{amount}  
+**Credits:** {credits}  
+**Duration:** {days} days  
+""")
+
+payment_ref = st.text_input("Enter Your Payment Reference")
 
 if st.button("Submit Payment"):
-    payload = {
-        "user_id": user["id"],
-        "plan_name": plan,
+    if not payment_ref.strip():
+        st.warning("Please enter a valid payment reference.")
+        st.stop()
+
+    # Insert request
+    supabase_rest_insert("payment_requests", {
+        "user_id": user_id,
+        "plan": plan,
         "amount": amount,
         "payment_reference": payment_ref,
-        "status": "pending",
-    }
+        "credits": credits,
+        "days": days,
+        "status": "pending"
+    })
 
-    result = supabase_rest_insert("payment_requests", payload)
-
-    if "error" in result:
-        st.error("Could not submit payment. Try again.")
-    else:
-        st.success("Payment submitted! Admin will review shortly.")
+    st.success("Payment submitted! Pending admin approval.")
+    st.info("You will receive access once your payment is approved.")
+    st.stop()

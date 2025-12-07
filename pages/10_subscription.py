@@ -1,126 +1,69 @@
 import streamlit as st
-from datetime import datetime, timedelta
-from components.sidebar import show_sidebar
+from components.sidebar import render_sidebar
+from services.utils import get_subscription, auto_expire_subscription
 from services.supabase_client import (
     supabase_rest_query,
-    supabase_rest_insert,
-)
-from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
+    supabase_rest_insert
 )
 
-# =========================================================
-#  PAGE ACCESS CONTROL
-# =========================================================
-if "user" not in st.session_state or not st.session_state.user:
-    st.error("Please log in to continue.")
-    st.stop()
+st.set_page_config(page_title="Subscription | Chumcred", page_icon="💳")
 
-user = st.session_state.user
-show_sidebar(user)
+# ----------------------------------------------------
+# AUTH CHECK
+# ----------------------------------------------------
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
 
-# Refresh subscription
-user = auto_expire_subscription(user)
-subscription = get_subscription(user["id"])
+user = st.session_state.get("user")
+if not isinstance(user, dict):
+    st.session_state.authenticated = False
+    st.session_state.user = None
+    st.switch_page("app.py")
 
-# =========================================================
-#  PAGE HEADER
-# =========================================================
+user_id = user.get("id")
+
+render_sidebar()
+
+# ----------------------------------------------------
+# SUBSCRIPTION STATUS
+# ----------------------------------------------------
+auto_expire_subscription(user)
+subscription = get_subscription(user_id)
+
 st.title("💳 Subscription Plans")
-st.write("Choose a plan and submit payment for admin approval.")
+st.write("Select a plan to activate premium features.")
 st.write("---")
 
-# =========================================================
-#  CURRENT SUBSCRIPTION STATUS
-# =========================================================
 if subscription:
-    st.info(
-        f"**Current Plan:** {subscription.get('plan', '-')}\n\n"
-        f"**Status:** {subscription.get('subscription_status', 'inactive')}\n\n"
-        f"**Credits:** {subscription.get('credits', 0)}\n\n"
-        f"**Expiry:** {subscription.get('expiry_date', '-')}"
-    )
-else:
-    st.warning("You have no active subscription.")
+    st.info(f"**Current Status:** {subscription.get('subscription_status')}  
+            **Plan:** {subscription.get('plan')}  
+            **Credits:** {subscription.get('credits')}  
+            **Expiry:** {subscription.get('expiry_date')}")
 
 st.write("---")
 
-# =========================================================
-#  CHECK IF PAYMENT IS ALREADY PENDING
-# =========================================================
-pending = supabase_rest_query("payment_requests", {
-    "user_id": user["id"],
-    "status": "pending"
-})
+# ----------------------------------------------------
+# SUBSCRIPTION OPTIONS
+# ----------------------------------------------------
+st.subheader("Available Plans")
 
-if isinstance(pending, list) and len(pending) > 0:
-    st.info("⏳ Your payment is pending admin approval.")
-    st.stop()
+plans = [
+    {"plan": "Monthly", "amount": 3000, "credits": 100, "days": 30},
+    {"plan": "Quarterly", "amount": 7500, "credits": 300, "days": 90},
+    {"plan": "Yearly", "amount": 25000, "credits": 1200, "days": 365}
+]
 
-# =========================================================
-#  SUBSCRIPTION PLANS
-# =========================================================
-plans = {
-    "Monthly (₦3,000)":  {"price": 3000, "days": 30,  "credits": 100},
-    "Quarterly (₦7,500)": {"price": 7500, "days": 90,  "credits": 300},
-    "Yearly (₦25,000)":  {"price": 25000,"days": 365, "credits": 1200},
-}
+for p in plans:
 
-st.subheader("📦 Available Plans")
+    st.markdown(f"""
+    ### 🔹 {p['plan']}  
+    **Price:** ₦{p['amount']}  
+    **Credits:** {p['credits']}  
+    **Duration:** {p['days']} days  
+    """)
 
-plan_names = list(plans.keys())
-selected = st.selectbox("Select a subscription plan", plan_names)
+    if st.button(f"Subscribe to {p['plan']}", key=p["plan"]):
+        st.session_state.selected_plan = p  # store temporarily
+        st.switch_page("pages/11_Submit_Payment.py")
 
-if selected:
-    details = plans[selected]
-    st.success(
-        f"**Price:** ₦{details['price']:,}\n\n"
-        f"**Duration:** {details['days']} days\n\n"
-        f"**Credits:** {details['credits']}"
-    )
-
-st.write("---")
-
-# =========================================================
-#  PAYMENT SUBMISSION FORM
-# =========================================================
-st.subheader("🧾 Submit Payment Reference")
-
-payment_ref = st.text_input("Enter your payment reference")
-
-if st.button("Submit Payment"):
-
-    if not selected:
-        st.error("Please select a subscription plan.")
-        st.stop()
-
-    if not payment_ref.strip():
-        st.error("Payment reference is required.")
-        st.stop()
-
-    details = plans[selected]
-
-    payload = {
-        "user_id": user["id"],
-        "plan": selected,
-        "amount": details["price"],
-        "days": details["days"],
-        "credits": details["credits"],
-        "payment_reference": payment_ref,
-        "status": "pending",
-        "created_by": user["id"]
-    }
-
-    result = supabase_rest_insert("payment_requests", payload)
-
-    if isinstance(result, dict) and "error" in result:
-        st.error("❌ Failed to submit payment. Try again.")
-        st.stop()
-
-    st.success(
-        "✅ Payment submitted successfully!\n\n"
-        "Your subscription will activate once the admin approves the payment."
-    )
-
-    st.stop()
+    st.write("---")
