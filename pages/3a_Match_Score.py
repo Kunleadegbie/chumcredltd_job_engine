@@ -21,26 +21,29 @@ PROJECT_ROOT = find_project_root()
 if PROJECT_ROOT and PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-# Debug (optional)
-# st.write("PROJECT ROOT:", PROJECT_ROOT)
 
 # ----------------------------------------------------
-# SAFE IMPORTS
+# SAFE IMPORTS (ONLY THESE — do NOT duplicate)
 # ----------------------------------------------------
-from components.sidebar import render_sidebar
-from services.utils import get_subscription, auto_expire_subscription, deduct_credits
-from services.ai_engine import (
+from chumcred_job_engine.components.sidebar import render_sidebar
+
+from chumcred_job_engine.services.utils import (
+    get_subscription,
+    auto_expire_subscription,
+    deduct_credits,
+)
+
+from chumcred_job_engine.services.ai_engine import (
     ai_generate_match_score,
-    ai_extract_skills,
-    ai_generate_cover_letter,
-    ai_check_eligibility,
-    ai_generate_resume
 )
 
 
+# ----------------------------------------------------
+# PAGE CONFIG
+# ----------------------------------------------------
 COST = 5
-
 st.set_page_config(page_title="Match Score | Chumcred", page_icon="📊")
+
 
 # ----------------------------------------------------
 # AUTH CHECK
@@ -54,9 +57,16 @@ if not isinstance(user, dict):
 
 user_id = user["id"]
 
+
+# ----------------------------------------------------
+# SIDEBAR
+# ----------------------------------------------------
 render_sidebar()
 
+
+# ----------------------------------------------------
 # SUBSCRIPTION HANDLING
+# ----------------------------------------------------
 auto_expire_subscription(user)
 subscription = get_subscription(user_id)
 
@@ -66,6 +76,7 @@ if not subscription or subscription.get("subscription_status") != "active":
 
 credits = subscription.get("credits", 0)
 
+
 # ----------------------------------------------------
 # PAGE UI
 # ----------------------------------------------------
@@ -74,6 +85,7 @@ st.info(f"💳 Credits Available: **{credits}**")
 
 resume_text = st.text_area("Paste your Resume Content")
 job_description = st.text_area("Paste the Job Description")
+
 
 if st.button(f"Run Match Score (Cost {COST} credits)", disabled=credits < COST):
 
@@ -86,6 +98,7 @@ if st.button(f"Run Match Score (Cost {COST} credits)", disabled=credits < COST):
         st.error(new_credit_balance)
         st.stop()
 
+    # Refresh subscription after deduction
     st.session_state.subscription = get_subscription(user_id)
 
     st.success(f"✔ {COST} credits deducted. New balance: {new_credit_balance}")
