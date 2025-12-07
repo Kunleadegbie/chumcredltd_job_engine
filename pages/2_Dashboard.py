@@ -1,58 +1,53 @@
 import streamlit as st
 from components.sidebar import show_sidebar
+from components.popup import show_popup
 from services.utils import (
     get_subscription,
     auto_expire_subscription,
 )
 from services.supabase_client import supabase_rest_query
 
+# ==========================================================
+# ALWAYS load live subscription (never use cached session)
+# ==========================================================
+from services.utils import get_subscription, auto_expire_subscription
 
-# ==========================================================
-# ACCESS CONTROL
-# ==========================================================
-if "user" not in st.session_state or st.session_state.user is None:
-    st.switch_page("pages/0_Login.py")  # go to login screen
+# PAGE ACCESS CONTROL
+if "user" not in st.session_state or not st.session_state.user:
+    st.error("You must log in to continue.")
     st.stop()
 
-user = st.session_state.user
+user = st.session_state.user  # login info only (email, name)
 user_id = user["id"]
 
+# Always fetch fresh data from Supabase
+subscription = get_subscription(user_id)
 
-# ==========================================================
-# LOAD SIDEBAR
-# ==========================================================
-show_sidebar(user)
+# Auto-expire if needed
+auto_expire_subscription(user)
 
-
-# ==========================================================
-# REFRESH SUBSCRIPTION LIVE
-# ==========================================================
-auto_expire_subscription(user)  # Run expiry logic
-subscription = get_subscription(user_id)  # Always fresh pull
-
-
-# ==========================================================
-# EXTRACT SUBSCRIPTION DETAILS
-# ==========================================================
+# Extract fresh values
 status = subscription.get("subscription_status", "inactive") if subscription else "inactive"
 credits = subscription.get("credits", 0) if subscription else 0
 expiry_date = subscription.get("expiry_date") if subscription else None
 plan = subscription.get("plan", "-") if subscription else "-"
 
+# Load sidebar
+show_sidebar(user)
 
-# ==========================================================
-# PAGE HEADER
-# ==========================================================
+# ==========================================
+# TOP HEADER
+# ==========================================
 st.title("🚀 Chumcred Job Engine — Dashboard")
 
-st.write(f"### 👋 Welcome, *{user.get('full_name', 'User')}*")
-st.write("Manage your AI tools, subscription and job activities below.")
+full_name = user.get("full_name", "User")
+st.write(f"### 👋 Welcome, *{full_name}*")
+st.write("Use the menu on the left to navigate your AI job tools.")
 st.write("---")
 
-
-# ==========================================================
-# PENDING PAYMENT BANNER
-# ==========================================================
+# ==========================================
+# PENDING PAYMENT NOTICE
+# ==========================================
 pending = supabase_rest_query("payment_requests", {
     "user_id": user_id,
     "status": "pending"
@@ -61,10 +56,9 @@ pending = supabase_rest_query("payment_requests", {
 if isinstance(pending, list) and len(pending) > 0:
     st.info("⏳ You have a pending payment awaiting admin approval.")
 
-
-# ==========================================================
-# SUBSCRIPTION SUMMARY PANEL
-# ==========================================================
+# ==========================================
+# SUBSCRIPTION PANEL (Correct Version)
+# ==========================================
 col1, col2, col3 = st.columns([1.2, 1, 1])
 
 with col1:
@@ -72,36 +66,31 @@ with col1:
     if status == "active":
         st.success(f"ACTIVE — {plan}")
     elif status == "expired":
-        st.error("❌ EXPIRED — Please renew to continue.")
+        st.error("❌ EXPIRED — Renew subscription.")
     else:
-        st.warning("⚠ No active subscription")
+        st.warning("⚠ NO ACTIVE SUBSCRIPTION")
 
 with col2:
     st.markdown("### 💳 Credits Available")
-    st.metric("Remaining Credits", credits)
+    st.metric(label="Remaining Credits", value=credits)
 
 with col3:
     st.markdown("### 📅 Expiry Date")
-    st.info(expiry_date or "-")
+    st.info(expiry_date if expiry_date else "-")
 
 st.write("---")
 
-
-# ==========================================================
-# BLOCK ACCESS IF SUBSCRIPTION IS NOT ACTIVE
-# ==========================================================
+# ==========================================
+# NO ACTIVE SUBSCRIPTION → STOP USER
+# ==========================================
 if status != "active":
-    st.warning("You need an active subscription to continue using the AI tools.")
-
-    if st.button("💳 Activate Subscription"):
-        st.switch_page("pages/10_Subscription.py")
-
+    if st.button("💳 Submit Payment for Activation"):
+        st.switch_page("pages/11_Submit_Payment.py")
     st.stop()
 
-
-# ==========================================================
-# QUICK ACCESS BUTTONS
-# ==========================================================
+# ==========================================
+# QUICK ACTIONS
+# ==========================================
 st.subheader("⚡ Quick Actions")
 
 colA, colB, colC = st.columns(3)
@@ -111,18 +100,14 @@ with colA:
         st.switch_page("pages/3_Job_Search.py")
 
 with colB:
-    if st.button("💾 View Saved Jobs"):
+    if st.button("💼 View Saved Jobs"):
         st.switch_page("pages/4_Saved_Jobs.py")
 
 with colC:
-    if st.button("👤 Profile / Settings"):
+    if st.button("📊 My Profile / Settings"):
         st.switch_page("pages/7_Profile.py")
 
 st.write("---")
 
-
-# ==========================================================
-# ANALYTICS PLACEHOLDER
-# ==========================================================
-st.subheader("📈 Your Usage Summary (Coming Soon)")
-st.info("Your AI activity, job searches and analytics will appear here.")
+st.subheader("📈 Your Usage Summary (coming soon)")
+st.info("Your job searches, AI actions, and usage analytics will appear here.")
