@@ -30,7 +30,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 def login_user(email, password):
     """Authenticate user via Supabase."""
     try:
-        res = supabase.table("users_app").select("*").eq("email", email).eq("password", password).execute()
+        res = supabase.table("users").select("*").eq("email", email).eq("password", password).execute()
         if res.data:
             return res.data[0]
         return None
@@ -42,7 +42,7 @@ def login_user(email, password):
 def register_user(name, email, password):
     """Register new user."""
     try:
-        check = supabase.table("users_app").select("*").eq("email", email).execute()
+        check = supabase.table("users").select("*").eq("email", email).execute()
         if check.data:
             return False, "Email already registered."
 
@@ -51,7 +51,7 @@ def register_user(name, email, password):
             "email": email,
             "password": password,
         }
-        supabase.table("users_app").insert(data).execute()
+        supabase.table("users").insert(data).execute()
         return True, "Registration successful."
     except Exception as e:
         return False, "Registration error: " + str(e)
