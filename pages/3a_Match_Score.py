@@ -1,42 +1,32 @@
 import sys, os
 import streamlit as st
 
-st.write("DEBUG — Current Working Directory:", os.getcwd())
 
-st.write("DEBUG — Files in root:")
-st.write(os.listdir("."))
-
-st.write("DEBUG — Files in parent:")
-st.write(os.listdir(".."))
-
-st.write("DEBUG — Files in /services folder (if exists):")
-try:
-    st.write(os.listdir("../services"))
-except:
-    st.write("services folder NOT FOUND")
-
-st.write("DEBUG — Files in same directory:")
-st.write(os.listdir(os.path.dirname(os.path.abspath(__file__))))
-
-
-# ---------------------------
+# --------------------------------------------
 # FIX IMPORT PATHS FOR STREAMLIT CLOUD
-# ---------------------------
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# --------------------------------------------
 
+# Get the absolute project root
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Add project root to path
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
+
+# Debug (optional)
+# st.write("USING PROJECT ROOT:", PROJECT_ROOT)
+
+# Now imports will always work
 from components.sidebar import render_sidebar
-from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits
-)
+from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from services.ai_engine import (
-    ai_generate_match_score,       # only needed in Match Score
-    ai_extract_skills,            # only needed in Skills
-    ai_generate_cover_letter,     # only needed in Cover Letter
-    ai_check_eligibility,         # only needed in Eligibility
-    ai_generate_resume            # only needed in Resume Writer
+    ai_generate_match_score,
+    ai_extract_skills,
+    ai_generate_cover_letter,
+    ai_check_eligibility,
+    ai_generate_resume,
 )
+
 
 COST = 5
 
