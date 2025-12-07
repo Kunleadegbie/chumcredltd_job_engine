@@ -1,25 +1,30 @@
-import os
+import sys, os
+
+# ----------------------------------------------------
+# FORCE PYTHON TO LOAD THE ROOT PACKAGE FIRST
+# ----------------------------------------------------
+PAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(PAGE_DIR)
+
+# Insert both page directory and root directory
+if PAGE_DIR not in sys.path:
+    sys.path.insert(0, PAGE_DIR)
+
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 import streamlit as st
 
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Now these imports WILL resolve
+from services.utils import (
+    get_subscription,
+    auto_expire_subscription,
+    deduct_credits,
+)
 
-st.write("BASE PATH:", BASE)
+from services.ai_engine import ai_generate_match_score
+from components.sidebar import render_sidebar
 
-# Check what files really exist
-st.write("ROOT CONTENTS:", os.listdir(BASE))
-
-# Check if services folder exists at all
-services_path = os.path.join(BASE, "services")
-st.write("SERVICES FOLDER EXISTS:", os.path.isdir(services_path))
-
-# If exists, list contents
-if os.path.isdir(services_path):
-    st.write("SERVICES CONTENTS:", os.listdir(services_path))
-else:
-    st.write("NO SERVICES FOLDER IN DEPLOYMENT")
-
-
-import sys, os
 
 # ----------------------------------------------------
 # FORCE ADD PROJECT ROOT
