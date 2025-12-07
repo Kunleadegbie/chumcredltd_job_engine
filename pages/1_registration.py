@@ -1,26 +1,25 @@
 import streamlit as st
 from services.auth import register_user
-from services.auth import hash_password
 
-st.title("📝 Create a New Account")
-st.write("Fill in your details to register.")
+st.title("📝 Create Your Chumcred Account")
+
+if "user" not in st.session_state:
+    st.session_state.user = None
 
 full_name = st.text_input("Full Name")
 email = st.text_input("Email Address")
 password = st.text_input("Password", type="password")
 
 if st.button("Register"):
-    if not full_name or not email or not password:
-        st.error("All fields are required.")
-        st.stop()
+    ok, result = register_user(full_name, email, password)
 
-    hashed = hash_password(password)
+    if ok:
+        st.success("Account created successfully! Please login.")
+        st.switch_page("0_Login.py")
+    else:
+        st.error(result)
 
-    success, msg = register_user(full_name, email, hashed)
-
-    if not success:
-        st.error(msg)
-        st.stop()
-
-    st.success("Account created! You can now login.")
-    st.switch_page("../app.py")
+# Login link
+st.write("---")
+if st.button("Already Have an Account? Login"):
+    st.switch_page("0_Login.py")
