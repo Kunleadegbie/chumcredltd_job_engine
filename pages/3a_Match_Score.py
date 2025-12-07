@@ -1,6 +1,24 @@
 import sys, os
 import streamlit as st
 
+st.write("DEBUG — Current Working Directory:", os.getcwd())
+
+st.write("DEBUG — Files in root:")
+st.write(os.listdir("."))
+
+st.write("DEBUG — Files in parent:")
+st.write(os.listdir(".."))
+
+st.write("DEBUG — Files in /services folder (if exists):")
+try:
+    st.write(os.listdir("../services"))
+except:
+    st.write("services folder NOT FOUND")
+
+st.write("DEBUG — Files in same directory:")
+st.write(os.listdir(os.path.dirname(os.path.abspath(__file__))))
+
+
 # ---------------------------
 # FIX IMPORT PATHS FOR STREAMLIT CLOUD
 # ---------------------------
