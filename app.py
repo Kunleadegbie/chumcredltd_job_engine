@@ -1,3 +1,21 @@
+import os
+import streamlit as st
+
+# -------------------------------------------------------
+# FORCE DELETE WRONG FILE IN STREAMLIT CLOUD DEPLOYMENT
+# -------------------------------------------------------
+try:
+    ROOT = os.path.dirname(os.path.abspath(__file__))
+    BAD_FILE = os.path.join(ROOT, "init.py")
+
+    if os.path.exists(BAD_FILE):
+        os.remove(BAD_FILE)
+        st.success(f"Deleted WRONG init.py at: {BAD_FILE}")
+    else:
+        st.info(f"No init.py file found at: {BAD_FILE}")
+except Exception as e:
+    st.error(f"Deletion error: {e}")
+
 import streamlit as st
 from services.supabase_client import supabase   # ✅ SINGLE UNIFIED CLIENT
 
