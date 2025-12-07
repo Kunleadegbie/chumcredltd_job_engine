@@ -1,21 +1,20 @@
+import sys, os
+
+# ----------------------------------------------------
+# FORCE ADD PROJECT ROOT
+# ----------------------------------------------------
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 import streamlit as st
-from components.sidebar import render_sidebar
 from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits
-)
-from services.ai_engine import ai_generate_match_score
-
-from chumcred_job_engine.components.sidebar import render_sidebar
-
-from chumcred_job_engine.services.utils import (
     get_subscription,
     auto_expire_subscription,
     deduct_credits,
 )
-
-from chumcred_job_engine.services.ai_engine import ai_generate_match_score
+from services.ai_engine import ai_generate_match_score
+from components.sidebar import render_sidebar
 
 
 COST = 5
