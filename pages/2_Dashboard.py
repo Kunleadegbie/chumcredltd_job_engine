@@ -5,90 +5,91 @@ from services.utils import get_subscription, auto_expire_subscription
 st.set_page_config(page_title="Dashboard | Chumcred Job Engine", page_icon="🚀")
 
 # ----------------------------------------------------
-# ACCESS CONTROL
+# ACCESS CONTROL (SAFE FOR STREAMLIT CLOUD)
 # ----------------------------------------------------
 if "user" not in st.session_state or not st.session_state.user:
-    st.switch_page("0_Login.py")
+    st.warning("Redirecting to login…")
+    st.experimental_set_query_params(page="0_Login")  
+    st.stop()
 
 user = st.session_state.user
 user_id = user["id"]
 
-# Always fetch fresh subscription data
+# ----------------------------------------------------
+# ALWAYS LOAD LIVE SUBSCRIPTION
+# ----------------------------------------------------
 auto_expire_subscription(user)
 subscription = get_subscription(user_id)
-
-if subscription:
-    st.session_state.subscription = subscription
-else:
-    st.session_state.subscription = None
+st.session_state.subscription = subscription
 
 # ----------------------------------------------------
-# DRAW SIDEBAR
+# SIDEBAR
 # ----------------------------------------------------
 show_sidebar(user)
 
-# Reload subscription after sidebar initializes
-subscription = st.session_state.subscription
-
+# ----------------------------------------------------
+# SUBSCRIPTION DETAILS
+# ----------------------------------------------------
 status = subscription.get("subscription_status", "inactive") if subscription else "inactive"
 credits = subscription.get("credits", 0) if subscription else 0
 plan = subscription.get("plan", "-") if subscription else "-"
-expiry_date = subscription.get("expiry_date", "-") if subscription else "-"
+expiry = subscription.get("expiry_date", "-") if subscription else "-"
 
 # ----------------------------------------------------
-# DASHBOARD UI
+# UI
 # ----------------------------------------------------
 st.title("🚀 Chumcred Job Engine — Dashboard")
-
 st.write(f"### 👋 Welcome, **{user.get('full_name', 'User')}**")
-st.write("Use the menu on the left to explore your AI-powered job tools.")
 st.write("---")
 
-# Subscription panel
-col1, col2, col3 = st.columns([1, 1, 1])
+col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.markdown("### 🔐 Subscription Status")
+    st.markdown("### 🔐 Subscription")
     if status == "active":
         st.success(f"ACTIVE — {plan}")
     elif status == "expired":
-        st.error("❌ EXPIRED — Please renew.")
+        st.error("❌ EXPIRED — Renew now")
     else:
-        st.warning("⚠ NO ACTIVE SUBSCRIPTION")
+        st.warning("⚠ NO SUBSCRIPTION")
 
 with col2:
-    st.markdown("### 💳 Credits Available")
-    st.metric(label="Remaining Credits", value=credits)
+    st.markdown("### 💳 Credits")
+    st.metric("Remaining", credits)
 
 with col3:
-    st.markdown("### 📅 Expiry Date")
-    st.info(expiry_date)
+    st.markdown("### 📅 Expiry")
+    st.info(expiry)
 
 st.write("---")
 
-# Block usage if inactive
+# ----------------------------------------------------
+# BLOCK FEATURES IF INACTIVE
+# ----------------------------------------------------
 if status != "active":
-    st.warning("You must activate your subscription to use AI tools.")
+    st.warning("You need an active subscription to use AI tools.")
     if st.button("💳 Activate Subscription"):
-        st.switch_page("10_Subscription.py")
+        st.experimental_set_query_params(page="10_Subscription")
     st.stop()
 
-# Quick Actions
+# ----------------------------------------------------
+# QUICK ACTIONS
+# ----------------------------------------------------
 st.subheader("⚡ Quick Actions")
 
 c1, c2, c3 = st.columns(3)
 
 with c1:
-    if st.button("🔍 Search Global Jobs"):
-        st.switch_page("3_Job_Search.py")
+    if st.button("🔍 Search Jobs"):
+        st.experimental_set_query_params(page="3_Job_Search")
 
 with c2:
-    if st.button("💼 View Saved Jobs"):
-        st.switch_page("4_Saved_Jobs.py")
+    if st.button("💾 Saved Jobs"):
+        st.experimental_set_query_params(page="4_Saved_Jobs")
 
 with c3:
-    if st.button("📊 Profile / Settings"):
-        st.switch_page("7_Profile.py")
+    if st.button("👤 Profile"):
+        st.experimental_set_query_params(page="7_Profile")
 
 st.write("---")
-st.info("Your activity analytics will appear here soon.")
+st.info("Analytics coming soon…")
