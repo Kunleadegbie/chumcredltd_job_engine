@@ -4,6 +4,28 @@ from services.utils import get_subscription, auto_expire_subscription
 
 st.set_page_config(page_title="Dashboard | Chumcred Job Engine", page_icon="🚀")
 
+# -------- SAFE SESSION SETUP --------
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.switch_page("pages/0_Login.py")
+
+# Validate user object
+user = st.session_state.get("user")
+
+if not isinstance(user, dict):
+    st.session_state.authenticated = False
+    st.switch_page("pages/0_Login.py")
+
+# Safe access
+user_id = user.get("id")
+
+# -------- PAGE UI --------
+st.title("Dashboard")
+render_sidebar()
+
+
 # ----------------------------------------------------
 # ACCESS CONTROL (SAFE FOR STREAMLIT CLOUD)
 # ----------------------------------------------------
