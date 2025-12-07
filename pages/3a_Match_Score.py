@@ -1,22 +1,32 @@
 import sys, os
 import streamlit as st
 
+# ----------------------------------------------------
+# FIX IMPORT PATHS ABSOLUTELY FOR STREAMLIT CLOUD
+# ----------------------------------------------------
 
-# --------------------------------------------
-# FIX IMPORT PATHS FOR STREAMLIT CLOUD
-# --------------------------------------------
+# Step 1: Find the project root by searching for app.py
+def find_project_root():
+    current = os.path.abspath(__file__)
+    while True:
+        current = os.path.dirname(current)
+        if "app.py" in os.listdir(current):
+            return current
+        if current == "/" or current == "":
+            break
+    return None
 
-# Get the absolute project root
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = find_project_root()
 
-# Add project root to path
-if PROJECT_ROOT not in sys.path:
-    sys.path.append(PROJECT_ROOT)
+if PROJECT_ROOT and PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 # Debug (optional)
-# st.write("USING PROJECT ROOT:", PROJECT_ROOT)
+# st.write("PROJECT ROOT:", PROJECT_ROOT)
 
-# Now imports will always work
+# ----------------------------------------------------
+# SAFE IMPORTS
+# ----------------------------------------------------
 from components.sidebar import render_sidebar
 from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from services.ai_engine import (
@@ -24,7 +34,7 @@ from services.ai_engine import (
     ai_extract_skills,
     ai_generate_cover_letter,
     ai_check_eligibility,
-    ai_generate_resume,
+    ai_generate_resume
 )
 
 
