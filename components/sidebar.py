@@ -1,25 +1,32 @@
 import streamlit as st
 
-def show_sidebar(user):
-    full_name = user.get("full_name", "User")
-    email = user.get("email", "-")
+def render_sidebar():
+    # Avoid ANY redirect in sidebar at import time
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+
+    if not st.session_state.authenticated:
+        st.sidebar.warning("Please log in")
+        return
+
+    user = st.session_state.get("user", {})
 
     with st.sidebar:
-        st.markdown("## 🌍 Chumcred Job Engine")
-        st.write(f"**{full_name}**")
-        st.caption(email)
-        st.write("---")
+        st.markdown(f"### 👤 {user.get('full_name', '')}")
+        st.markdown("---")
 
-        st.page_link("2_Dashboard.py", label="🏠 Dashboard")
-        st.page_link("3_Job_Search.py", label="🔍 Job Search")
-        st.page_link("4_Saved_Jobs.py", label="💾 Saved Jobs")
-        st.page_link("7_Profile.py", label="👤 Profile / Settings")
-        st.page_link("10_Subscription.py", label="💳 Subscription")
+        if st.button("🏠 Dashboard"):
+            st.switch_page("pages/2_Dashboard.py")
 
-        st.write("---")
+        if st.button("🔍 Job Search"):
+            st.switch_page("pages/3_Job_Search.py")
 
-        # Logout button
-        if st.button("🚪 Log Out"):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.switch_page("0_Login.py")
+        if st.button("💼 My Applications"):
+            st.switch_page("pages/4_My_Applications.py")
+
+        st.markdown("---")
+
+        if st.button("🚪 Logout"):
+            st.session_state.authenticated = False
+            st.session_state.user = None
+            st.rerun()

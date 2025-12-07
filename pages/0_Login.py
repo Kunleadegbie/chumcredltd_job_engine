@@ -1,32 +1,35 @@
 import streamlit as st
-from services.auth import login_user
+from supabase import create_client, Client
+from utils.auth import login_user
 
-st.set_page_config(page_title="Login | Chumcred Job Engine", page_icon="🔐")
+st.set_page_config(page_title="Login", page_icon="🔐")
 
-# ----------------------------------------------------
-# CLEAR OLD SESSION ON LOGIN PAGE
-# ----------------------------------------------------
-if "user" in st.session_state:
-    del st.session_state["user"]
+# --- Ensure session keys exist ---
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
 
-if "subscription" in st.session_state:
-    del st.session_state["subscription"]
+if "user" not in st.session_state:
+    st.session_state.user = None
 
-# ----------------------------------------------------
-# LOGIN UI
-# ----------------------------------------------------
 st.title("🔐 Login to Chumcred Job Engine")
-st.write("Enter your credentials to access your dashboard.")
 
-email = st.text_input("Email Address")
+email = st.text_input("Email")
 password = st.text_input("Password", type="password")
+login_button = st.button("Login")
 
-if st.button("Login"):
-    user, error = login_user(email, password)
+if login_button:
+    user = login_user(email, password)
 
-    if error:
-        st.error(error)
-    else:
+    if user:
+        st.session_state.authenticated = True
         st.session_state.user = user
-        st.success("Login successful!")
-        st.switch_page("2_Dashboard.py")
+        st.success("Login successful... redirecting")
+
+        # --- Safe redirect after UI has rendered ---
+        st.rerun()
+    else:
+        st.error("Invalid login details")
+
+# If already logged in → send to dashboard
+if st.session_state.authenticated:
+    st.switch_page("pages/2_Dashboard.py")

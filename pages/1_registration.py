@@ -1,59 +1,32 @@
 import streamlit as st
-from services.supabase_client import supabase_rest_insert, supabase_rest_query
-from services.auth import hash_password
+from utils.auth import register_user
 
-# ==========================================================
-# PREVENT ACCESS IF USER IS ALREADY LOGGED IN
-# ==========================================================
-if "user" in st.session_state and st.session_state.user:
-    st.switch_page("pages/2_Dashboard.py")
-    st.stop()
+st.set_page_config(page_title="Register", page_icon="📝")
 
-# ==========================================================
-# PAGE UI
-# ==========================================================
+# Ensure session keys
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
 st.title("📝 Create Your Account")
-st.write("Register to access the Chumcred Global Job Engine.")
-st.write("---")
 
 full_name = st.text_input("Full Name")
-email = st.text_input("Email Address")
+email = st.text_input("Email")
 password = st.text_input("Password", type="password")
 
-if st.button("Create Account"):
-    if not full_name or not email or not password:
-        st.error("All fields are required.")
-        st.stop()
+register_btn = st.button("Register")
 
-    # Check if email exists
-    existing = supabase_rest_query("users", {"email": email})
-    if isinstance(existing, list) and len(existing) > 0:
-        st.error("An account with this email already exists.")
-        st.stop()
+if register_btn:
+    success, message = register_user(full_name, email, password)
 
-    # Hash password
-    hashed_pw = hash_password(password)
+    if success:
+        st.success("Registration successful! Please log in.")
+        st.info("Redirecting to login...")
 
-    # Prepare user record
-    data = {
-        "full_name": full_name,
-        "email": email,
-        "password": hashed_pw,
-        "role": "user",
-        "status": "active",
-        "is_active": True,
-    }
+        # Safe redirect back to login
+        st.switch_page("pages/0_Login.py")
+    else:
+        st.error(message)
 
-    # Insert new user
-    result = supabase_rest_insert("users", data)
-
-    # Handle Supabase errors
-    if isinstance(result, dict) and "error" in str(result).lower():
-        st.error(f"Registration error: {result}")
-        st.stop()
-
-    # Auto-login after successful registration
-    st.session_state.user = result[0]
-    st.success("Account created successfully!")
-
+# If user is already authenticated → prevent landing here
+if st.session_state.authenticated:
     st.switch_page("pages/2_Dashboard.py")

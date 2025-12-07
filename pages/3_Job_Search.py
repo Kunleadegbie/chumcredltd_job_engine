@@ -9,6 +9,13 @@ from services.utils import (
 from services.database import fetch_global_jobs
 
 
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.switch_page("pages/0_Login.py")
+
+
 # ==========================================================
 # ACCESS CONTROL
 # ==========================================================
