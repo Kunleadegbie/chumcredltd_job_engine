@@ -1,107 +1,94 @@
 import streamlit as st
 from components.sidebar import show_sidebar
 from services.utils import get_subscription, auto_expire_subscription
-from services.supabase_client import supabase_rest_query
 
-# ---------------------------------------------
-# ACCESS CONTROL — DO NOT REDIRECT TOO EARLY
-# ---------------------------------------------
-if "user" not in st.session_state:
-    st.session_state.user = None
+st.set_page_config(page_title="Dashboard | Chumcred Job Engine", page_icon="🚀")
 
-if st.session_state.user is None:
-    st.error("You must log in to continue.")
-    st.stop()
+# ----------------------------------------------------
+# ACCESS CONTROL
+# ----------------------------------------------------
+if "user" not in st.session_state or not st.session_state.user:
+    st.switch_page("0_Login.py")
 
 user = st.session_state.user
 user_id = user["id"]
 
-# ---------------------------------------------
-# FETCH LIVE SUBSCRIPTION
-# ---------------------------------------------
-subscription = get_subscription(user_id)
+# Always fetch fresh subscription data
 auto_expire_subscription(user)
+subscription = get_subscription(user_id)
+
+if subscription:
+    st.session_state.subscription = subscription
+else:
+    st.session_state.subscription = None
+
+# ----------------------------------------------------
+# DRAW SIDEBAR
+# ----------------------------------------------------
+show_sidebar(user)
+
+# Reload subscription after sidebar initializes
+subscription = st.session_state.subscription
 
 status = subscription.get("subscription_status", "inactive") if subscription else "inactive"
 credits = subscription.get("credits", 0) if subscription else 0
-expiry_date = subscription.get("expiry_date") if subscription else None
 plan = subscription.get("plan", "-") if subscription else "-"
+expiry_date = subscription.get("expiry_date", "-") if subscription else "-"
 
-# ---------------------------------------------
-# SIDEBAR
-# ---------------------------------------------
-show_sidebar(user)
-
-# ---------------------------------------------
-# HEADER
-# ---------------------------------------------
+# ----------------------------------------------------
+# DASHBOARD UI
+# ----------------------------------------------------
 st.title("🚀 Chumcred Job Engine — Dashboard")
-st.write(f"### 👋 Welcome, **{user.get('full_name', '')}**")
+
+st.write(f"### 👋 Welcome, **{user.get('full_name', 'User')}**")
+st.write("Use the menu on the left to explore your AI-powered job tools.")
 st.write("---")
 
-# ---------------------------------------------
-# PENDING PAYMENT
-# ---------------------------------------------
-pending = supabase_rest_query(
-    "payment_requests",
-    {"user_id": user_id, "status": "pending"}
-)
-
-if isinstance(pending, list) and pending:
-    st.info("⏳ Your payment is awaiting admin approval.")
-
-# ---------------------------------------------
-# SUBSCRIPTION PANEL
-# ---------------------------------------------
-col1, col2, col3 = st.columns([1.2, 1, 1])
+# Subscription panel
+col1, col2, col3 = st.columns([1, 1, 1])
 
 with col1:
     st.markdown("### 🔐 Subscription Status")
     if status == "active":
         st.success(f"ACTIVE — {plan}")
     elif status == "expired":
-        st.error("❌ EXPIRED — Renew subscription.")
+        st.error("❌ EXPIRED — Please renew.")
     else:
         st.warning("⚠ NO ACTIVE SUBSCRIPTION")
 
 with col2:
     st.markdown("### 💳 Credits Available")
-    st.metric("Remaining Credits", credits)
+    st.metric(label="Remaining Credits", value=credits)
 
 with col3:
     st.markdown("### 📅 Expiry Date")
-    st.info(expiry_date if expiry_date else "-")
+    st.info(expiry_date)
 
 st.write("---")
 
-# ---------------------------------------------
-# STOP USERS WITHOUT ACTIVE SUBSCRIPTION
-# ---------------------------------------------
+# Block usage if inactive
 if status != "active":
+    st.warning("You must activate your subscription to use AI tools.")
     if st.button("💳 Activate Subscription"):
         st.switch_page("10_Subscription.py")
     st.stop()
 
-# ---------------------------------------------
-# QUICK ACTIONS
-# ---------------------------------------------
+# Quick Actions
 st.subheader("⚡ Quick Actions")
 
-colA, colB, colC = st.columns(3)
+c1, c2, c3 = st.columns(3)
 
-with colA:
+with c1:
     if st.button("🔍 Search Global Jobs"):
         st.switch_page("3_Job_Search.py")
 
-with colB:
-    if st.button("💾 Saved Jobs"):
+with c2:
+    if st.button("💼 View Saved Jobs"):
         st.switch_page("4_Saved_Jobs.py")
 
-with colC:
-    if st.button("⚙ Profile / Settings"):
+with c3:
+    if st.button("📊 Profile / Settings"):
         st.switch_page("7_Profile.py")
 
 st.write("---")
-
-st.subheader("📈 Usage Analytics (coming soon)")
-st.info("Your job searches, AI actions, and usage analytics will appear here.")
+st.info("Your activity analytics will appear here soon.")

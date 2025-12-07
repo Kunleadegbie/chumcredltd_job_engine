@@ -1,39 +1,25 @@
 import streamlit as st
 
 def show_sidebar(user):
-    with st.sidebar:
-        st.title("Chumcred Job Engine")
+    full_name = user.get("full_name", "User")
+    email = user.get("email", "-")
 
-        st.write(f"**{user.get('full_name')}**")
-        st.write(f"{user.get('email')}")
+    with st.sidebar:
+        st.markdown("## 🌍 Chumcred Job Engine")
+        st.write(f"**{full_name}**")
+        st.caption(email)
         st.write("---")
 
-        page = st.radio("Navigation", [
-            "Dashboard",
-            "Job Search",
-            "Saved Jobs",
-            "AI Tools",
-            "Profile",
-            "Logout"
-        ])
+        st.page_link("2_Dashboard.py", label="🏠 Dashboard")
+        st.page_link("3_Job_Search.py", label="🔍 Job Search")
+        st.page_link("4_Saved_Jobs.py", label="💾 Saved Jobs")
+        st.page_link("7_Profile.py", label="👤 Profile / Settings")
+        st.page_link("10_Subscription.py", label="💳 Subscription")
 
-        # --- Correct Streamlit Cloud routing ---
-        if page == "Dashboard":
-            st.switch_page("pages/2_Dashboard.py")
+        st.write("---")
 
-        elif page == "Job Search":
-            st.switch_page("pages/3_Job_Search.py")
-
-        elif page == "Saved Jobs":
-            st.switch_page("pages/4_Saved_Jobs.py")
-
-        elif page == "AI Tools":
-            st.switch_page("pages/3a_Match_Score.py")
-
-        elif page == "Profile":
-            st.switch_page("pages/7_Profile.py")
-
-        elif page == "Logout":
-            st.session_state.user = None
-            st.success("Logged out successfully.")
-            st.switch_page("app.py")
+        # Logout button
+        if st.button("🚪 Log Out"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.switch_page("0_Login.py")
