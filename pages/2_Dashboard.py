@@ -1,5 +1,5 @@
 import streamlit as st
-from components.sidebar import show_sidebar
+from components.sidebar import render_sidebar
 from services.utils import get_subscription, auto_expire_subscription
 
 st.set_page_config(page_title="Dashboard | Chumcred Job Engine", page_icon="🚀")

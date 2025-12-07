@@ -1,7 +1,6 @@
 import streamlit as st
 
-def render_sidebar():
-    # Avoid ANY redirect in sidebar at import time
+def show_sidebar():
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
 
