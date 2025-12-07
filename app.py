@@ -1,6 +1,19 @@
 import streamlit as st
 from supabase import create_client, Client
 
+import streamlit as st
+from services.supabase_client import supabase
+
+st.write("CHECK 1 — Supabase URL:", st.secrets.get("SUPABASE_URL"))
+st.write("CHECK 2 — Client Created:", supabase is not None)
+
+try:
+    test = supabase.table("users").select("*").limit(1).execute()
+    st.write("CHECK 3 — Test Query:", test.data)
+except Exception as e:
+    st.error(f"CHECK 3 ERROR: {e}")
+
+
 # -----------------------------
 # PAGE CONFIGURATION
 # -----------------------------
