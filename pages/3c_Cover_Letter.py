@@ -1,11 +1,25 @@
+import sys, os
 import streamlit as st
+
+# ---------------------------
+# FIX IMPORT PATHS FOR STREAMLIT CLOUD
+# ---------------------------
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from components.sidebar import render_sidebar
 from services.utils import (
     get_subscription,
     auto_expire_subscription,
     deduct_credits
 )
-from services.ai_engine import ai_generate_cover_letter
+from services.ai_engine import (
+    ai_generate_match_score,       # only needed in Match Score
+    ai_extract_skills,            # only needed in Skills
+    ai_generate_cover_letter,     # only needed in Cover Letter
+    ai_check_eligibility,         # only needed in Eligibility
+    ai_generate_resume            # only needed in Resume Writer
+)
+
 
 COST = 10
 
