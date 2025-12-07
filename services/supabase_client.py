@@ -1,15 +1,25 @@
 from supabase import create_client, Client
 import streamlit as st
 
-# Load credentials
+# ----------------------------------------
+# UNIFIED SUPABASE CLIENT (SHARED SYSTEM-WIDE)
+# ----------------------------------------
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ----------------------------------------------------
+__all__ = [
+    "supabase",
+    "supabase_rest_query",
+    "supabase_rest_insert",
+    "supabase_rest_update",
+]
+
+
+# ----------------------------------------
 # REST QUERY WRAPPER
-# ----------------------------------------------------
+# ----------------------------------------
 def supabase_rest_query(table, filters: dict = None):
     try:
         query = supabase.table(table).select("*")
@@ -25,9 +35,9 @@ def supabase_rest_query(table, filters: dict = None):
         return None
 
 
-# ----------------------------------------------------
+# ----------------------------------------
 # REST INSERT WRAPPER
-# ----------------------------------------------------
+# ----------------------------------------
 def supabase_rest_insert(table, payload: dict):
     try:
         res = supabase.table(table).insert(payload).execute()
@@ -37,9 +47,9 @@ def supabase_rest_insert(table, payload: dict):
         return None
 
 
-# ----------------------------------------------------
+# ----------------------------------------
 # REST UPDATE WRAPPER
-# ----------------------------------------------------
+# ----------------------------------------
 def supabase_rest_update(table, filters: dict, updates: dict):
     try:
         query = supabase.table(table).update(updates)

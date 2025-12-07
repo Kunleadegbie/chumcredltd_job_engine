@@ -1,23 +1,12 @@
 import streamlit as st
-from supabase import create_client, Client
-
-import streamlit as st
-from services.supabase_client import supabase
-
-st.write("CHECK 1 — Supabase URL:", st.secrets.get("SUPABASE_URL"))
-st.write("CHECK 2 — Client Created:", supabase is not None)
-
-try:
-    test = supabase.table("users").select("*").limit(1).execute()
-    st.write("CHECK 3 — Test Query:", test.data)
-except Exception as e:
-    st.error(f"CHECK 3 ERROR: {e}")
+from services.supabase_client import supabase   # ✅ SINGLE UNIFIED CLIENT
 
 
 # -----------------------------
 # PAGE CONFIGURATION
 # -----------------------------
 st.set_page_config(page_title="Chumcred Job Engine", page_icon="🚀")
+
 
 # -----------------------------
 # INITIALIZE SESSION STATE
@@ -30,20 +19,18 @@ if "user" not in st.session_state:
 
 
 # -----------------------------
-# SUPABASE CLIENT
-# -----------------------------
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-
-# -----------------------------
 # AUTH FUNCTIONS
 # -----------------------------
 def login_user(email, password):
     """Authenticate user via Supabase."""
     try:
-        res = supabase.table("users").select("*").eq("email", email).eq("password", password).execute()
+        res = (
+            supabase.table("users")
+            .select("*")
+            .eq("email", email)
+            .eq("password", password)
+            .execute()
+        )
         if res.data:
             return res.data[0]
         return None
@@ -53,8 +40,9 @@ def login_user(email, password):
 
 
 def register_user(name, email, password):
-    """Register new user."""
+    """Register new user using unified Supabase client."""
     try:
+        # Check if email already exists
         check = supabase.table("users").select("*").eq("email", email).execute()
         if check.data:
             return False, "Email already registered."
@@ -63,7 +51,9 @@ def register_user(name, email, password):
             "full_name": name,
             "email": email,
             "password": password,
+            "role": "user",
         }
+
         supabase.table("users").insert(data).execute()
         return True, "Registration successful."
     except Exception as e:
@@ -78,19 +68,23 @@ st.write("Please sign in or register to continue.")
 
 tab1, tab2 = st.tabs(["🔓 Sign In", "📝 Register"])
 
+
 # -----------------------------
 # TAB 1 — SIGN IN
 # -----------------------------
 with tab1:
     st.subheader("Login to your account")
+
     email = st.text_input("Email", key="login_email")
     password = st.text_input("Password", type="password", key="login_password")
 
     if st.button("Sign In", key="login_btn"):
         user = login_user(email, password)
+
         if user:
             st.session_state.authenticated = True
             st.session_state.user = user
+
             st.success("Login successful! Redirecting...")
             st.rerun()
         else:
@@ -102,6 +96,7 @@ with tab1:
 # -----------------------------
 with tab2:
     st.subheader("Create a new account")
+
     full_name = st.text_input("Full Name", key="reg_name")
     reg_email = st.text_input("Email", key="reg_email")
     reg_password = st.text_input("Password", type="password", key="reg_password")
@@ -125,5 +120,10 @@ with tab2:
 if st.session_state.authenticated:
     st.switch_page("pages/2_Dashboard.py")
 
+
+# -----------------------------
+# FOOTER
+# -----------------------------
 st.write("---")
 st.caption("Powered by Chumcred Limited © 2025")
+
