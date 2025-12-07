@@ -1,6 +1,6 @@
 import streamlit as st
 
-def show_sidebar():
+def render_sidebar():
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
 
@@ -21,7 +21,7 @@ def show_sidebar():
             st.switch_page("pages/3_Job_Search.py")
 
         if st.button("💼 My Applications"):
-            st.switch_page("pages/4_My_Applications.py")
+            st.switch_page("pages/4_Saved_Jobs.py")
 
         st.markdown("---")
 
