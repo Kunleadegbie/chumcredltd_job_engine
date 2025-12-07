@@ -7,7 +7,18 @@ from services.utils import (
 )
 from services.ai_engine import ai_generate_resume
 
-COST = 8
+from chumcred_job_engine.components.sidebar import render_sidebar
+
+from chumcred_job_engine.services.utils import (
+    get_subscription,
+    auto_expire_subscription,
+    deduct_credits,
+)
+
+from chumcred_job_engine.services.ai_engine import ai_generate_resume
+
+
+COST = 20
 st.set_page_config(page_title="AI Resume Writer | Chumcred", page_icon="📄")
 
 # -------------------- AUTH CHECK --------------------

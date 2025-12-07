@@ -2,6 +2,10 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from components.sidebar import render_sidebar
+
+from chumcred_job_engine.components.sidebar import render_sidebar
+from chumcred_job_engine.services.supabase_client import supabase
+
 from services.supabase_client import supabase_rest_query
 
 st.set_page_config(page_title="Admin Revenue | Chumcred", page_icon="💰")

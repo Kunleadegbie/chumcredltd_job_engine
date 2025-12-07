@@ -5,6 +5,16 @@ from services.supabase_client import (
     supabase_rest_update,
     supabase_rest_insert
 )
+
+from chumcred_job_engine.components.sidebar import render_sidebar
+
+from chumcred_job_engine.services.utils import (
+    get_subscription,
+    auto_expire_subscription,
+)
+
+from chumcred_job_engine.services.supabase_client import supabase
+
 from services.utils import get_saved_jobs, delete_saved_job, format_datetime
 
 # ----------------------------------------------------

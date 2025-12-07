@@ -6,6 +6,14 @@ from services.supabase_client import (
 )
 from services.utils import get_subscription, auto_expire_subscription
 
+from chumcred_job_engine.components.sidebar import render_sidebar
+
+from chumcred_job_engine.services.utils import (
+    get_subscription,
+    auto_expire_subscription,
+)
+
+
 st.set_page_config(page_title="Dashboard | Chumcred Job Engine", page_icon="🚀")
 
 # ----------------------------------------------------

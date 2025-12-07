@@ -6,6 +6,10 @@ from services.supabase_client import (
     supabase_rest_insert
 )
 
+
+from chumcred_job_engine.components.sidebar import render_sidebar
+from chumcred_job_engine.services.supabase_client import supabase
+
 st.set_page_config(page_title="Admin Payments | Chumcred", page_icon="💳")
 
 # ----------------------------------------------------

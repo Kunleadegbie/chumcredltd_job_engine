@@ -13,6 +13,16 @@ from services.utils import (
     save_job
 )
 
+from chumcred_job_engine.components.sidebar import render_sidebar
+
+from chumcred_job_engine.services.utils import (
+    get_subscription,
+    auto_expire_subscription,
+)
+
+from chumcred_job_engine.services.job_api import search_jobs
+
+
 # ----------------------------------------------------
 # SAFE AUTH CHECK
 # ----------------------------------------------------

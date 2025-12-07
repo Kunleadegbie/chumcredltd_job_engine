@@ -5,6 +5,9 @@ from services.supabase_client import (
     supabase_rest_update
 )
 
+from chumcred_job_engine.components.sidebar import render_sidebar
+from chumcred_job_engine.services.supabase_client import supabase
+
 st.set_page_config(page_title="Settings | Chumcred", page_icon="⚙️")
 
 # ----------------------------------------------------
@@ -46,3 +49,4 @@ if st.button("Save Changes"):
     st.session_state.user = user
 
     st.success("Account updated successfully.")
+
