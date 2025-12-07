@@ -5,7 +5,7 @@ pandas
 plotly
 requests
 openai
-
+setuptools
 
 
 
