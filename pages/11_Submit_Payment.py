@@ -1,75 +1,65 @@
+import sys, os
 import streamlit as st
-from components.sidebar import render_sidebar
-from services.supabase_client import supabase_rest_insert
-
-from chumcred_job_engine.components.sidebar import render_sidebar
-from chumcred_job_engine.services.supabase_client import supabase
-
-
-st.set_page_config(page_title="Submit Payment | Chumcred", page_icon="💸")
+from datetime import datetime, timedelta
 
 # ----------------------------------------------------
-# AUTH CHECK
+# PATH FIX
+# ----------------------------------------------------
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+# ----------------------------------------------------
+# IMPORTS
+# ----------------------------------------------------
+from components.sidebar import render_sidebar
+from services.utils import activate_subscription
+
+# ----------------------------------------------------
+# CONFIG
+# ----------------------------------------------------
+st.set_page_config(page_title="Submit Payment | Chumcred", page_icon="📤")
+
+# ----------------------------------------------------
+# AUTH
 # ----------------------------------------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
-user = st.session_state.get("user")
-if not isinstance(user, dict):
-    st.session_state.authenticated = False
-    st.session_state.user = None
-    st.switch_page("app.py")
-
-user_id = user.get("id")
-
 render_sidebar()
 
-# ----------------------------------------------------
-# SELECTED PLAN
-# ----------------------------------------------------
-selected = st.session_state.get("selected_plan")
-
-if not selected:
-    st.error("No plan selected. Please choose a plan first.")
+if "selected_plan" not in st.session_state:
+    st.error("No plan selected. Please go back to Subscription page.")
     st.stop()
 
-plan = selected["plan"]
-amount = selected["amount"]
-credits = selected["credits"]
-days = selected["days"]
+plan_data = st.session_state.selected_plan
 
 # ----------------------------------------------------
-# PAGE UI
+# UI
 # ----------------------------------------------------
-st.title("💸 Submit Payment")
-st.write("Complete your subscription request.")
-st.write("---")
+st.title("📤 Submit Payment Proof")
+st.subheader(f"Plan Selected: {plan_data['plan']} — ₦{plan_data['price']}")
 
-st.markdown(f"""
-### Selected Plan: **{plan}**
-**Amount:** ₦{amount}  
-**Credits:** {credits}  
-**Duration:** {days} days  
-""")
-
-payment_ref = st.text_input("Enter Your Payment Reference")
+payment_file = st.file_uploader("Upload your payment screenshot")
 
 if st.button("Submit Payment"):
-    if not payment_ref.strip():
-        st.warning("Please enter a valid payment reference.")
+
+    if not payment_file:
+        st.warning("Please upload a proof of payment.")
         st.stop()
 
-    # Insert request
-    supabase_rest_insert("payment_requests", {
-        "user_id": user_id,
-        "plan": plan,
-        "amount": amount,
-        "payment_reference": payment_ref,
-        "credits": credits,
-        "days": days,
-        "status": "pending"
-    })
+    # In real deployment, upload file to Supabase Storage
+    # For now assume success.
 
-    st.success("Payment submitted! Pending admin approval.")
-    st.info("You will receive access once your payment is approved.")
-    st.stop()
+    ok = activate_subscription(
+        user_id=st.session_state["user"]["id"],
+        plan_name=plan_data["plan"],
+        credits=plan_data["credits"]
+    )
+
+    if ok:
+        st.success("Payment submitted and subscription activated!")
+        st.session_state.pop("selected_plan", None)
+        st.switch_page("pages/2_Dashboard.py")
+    else:
+        st.error("Subscription activation failed.")

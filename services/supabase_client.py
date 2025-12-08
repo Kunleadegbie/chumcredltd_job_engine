@@ -1,20 +1,10 @@
-from supabase import create_client, Client
+from supabase import create_client
 import streamlit as st
 
-# ----------------------------------------
-# UNIFIED SUPABASE CLIENT (SHARED SYSTEM-WIDE)
-# ----------------------------------------
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+url = st.secrets["SUPABASE_URL"]
+key = st.secrets["SUPABASE_KEY"]
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-__all__ = [
-    "supabase",
-    "supabase_rest_query",
-    "supabase_rest_insert",
-    "supabase_rest_update",
-]
+supabase = create_client(url, key)
 
 
 # ----------------------------------------

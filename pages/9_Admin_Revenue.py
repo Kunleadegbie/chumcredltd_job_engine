@@ -1,49 +1,45 @@
+import sys, os
 import streamlit as st
-import pandas as pd
-import plotly.express as px
-from components.sidebar import render_sidebar
-
-from chumcred_job_engine.components.sidebar import render_sidebar
-from chumcred_job_engine.services.supabase_client import supabase
-
-from services.supabase_client import supabase_rest_query
-
-st.set_page_config(page_title="Admin Revenue | Chumcred", page_icon="💰")
 
 # ----------------------------------------------------
-# AUTH CHECK (ADMIN ONLY)
+# IMPORT PATH FIX
+# ----------------------------------------------------
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+# ----------------------------------------------------
+# IMPORTS
+# ----------------------------------------------------
+from components.sidebar import render_sidebar
+from services.database import fetch_revenue_report
+
+# ----------------------------------------------------
+# CONFIG
+# ----------------------------------------------------
+st.set_page_config(page_title="Admin Revenue | Chumcred", page_icon="💵")
+
+# ----------------------------------------------------
+# AUTH
 # ----------------------------------------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
 user = st.session_state.get("user")
-if not isinstance(user, dict):
-    st.switch_page("app.py")
-
 if user.get("role") != "admin":
-    st.error("Access denied — Admins only.")
+    st.error("Admins only.")
     st.stop()
-
-user_id = user.get("id")
 
 render_sidebar()
 
 # ----------------------------------------------------
 # PAGE UI
 # ----------------------------------------------------
-st.title("💰 Revenue Dashboard")
-st.write("---")
+st.title("💵 Revenue Report")
 
-payments = supabase_rest_query("payment_requests")
+revenue = fetch_revenue_report()
 
-if not payments:
-    st.info("No payments found.")
-    st.stop()
-
-df = pd.DataFrame(payments)
-
-st.write("### Recent Payments")
-st.dataframe(df)
-
-fig = px.bar(df, x="plan", y="amount", title="Revenue by Plan")
-st.plotly_chart(fig)
+if not revenue:
+    st.info("No revenue data available.")
+else:
+    st.dataframe(revenue)

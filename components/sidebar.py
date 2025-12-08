@@ -1,10 +1,10 @@
 import streamlit as st
 
 def render_sidebar():
-    """Render the main sidebar ONLY when user is authenticated."""
+    """Render the sidebar only when user is logged in."""
     
     if "authenticated" not in st.session_state or not st.session_state.authenticated:
-        return  # Sidebar should not show
+        return
 
     user = st.session_state.get("user", {})
 
@@ -12,7 +12,7 @@ def render_sidebar():
         st.markdown(f"### 👤 {user.get('full_name', '')}")
         st.markdown("---")
 
-        # Navigation buttons
+        # Navigation
         if st.button("🏠 Dashboard"):
             st.switch_page("pages/2_Dashboard.py")
 
@@ -25,15 +25,23 @@ def render_sidebar():
         if st.button("📄 Profile"):
             st.switch_page("pages/7_Profile.py")
 
+        if st.button("💳 Subscription"):
+            st.switch_page("pages/10_Subscription.py")
+
+        # Admin Section
         if user.get("role") == "admin":
             st.markdown("---")
-            st.markdown("### 🛠 Admin")
+            st.markdown("### 🛠 Admin Tools")
+
             if st.button("Admin Panel"):
                 st.switch_page("pages/5_Admin_Panel.py")
+
             if st.button("Analytics"):
                 st.switch_page("pages/8_Admin_Analytics.py")
+
             if st.button("Revenue"):
                 st.switch_page("pages/9_Admin_Revenue.py")
+
             if st.button("Payments"):
                 st.switch_page("pages/12_Admin_Payments.py")
 
@@ -43,5 +51,5 @@ def render_sidebar():
         if st.button("🚪 Logout"):
             st.session_state.authenticated = False
             st.session_state.user = None
-            st.success("Logged out successfully.")
+            st.success("Logged out.")
             st.rerun()

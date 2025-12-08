@@ -1,69 +1,51 @@
+import sys, os
 import streamlit as st
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from components.sidebar import render_sidebar
-from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits
-)
+from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from services.ai_engine import ai_generate_resume
 
-from chumcred_job_engine.components.sidebar import render_sidebar
-
-from chumcred_job_engine.services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits,
-)
-
-from chumcred_job_engine.services.ai_engine import ai_generate_resume
-
-
 COST = 20
-st.set_page_config(page_title="AI Resume Writer | Chumcred", page_icon="📄")
+st.set_page_config(page_title="Resume Writer | Chumcred", page_icon="📄")
 
-# -------------------- AUTH CHECK --------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
 user = st.session_state.get("user")
-if not isinstance(user, dict):
-    st.switch_page("app.py")
-
 user_id = user["id"]
 
-# Sidebar
 render_sidebar()
 
-# -------------------- SUBSCRIPTION --------------------
 auto_expire_subscription(user)
 subscription = get_subscription(user_id)
 
 if not subscription or subscription.get("subscription_status") != "active":
-    st.error("You need an active subscription to use the Resume Writer.")
+    st.error("Subscription required.")
     st.stop()
 
 credits = subscription.get("credits", 0)
 
-# -------------------- PAGE UI --------------------
 st.title("📄 AI Resume Writer")
-st.info(f"💳 Credits Available: **{credits}**")
+st.info(f"💳 Credits: **{credits}**")
 
-resume_text = st.text_area("Paste your existing resume")
-job_description = st.text_area("Paste job description")
+raw_input = st.text_area("Describe your experience, skills, and education")
 
-if st.button(f"Generate Resume (Cost {COST} credits)", disabled=credits < COST):
+if st.button(f"Generate Resume (Cost {COST})", disabled=credits < COST):
 
-    if not resume_text.strip() or not job_description.strip():
-        st.warning("Please paste both resume and job description.")
+    if not raw_input.strip():
+        st.warning("Please enter your career details.")
         st.stop()
 
-    ok, new_balance = deduct_credits(user_id, COST)
+    ok, balance = deduct_credits(user_id, COST)
     if not ok:
-        st.error(new_balance)
+        st.error(balance)
         st.stop()
 
-    st.session_state.subscription = get_subscription(user_id)
-    st.success(f"✔ {COST} credits deducted. New balance: {new_balance}")
+    st.success(f"{COST} credits deducted. Remaining: {balance}")
 
-    result = ai_generate_resume(resume_text, job_description)
-    st.write(result)
+    resume = ai_generate_resume(raw_input)
+    st.write(resume)

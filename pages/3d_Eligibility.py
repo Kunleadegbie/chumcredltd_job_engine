@@ -1,69 +1,52 @@
+import sys, os
 import streamlit as st
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from components.sidebar import render_sidebar
-from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits
-)
+from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from services.ai_engine import ai_check_eligibility
 
-from chumcred_job_engine.components.sidebar import render_sidebar
-
-from chumcred_job_engine.services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits,
-)
-
-from chumcred_job_engine.services.ai_engine import ai_check_eligibility
-
-
 COST = 5
-st.set_page_config(page_title="Job Eligibility Checker | Chumcred", page_icon="🔍")
+st.set_page_config(page_title="Eligibility Checker | Chumcred", page_icon="📌")
 
-# -------------------- AUTH CHECK --------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
 user = st.session_state.get("user")
-if not isinstance(user, dict):
-    st.switch_page("app.py")
-
 user_id = user["id"]
 
-# Sidebar
 render_sidebar()
 
-# -------------------- SUBSCRIPTION --------------------
 auto_expire_subscription(user)
 subscription = get_subscription(user_id)
 
 if not subscription or subscription.get("subscription_status") != "active":
-    st.error("You need an active subscription to check eligibility.")
+    st.error("Subscription required.")
     st.stop()
 
 credits = subscription.get("credits", 0)
 
-# -------------------- PAGE UI --------------------
-st.title("🔍 AI Job Eligibility Checker")
-st.info(f"💳 Credits Available: **{credits}**")
+st.title("📌 AI Job Eligibility Check")
+st.info(f"💳 Credits: **{credits}**")
 
-resume_text = st.text_area("Paste your Resume Content")
-job_description = st.text_area("Paste Job Description")
+resume = st.text_area("Paste Resume")
+job = st.text_area("Paste Job Description")
 
-if st.button(f"Check Eligibility (Cost {COST} credits)", disabled=credits < COST):
+if st.button(f"Check Eligibility (Cost {COST})", disabled=credits < COST):
 
-    if not resume_text.strip() or not job_description.strip():
-        st.warning("Please paste resume and job details.")
+    if not resume.strip() or not job.strip():
+        st.warning("Resume and Job Description are required.")
         st.stop()
 
-    ok, new_balance = deduct_credits(user_id, COST)
+    ok, balance = deduct_credits(user_id, COST)
     if not ok:
-        st.error(new_balance)
+        st.error(balance)
         st.stop()
 
-    st.session_state.subscription = get_subscription(user_id)
-    st.success(f"✔ {COST} credits deducted. New balance: {new_balance}")
+    st.success(f"{COST} credits deducted. Remaining: {balance}")
 
-    result = ai_check_eligibility(resume_text, job_description)
-    st.write(result)
+    report = ai_check_eligibility(resume, job)
+    st.write(report)

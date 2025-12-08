@@ -20,33 +20,32 @@ def hash_password(password: str) -> str:
 # --------------------------------------------------------
 # LOGIN USER
 # --------------------------------------------------------
-def login_user(email: str, password: str):
-    """
-    Authenticates a user securely.
-    - Hashes the password before comparing with DB
-    - Queries Supabase with email + hashed password
-    """
 
-    hashed = hash_password(password)
+from services.supabase_client import supabase
 
-    response = supabase_rest_query(
-        "users",
-        {
+def login_user(email, password):
+    try:
+        res = supabase.table("users").select("*").eq("email", email).eq("password", password).single().execute()
+        return res.data
+    except:
+        return None
+
+def register_user(full_name, email, password):
+    try:
+        existing = supabase.table("users").select("*").eq("email", email).execute()
+        if existing.data:
+            return False, "Email already exists."
+
+        supabase.table("users").insert({
+            "full_name": full_name,
             "email": email,
-            "password": hashed,
-            "is_active": True
-        }
-    )
+            "password": password,
+            "role": "user"
+        }).execute()
 
-    # If Supabase returned no records
-    if not isinstance(response, list) or len(response) == 0:
-        return None, "Invalid email or password"
-
-    user = response[0]
-
-    # Return authenticated user
-    return user, None
-
+        return True, "Registration successful!"
+    except Exception as e:
+        return False, str(e)
 
 # --------------------------------------------------------
 # CREATE USER (used for future registration features)

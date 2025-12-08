@@ -1,54 +1,56 @@
+import sys, os
 import streamlit as st
-import pandas as pd
-import plotly.express as px
-from components.sidebar import render_sidebar
-from services.supabase_client import supabase_rest_query
-
-from chumcred_job_engine.components.sidebar import render_sidebar
-from chumcred_job_engine.services.supabase_client import supabase
-
-
-st.set_page_config(page_title="Admin Analytics | Chumcred", page_icon="📈")
-
 
 # ----------------------------------------------------
-# AUTH CHECK (ADMIN ONLY)
+# FIX PATH
+# ----------------------------------------------------
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+# ----------------------------------------------------
+# IMPORTS
+# ----------------------------------------------------
+from components.sidebar import render_sidebar
+from services.database import fetch_user_statistics, fetch_ai_usage_stats
+
+# ----------------------------------------------------
+# CONFIG
+# ----------------------------------------------------
+st.set_page_config(page_title="Admin Analytics | Chumcred", page_icon="📊")
+
+# ----------------------------------------------------
+# AUTH
 # ----------------------------------------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
 user = st.session_state.get("user")
-if not isinstance(user, dict):
-    st.switch_page("app.py")
-
 if user.get("role") != "admin":
-    st.error("Access denied — Admins only.")
+    st.error("Admins only.")
     st.stop()
-
-user_id = user.get("id")
 
 render_sidebar()
 
 # ----------------------------------------------------
 # PAGE UI
-# ----------------------------------------------------
-st.title("📈 Admin Analytics")
-st.write("---")
+#-----------------------------------------------------
+st.title("📊 System Analytics")
 
-# Load users
-users = supabase_rest_query("users")
-payments = supabase_rest_query("payment_requests")
-subscriptions = supabase_rest_query("subscriptions")
+col1, col2 = st.columns(2)
 
-st.metric("Total Users", len(users))
-st.metric("Total Payments", len(payments))
-st.metric("Active Subscriptions", len([s for s in subscriptions if s.get("subscription_status") == "active"]))
+with col1:
+    st.subheader("👥 User Statistics")
+    stats = fetch_user_statistics()
+    if stats:
+        st.json(stats)
+    else:
+        st.info("No user statistics available.")
 
-# Plot subscriptions
-df = pd.DataFrame(subscriptions)
-
-if not df.empty:
-    fig = px.histogram(df, x="plan", title="Subscription Plans Distribution")
-    st.plotly_chart(fig)
-else:
-    st.info("No subscription data available yet.")
+with col2:
+    st.subheader("🤖 AI Tools Usage")
+    usage = fetch_ai_usage_stats()
+    if usage:
+        st.json(usage)
+    else:
+        st.info("No AI usage data available.")
