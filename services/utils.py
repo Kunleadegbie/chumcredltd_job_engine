@@ -14,6 +14,10 @@ def get_subscription(user_id):
 # ----------------------------------------------------
 # AUTO-EXPIRE SUBSCRIPTION DAILY
 # ----------------------------------------------------
+
+from datetime import datetime
+from services.supabase_client import supabase
+
 def auto_expire_subscription(user):
     user_id = user.get("id")
     sub = get_subscription(user_id)
@@ -21,7 +25,18 @@ def auto_expire_subscription(user):
         return
 
     expiry = sub.get("expiry_date")
-    if expiry and datetime.strptime(expiry, "%Y-%m-%d") < datetime.now():
+    if not expiry:
+        return
+
+    # --- SAFE DATE PARSER FOR ANY FORMAT ---
+    try:
+        # If expiry is full ISO string, truncate to YYYY-MM-DD
+        clean_expiry = expiry.split("T")[0]
+        exp_date = datetime.strptime(clean_expiry, "%Y-%m-%d")
+    except:
+        return  # Avoid crashing the app
+
+    if exp_date < datetime.now():
         supabase.table("subscriptions").update({
             "subscription_status": "expired"
         }).eq("user_id", user_id).execute()
