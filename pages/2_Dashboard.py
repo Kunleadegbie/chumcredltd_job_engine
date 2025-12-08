@@ -18,8 +18,8 @@ while True:
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-  from components.sidebar import render_sidebar
-  from services.utils import get_subscription, auto_expire_subscription
+from components.sidebar import render_sidebar
+from services.utils import get_subscription, auto_expire_subscription
 
 st.set_page_config(page_title="Dashboard", page_icon="🏠")
 
