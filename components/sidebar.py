@@ -30,9 +30,9 @@ def render_sidebar():
 
         if st.button("📄 Resume Writer"):
             st.switch_page("pages/3e_Resume_Writer.py")
-	
-	if st.button("⭐ Job Recommendations"):
-    	    st.switch_page("pages/3f_Job_Recommendations.py")
+    
+    if st.button("⭐ Job Recommendations"):
+            st.switch_page("pages/3f_Job_Recommendations.py")
 
         if st.button("💾 Saved Jobs"):
             st.switch_page("pages/4_Saved_Jobs.py")
