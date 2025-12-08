@@ -71,16 +71,16 @@ with col3:
 st.write("---")
 
 st.subheader("Quick Navigation")
-c1, c2, c3 = st.columns(3)
+col1, col2, col3 = st.columns(3)
 
-with c1:
+with col1:
     if st.button("🔍 Job Search"):
         st.switch_page("pages/3_Job_Search.py")
 
-with c2:
+with col2:
     if st.button("💾 Saved Jobs"):
         st.switch_page("pages/4_Saved_Jobs.py")
 
-with c3:
+with col3:
     if st.button("🧠 AI Tools"):
         st.info("Select an AI tool from the sidebar.")
