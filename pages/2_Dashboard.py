@@ -1,10 +1,10 @@
 import streamlit as st
-import sys, os
+import sys
+import os
 
 # --------------------------------------------------------
 # UNIVERSAL IMPORT FIX (Works on Streamlit Cloud + Local)
 # --------------------------------------------------------
-# Find project root by detecting app.py
 current = os.path.abspath(__file__)
 while True:
     current = os.path.dirname(current)
@@ -23,9 +23,26 @@ from services.utils import get_subscription, auto_expire_subscription
 
 st.set_page_config(page_title="Dashboard", page_icon="🏠")
 
-# -------------------------------------------------
+# --------------------------------------------------------
+# AUTH CHECK
+# --------------------------------------------------------
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
+
+user = st.session_state.get("user")
+if not user:
+    st.switch_page("app.py")
+
+user_id = user.get("id")
+
+# --------------------------------------------------------
+# SIDEBAR
+# --------------------------------------------------------
+render_sidebar()
+
+# --------------------------------------------------------
 # SUBSCRIPTION DATA
-# -------------------------------------------------
+# --------------------------------------------------------
 auto_expire_subscription(user)
 subscription = get_subscription(user_id)
 
@@ -34,9 +51,9 @@ credits = subscription.get("credits", 0) if subscription else 0
 plan = subscription.get("plan", "-") if subscription else "-"
 expiry = subscription.get("expiry_date", "-") if subscription else "-"
 
-# -------------------------------------------------
+# --------------------------------------------------------
 # UI
-# -------------------------------------------------
+# --------------------------------------------------------
 st.title(f"Welcome, {user.get('full_name', 'User')} 👋")
 st.write("---")
 
