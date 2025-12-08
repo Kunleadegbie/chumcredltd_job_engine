@@ -10,6 +10,7 @@ def render_sidebar():
         st.markdown(f"### 👤 {user.get('full_name', '')}")
         st.markdown("---")
 
+        # Navigation
         if st.button("🏠 Dashboard"):
             st.switch_page("pages/2_Dashboard.py")
 
@@ -30,8 +31,8 @@ def render_sidebar():
 
         if st.button("📄 Resume Writer"):
             st.switch_page("pages/3e_Resume_Writer.py")
-    
-    if st.button("⭐ Job Recommendations"):
+
+        if st.button("⭐ Job Recommendations"):
             st.switch_page("pages/3f_Job_Recommendations.py")
 
         if st.button("💾 Saved Jobs"):
@@ -46,6 +47,7 @@ def render_sidebar():
         if st.button("💳 Subscription"):
             st.switch_page("pages/10_Subscription.py")
 
+        # Admin section
         if user.get("role") == "admin":
             st.markdown("---")
             st.markdown("### 🛠 Admin Tools")
