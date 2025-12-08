@@ -1,3 +1,20 @@
+import sys, os
+
+# --------------------------------------------------------
+# FORCE PYTHON TO USE THE TRUE PROJECT ROOT
+# --------------------------------------------------------
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
+
+# Replace WRONG sys.path[0] (like "app.py") with project root
+sys.path = [PROJECT_ROOT] + [p for p in sys.path if p != "app.py" and p != ""]
+
+# Now imports will ALWAYS work:
+from services.ai_engine import ai_generate_match_score
+from components.sidebar import render_sidebar
+from services.utils import get_subscription, auto_expire_subscription, deduct_credits
+
+
 import streamlit as st
 import sys
 import os
