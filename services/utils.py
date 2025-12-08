@@ -11,13 +11,10 @@ def get_subscription(user_id):
     except:
         return None
 
-# ----------------------------------------------------
-# AUTO-EXPIRE SUBSCRIPTION DAILY
-# ----------------------------------------------------
 
-from datetime import datetime
-from services.supabase_client import supabase
-
+# ----------------------------------------------------
+# AUTO-EXPIRE SUBSCRIPTION (SAFE FOR ALL DATE FORMATS)
+# ----------------------------------------------------
 def auto_expire_subscription(user):
     user_id = user.get("id")
     sub = get_subscription(user_id)
@@ -28,18 +25,19 @@ def auto_expire_subscription(user):
     if not expiry:
         return
 
-    # --- SAFE DATE PARSER FOR ANY FORMAT ---
+    # SAFE PARSER
     try:
-        # If expiry is full ISO string, truncate to YYYY-MM-DD
+        # Handles ISO format like 2025-12-02T15:42:21.878349+00:00
         clean_expiry = expiry.split("T")[0]
         exp_date = datetime.strptime(clean_expiry, "%Y-%m-%d")
-    except:
-        return  # Avoid crashing the app
+    except Exception:
+        return  # If anything breaks, do not crash the app
 
     if exp_date < datetime.now():
         supabase.table("subscriptions").update({
             "subscription_status": "expired"
         }).eq("user_id", user_id).execute()
+
 
 # ----------------------------------------------------
 # DEDUCT CREDITS SAFELY
@@ -60,6 +58,7 @@ def deduct_credits(user_id, amount):
     }).eq("user_id", user_id).execute()
 
     return True, new_balance
+
 
 # ----------------------------------------------------
 # ACTIVATE SUBSCRIPTION
