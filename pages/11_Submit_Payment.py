@@ -1,65 +1,57 @@
-import sys, os
 import streamlit as st
-from datetime import datetime, timedelta
+import sys, os
+from datetime import datetime
 
-# ----------------------------------------------------
-# PATH FIX
-# ----------------------------------------------------
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-# ----------------------------------------------------
-# IMPORTS
-# ----------------------------------------------------
-from components.sidebar import render_sidebar
+from services.supabase_client import supabase
 from services.utils import activate_subscription
+from components.sidebar import render_sidebar
 
-# ----------------------------------------------------
-# CONFIG
-# ----------------------------------------------------
-st.set_page_config(page_title="Submit Payment | Chumcred", page_icon="📤")
+st.set_page_config(page_title="Submit Payment", page_icon="💰")
 
-# ----------------------------------------------------
-# AUTH
-# ----------------------------------------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
 render_sidebar()
 
+user = st.session_state.get("user")
+user_id = user.get("id")
+
 if "selected_plan" not in st.session_state:
-    st.error("No plan selected. Please go back to Subscription page.")
+    st.error("No plan selected.")
     st.stop()
 
-plan_data = st.session_state.selected_plan
+plan = st.session_state.selected_plan
 
-# ----------------------------------------------------
-# UI
-# ----------------------------------------------------
-st.title("📤 Submit Payment Proof")
-st.subheader(f"Plan Selected: {plan_data['plan']} — ₦{plan_data['price']}")
+st.title("💰 Complete Payment")
+st.subheader(f"Plan Selected: **{plan}**")
 
-payment_file = st.file_uploader("Upload your payment screenshot")
+amount = {
+    "Basic": 10,
+    "Pro": 25,
+    "Premium": 60
+}[plan]
 
-if st.button("Submit Payment"):
+credits = {
+    "Basic": 100,
+    "Pro": 300,
+    "Premium": 1200
+}[plan]
 
-    if not payment_file:
-        st.warning("Please upload a proof of payment.")
-        st.stop()
+st.write(f"Amount: **${amount}**")
 
-    # In real deployment, upload file to Supabase Storage
-    # For now assume success.
+if st.button("Confirm Payment"):
+    supabase.table("payments").insert({
+        "user_id": user_id,
+        "user_email": user["email"],
+        "plan": plan,
+        "amount": amount,
+        "created_at": datetime.utcnow().isoformat()
+    }).execute()
 
-    ok = activate_subscription(
-        user_id=st.session_state["user"]["id"],
-        plan_name=plan_data["plan"],
-        credits=plan_data["credits"]
-    )
+    activate_subscription(user_id, plan, credits)
 
-    if ok:
-        st.success("Payment submitted and subscription activated!")
-        st.session_state.pop("selected_plan", None)
-        st.switch_page("pages/2_Dashboard.py")
-    else:
-        st.error("Subscription activation failed.")
+    st.success("Payment successful! Subscription activated.")
+    st.session_state.pop("selected_plan", None)
+    st.rerun()

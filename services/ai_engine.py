@@ -1,76 +1,58 @@
 from openai import OpenAI
 import streamlit as st
 
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+client = OpenAI()
 
-# ----------------------------------------------------
-def ai_generate_match_score(resume, job):
+def ai_recommend_jobs(resume_text, saved_jobs, search_history, job_list):
+    """
+    AI ranking engine: reads resume, preferences, history, saved jobs,
+    and ranks job_list by match score.
+    """
+
     prompt = f"""
-Compare the following resume to the job description.
-Return ONLY the match score (0–100) and short justification.
+    You are an AI Job Recommendation Engine.
 
-Resume:
-{resume}
+    USER RESUME:
+    {resume_text}
 
-Job Description:
-{job}
-"""
+    SAVED JOBS:
+    {saved_jobs}
+
+    SEARCH HISTORY:
+    {search_history}
+
+    JOB LISTINGS TO RANK:
+    {job_list}
+
+    TASK:
+    - Analyze the user's resume for skills, experience, seniority, industry alignment.
+    - Analyze saved jobs to detect user's preference trend.
+    - Analyze search history to identify user intent.
+    - Assign a MATCH SCORE (0–100) to each job.
+    - Return ONLY the ranked list in JSON format.
+
+    FORMAT:
+    [
+      {{
+        "job_id": "...",
+        "job_title": "...",
+        "company": "...",
+        "score": 87,
+        "reason": "Why this job fits the user"
+      }},
+      ...
+    ]
+    """
+
     response = client.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
     )
+
     return response.choices[0].message["content"]
 
-# ----------------------------------------------------
-def ai_extract_skills(resume):
-    prompt = f"Extract all professional skills from this resume:\n\n{resume}"
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return resp.choices[0].message["content"]
 
-# ----------------------------------------------------
-def ai_generate_cover_letter(resume, job):
-    prompt = f"""
-Write a professional cover letter using the resume and job description.
 
-Resume:
-{resume}
 
-Job Description:
-{job}
-"""
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return resp.choices[0].message["content"]
 
-# ----------------------------------------------------
-def ai_check_eligibility(resume, job):
-    prompt = f"""
-Analyze whether this candidate is eligible for the job.
-
-Resume:
-{resume}
-
-Job Description:
-{job}
-
-Output: Eligible / Not Eligible + Reasoning.
-"""
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return resp.choices[0].message["content"]
-
-# ----------------------------------------------------
-def ai_generate_resume(raw_input):
-    prompt = f"Create a polished ATS-ready resume from this information:\n\n{raw_input}"
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
-    )
-    return resp.choices[0].message["content"]

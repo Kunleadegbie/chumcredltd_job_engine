@@ -1,44 +1,45 @@
-import sys, os
 import streamlit as st
+import sys, os
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
 from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from services.ai_engine import ai_extract_skills
 
-COST = 5
-st.set_page_config(page_title="Skills Extractor | Chumcred", page_icon="🧠")
+st.set_page_config(page_title="Skills Extractor", page_icon="🧠")
 
-# AUTH
+COST = 5
+
+# AUTH CHECK
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
-user = st.session_state.get("user")
+user = st.session_state["user"]
 user_id = user["id"]
 
 render_sidebar()
 
+# SUBSCRIPTION
 auto_expire_subscription(user)
 subscription = get_subscription(user_id)
 
-if not subscription or subscription.get("subscription_status") != "active":
-    st.error("Subscription inactive. Activate to continue.")
+if not subscription or subscription["subscription_status"] != "active":
+    st.error("You need an active subscription to extract skills.")
     st.stop()
 
 credits = subscription.get("credits", 0)
 
-st.title("🧠 AI Skills Extractor")
-st.info(f"💳 Credits: **{credits}**")
+# UI
+st.title("🧠 AI Skills Extraction")
+st.write(f"💳 **Credits Available:** {credits}")
 
-resume = st.text_area("Paste your Resume Content")
+resume = st.text_area("Paste your Resume here")
 
 if st.button(f"Extract Skills (Cost {COST} credits)", disabled=credits < COST):
 
     if not resume.strip():
-        st.warning("Please paste your resume.")
+        st.error("Resume cannot be empty.")
         st.stop()
 
     ok, balance = deduct_credits(user_id, COST)
@@ -46,8 +47,7 @@ if st.button(f"Extract Skills (Cost {COST} credits)", disabled=credits < COST):
         st.error(balance)
         st.stop()
 
-    st.success(f"✓ {COST} credits deducted. Remaining: {balance}")
-    st.divider()
+    st.success(f"✔ {COST} credits deducted. New balance: {balance}")
 
-    result = ai_extract_skills(resume)
-    st.write(result)
+    skills = ai_extract_skills(resume)
+    st.write(skills)

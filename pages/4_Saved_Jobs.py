@@ -1,20 +1,43 @@
-import sys, os
 import streamlit as st
+import sys, os
 
-# Path fix
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
+from services.supabase_client import supabase
 
-st.set_page_config(page_title="Saved Jobs | Chumcred", page_icon="💾")
+st.set_page_config(page_title="Saved Jobs", page_icon="💾")
 
-# AUTH
+# AUTH CHECK
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
 render_sidebar()
 
+user = st.session_state["user"]
+user_id = user["id"]
+
 st.title("💾 Saved Jobs")
-st.info("Your saved jobs will appear here.")
+
+jobs = supabase.table("saved_jobs").select("*").eq("user_id", user_id).execute().data or []
+
+if not jobs:
+    st.info("You have not saved any jobs yet.")
+    st.stop()
+
+for job in jobs:
+    st.markdown(f"""
+    ### **{job['title']}**
+    **Company:** {job['company']}  
+    🔗 [Apply Here]({job['apply_link']})  
+
+    {job['description']}
+
+    """)
+    
+    if st.button(f"❌ Remove", key=job["job_id"]):
+        supabase.table("saved_jobs").delete().eq("job_id", job["job_id"]).execute()
+        st.success("Job removed!")
+        st.rerun()
+    
+    st.write("---")

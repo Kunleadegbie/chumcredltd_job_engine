@@ -1,56 +1,47 @@
-import sys, os
 import streamlit as st
+import sys, os
 
-# ----------------------------------------------------
-# FIX PATH
-# ----------------------------------------------------
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-# ----------------------------------------------------
-# IMPORTS
-# ----------------------------------------------------
+from services.supabase_client import supabase
 from components.sidebar import render_sidebar
-from services.database import fetch_user_statistics, fetch_ai_usage_stats
 
-# ----------------------------------------------------
-# CONFIG
-# ----------------------------------------------------
-st.set_page_config(page_title="Admin Analytics | Chumcred", page_icon="📊")
+st.set_page_config(page_title="Admin Analytics", page_icon="📊")
 
-# ----------------------------------------------------
-# AUTH
-# ----------------------------------------------------
+# AUTH CHECK
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
-
 user = st.session_state.get("user")
 if user.get("role") != "admin":
-    st.error("Admins only.")
-    st.stop()
+    st.error("Admins only."); st.stop()
 
 render_sidebar()
 
-# ----------------------------------------------------
-# PAGE UI
-#-----------------------------------------------------
-st.title("📊 System Analytics")
+st.title("📊 Platform Analytics")
+st.write("---")
 
-col1, col2 = st.columns(2)
+# TOTAL USERS
+total_users = len(supabase.table("users").select("id").execute().data)
+st.metric("Total Users", total_users)
 
-with col1:
-    st.subheader("👥 User Statistics")
-    stats = fetch_user_statistics()
-    if stats:
-        st.json(stats)
-    else:
-        st.info("No user statistics available.")
+# TOTAL SUBSCRIPTIONS
+total_subs = len(supabase.table("subscriptions").select("id").execute().data)
+st.metric("Total Subscriptions", total_subs)
 
-with col2:
-    st.subheader("🤖 AI Tools Usage")
-    usage = fetch_ai_usage_stats()
-    if usage:
-        st.json(usage)
-    else:
-        st.info("No AI usage data available.")
+# ACTIVE USERS
+active_users = len(
+    supabase.table("subscriptions").select("user_id").eq("subscription_status", "active").execute().data
+)
+st.metric("Active Subscribers", active_users)
+
+# SHOW RECENT SIGNUPS
+st.subheader("Recent Users")
+users = supabase.table("users").select("*").order("created_at", desc=True).limit(10).execute().data
+
+for u in users:
+    st.markdown(f"""
+    **{u['full_name']}**  
+    Email: {u['email']}  
+    Joined: {u.get('created_at', '---')}
+    ---
+    """)

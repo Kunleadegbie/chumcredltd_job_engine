@@ -1,44 +1,45 @@
-import sys, os
 import streamlit as st
+import sys, os
 
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
 from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from services.ai_engine import ai_check_eligibility
 
-COST = 5
-st.set_page_config(page_title="Eligibility Checker | Chumcred", page_icon="📌")
+st.set_page_config(page_title="Eligibility Checker", page_icon="✔️")
 
+COST = 5
+
+# AUTH CHECK
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
-user = st.session_state.get("user")
+user = st.session_state["user"]
 user_id = user["id"]
 
 render_sidebar()
 
+# SUBSCRIPTION
 auto_expire_subscription(user)
 subscription = get_subscription(user_id)
 
-if not subscription or subscription.get("subscription_status") != "active":
-    st.error("Subscription required.")
+if not subscription or subscription["subscription_status"] != "active":
+    st.error("You must have an active subscription.")
     st.stop()
 
 credits = subscription.get("credits", 0)
 
-st.title("📌 AI Job Eligibility Check")
-st.info(f"💳 Credits: **{credits}**")
+st.title("✔️ Job Eligibility Checker")
+st.write(f"💳 Credits Available: {credits}")
 
 resume = st.text_area("Paste Resume")
-job = st.text_area("Paste Job Description")
+requirements = st.text_area("Paste Job Requirements")
 
 if st.button(f"Check Eligibility (Cost {COST})", disabled=credits < COST):
 
-    if not resume.strip() or not job.strip():
-        st.warning("Resume and Job Description are required.")
+    if not resume.strip() or not requirements.strip():
+        st.warning("Resume and requirements cannot be empty.")
         st.stop()
 
     ok, balance = deduct_credits(user_id, COST)
@@ -46,7 +47,7 @@ if st.button(f"Check Eligibility (Cost {COST})", disabled=credits < COST):
         st.error(balance)
         st.stop()
 
-    st.success(f"{COST} credits deducted. Remaining: {balance}")
+    st.success(f"{COST} credits deducted. New balance: {balance}")
 
-    report = ai_check_eligibility(resume, job)
-    st.write(report)
+    result = ai_check_eligibility(resume, requirements)
+    st.write(result)

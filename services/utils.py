@@ -1,9 +1,6 @@
 from datetime import datetime, timedelta
 from services.supabase_client import supabase
 
-# ----------------------------------------------------
-# FETCH USER SUBSCRIPTION
-# ----------------------------------------------------
 def get_subscription(user_id):
     try:
         res = supabase.table("subscriptions").select("*").eq("user_id", user_id).single().execute()
@@ -12,9 +9,6 @@ def get_subscription(user_id):
         return None
 
 
-# ----------------------------------------------------
-# AUTO-EXPIRE SUBSCRIPTION (SAFE FOR ALL DATE FORMATS)
-# ----------------------------------------------------
 def auto_expire_subscription(user):
     user_id = user.get("id")
     sub = get_subscription(user_id)
@@ -25,13 +19,11 @@ def auto_expire_subscription(user):
     if not expiry:
         return
 
-    # SAFE PARSER
     try:
-        # Handles ISO format like 2025-12-02T15:42:21.878349+00:00
-        clean_expiry = expiry.split("T")[0]
-        exp_date = datetime.strptime(clean_expiry, "%Y-%m-%d")
-    except Exception:
-        return  # If anything breaks, do not crash the app
+        clean = expiry.split("T")[0].split(" ")[0]
+        exp_date = datetime.strptime(clean, "%Y-%m-%d")
+    except:
+        return
 
     if exp_date < datetime.now():
         supabase.table("subscriptions").update({
@@ -39,37 +31,29 @@ def auto_expire_subscription(user):
         }).eq("user_id", user_id).execute()
 
 
-# ----------------------------------------------------
-# DEDUCT CREDITS SAFELY
-# ----------------------------------------------------
 def deduct_credits(user_id, amount):
     sub = get_subscription(user_id)
     if not sub:
-        return False, "No subscription found."
+        return False, "Subscription not found."
 
     credits = sub.get("credits", 0)
     if credits < amount:
         return False, "Not enough credits."
 
-    new_balance = credits - amount
-
+    new_bal = credits - amount
     supabase.table("subscriptions").update({
-        "credits": new_balance
+        "credits": new_bal
     }).eq("user_id", user_id).execute()
 
-    return True, new_balance
+    return True, new_bal
 
 
-# ----------------------------------------------------
-# ACTIVATE SUBSCRIPTION
-# ----------------------------------------------------
-def activate_subscription(user_id, plan_name, credits):
+def activate_subscription(user_id, plan, credits):
     try:
         expiry = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
-
         supabase.table("subscriptions").upsert({
             "user_id": user_id,
-            "plan": plan_name,
+            "plan": plan,
             "credits": credits,
             "expiry_date": expiry,
             "subscription_status": "active"

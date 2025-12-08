@@ -1,45 +1,38 @@
-import sys, os
 import streamlit as st
+import sys, os
 
-# ----------------------------------------------------
-# IMPORT PATH FIX
-# ----------------------------------------------------
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-# ----------------------------------------------------
-# IMPORTS
-# ----------------------------------------------------
+from services.supabase_client import supabase
 from components.sidebar import render_sidebar
-from services.database import fetch_revenue_report
 
-# ----------------------------------------------------
-# CONFIG
-# ----------------------------------------------------
-st.set_page_config(page_title="Admin Revenue | Chumcred", page_icon="💵")
+st.set_page_config(page_title="Admin Revenue", page_icon="💰")
 
-# ----------------------------------------------------
-# AUTH
-# ----------------------------------------------------
+# AUTH CHECK
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
-
 user = st.session_state.get("user")
 if user.get("role") != "admin":
-    st.error("Admins only.")
-    st.stop()
+    st.error("Admin only."); st.stop()
 
 render_sidebar()
 
-# ----------------------------------------------------
-# PAGE UI
-# ----------------------------------------------------
-st.title("💵 Revenue Report")
+st.title("💰 Revenue Dashboard")
+st.write("---")
 
-revenue = fetch_revenue_report()
+payments = supabase.table("payments").select("*").execute().data or []
 
-if not revenue:
-    st.info("No revenue data available.")
-else:
-    st.dataframe(revenue)
+total_amount = sum([float(p.get("amount", 0)) for p in payments])
+st.metric("Total Revenue Collected", f"${total_amount:,.2f}")
+
+st.write("---")
+st.subheader("Payment Records")
+
+for p in payments:
+    st.markdown(f"""
+    **User:** {p['user_email']}  
+    **Amount:** ${p['amount']}  
+    **Plan:** {p['plan']}  
+    **Date:** {p.get('created_at', '---')}
+    ---
+    """)

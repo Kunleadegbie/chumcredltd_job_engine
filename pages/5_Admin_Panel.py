@@ -1,48 +1,49 @@
-import sys, os
 import streamlit as st
+import sys, os
 
-# ----------------------------------------------------
-# PATH FIX FOR STREAMLIT
-# ----------------------------------------------------
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-# ----------------------------------------------------
-# IMPORTS
-# ----------------------------------------------------
+from services.supabase_client import supabase
 from components.sidebar import render_sidebar
-from services.database import fetch_all_users
 
-# ----------------------------------------------------
-# PAGE CONFIG
-# ----------------------------------------------------
-st.set_page_config(page_title="Admin Panel | Chumcred", page_icon="🛠")
+st.set_page_config(page_title="Admin Panel", page_icon="🛠")
 
-# ----------------------------------------------------
+# ---------------------------------
 # AUTH CHECK
-# ----------------------------------------------------
+# ---------------------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
 user = st.session_state.get("user")
 if user.get("role") != "admin":
-    st.error("Admin access only.")
+    st.error("Access denied. Admins only.")
     st.stop()
 
 render_sidebar()
 
-# ----------------------------------------------------
-# PAGE UI
-# ----------------------------------------------------
 st.title("🛠 Admin Panel")
-st.write("Manage users and system activity.")
+st.write("---")
 
-st.subheader("👥 Registered Users")
+# FETCH USERS
+users = supabase.table("users").select("*").execute().data
 
-users = fetch_all_users()
+st.subheader("All Users")
+for u in users:
+    st.markdown(f"""
+        **{u['full_name']}**  
+        Email: {u['email']}  
+        Role: **{u['role']}**  
+        Status: {u.get('status', 'active')}
+        ---
+    """)
 
-if not users:
-    st.info("No registered users found.")
-else:
-    st.dataframe(users)
+# Role update
+st.subheader("Update User Role")
+
+email = st.text_input("Enter email of user to update role")
+new_role = st.selectbox("New Role", ["user", "admin"])
+
+if st.button("Update Role"):
+    supabase.table("users").update({"role": new_role}).eq("email", email).execute()
+    st.success(f"Role updated to {new_role}")
+    st.rerun()
