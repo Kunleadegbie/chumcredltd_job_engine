@@ -1,65 +1,69 @@
-import streamlit as st
 import sys, os
-import json
+import streamlit as st
+import requests
 
-# Fix import path
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+# ----------------------------------------------------
+# FIX IMPORT PATHS (Streamlit Cloud-safe)
+# ----------------------------------------------------
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
+# Imports
 from components.sidebar import render_sidebar
-from services.utils import get_subscription, auto_expire_subscription, deduct_credits
-from services.recommendation import (
-    get_user_saved_jobs,
-    get_user_search_history,
-    log_search_history,
-    fetch_jobs_for_recommendation
+from services.utils import (
+    get_subscription,
+    auto_expire_subscription,
+    deduct_credits
 )
-from services.ai_engine import ai_recommend_jobs
+from services.ai_engine import (
+    ai_extract_skills,
+    ai_generate_match_score     # used for ranking jobs
+)
 
-st.set_page_config(page_title="AI Job Recommendations", page_icon="⭐")
+# ----------------------------------------------------
+# CONFIG
+# ----------------------------------------------------
+st.set_page_config(page_title="Job Recommendations | Chumcred", page_icon="⭐")
+COST = 10  # credits per recommendation session
 
-COST = 5  # credits
 
-# --------------------------------------------------
+# ----------------------------------------------------
 # AUTH CHECK
-# --------------------------------------------------
+# ----------------------------------------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
-user = st.session_state["user"]
+user = st.session_state.get("user")
 user_id = user["id"]
 
 render_sidebar()
 
-# --------------------------------------------------
-# SUBSCRIPTION CHECK
-# --------------------------------------------------
+# ----------------------------------------------------
+# SUBSCRIPTION VALIDATION
+# ----------------------------------------------------
 auto_expire_subscription(user)
 subscription = get_subscription(user_id)
 
-if not subscription or subscription["subscription_status"] != "active":
-    st.error("You need an active subscription to access recommendations.")
+if not subscription or subscription.get("subscription_status") != "active":
+    st.error("❌ You need an active subscription to get job recommendations.")
     st.stop()
 
 credits = subscription.get("credits", 0)
 
-# --------------------------------------------------
+# ----------------------------------------------------
 # PAGE UI
-# --------------------------------------------------
+# ----------------------------------------------------
 st.title("⭐ AI Job Recommendations")
+st.info(f"💳 Credits Available: **{credits}**")
 
-st.write(f"💳 Credits Available: **{credits}**")
-st.write("Let AI analyze your resume and job preferences to recommend the best jobs.")
+resume_text = st.text_area("Paste your Resume Below")
 
-resume = st.text_area("Paste your Resume")
+if st.button(f"Get Recommendations (Cost {COST} credits)", disabled=credits < COST):
 
-preferred_title = st.text_input("Preferred Job Title", placeholder="e.g., Data Analyst")
-preferred_location = st.text_input("Preferred Location (Optional)")
-remote_only = st.checkbox("Remote Only")
-
-if st.button(f"Generate Recommendations (Cost: {COST} credits)", disabled=credits < COST):
-
-    if not resume.strip() or not preferred_title.strip():
-        st.error("Please enter resume and a preferred job title.")
+    if not resume_text.strip():
+        st.warning("Please paste your resume first.")
         st.stop()
 
     # Deduct credits
@@ -68,48 +72,76 @@ if st.button(f"Generate Recommendations (Cost: {COST} credits)", disabled=credit
         st.error(new_balance)
         st.stop()
 
-    st.success(f"{COST} credits deducted. Remaining: {new_balance}")
+    st.success(f"✔ {COST} credits deducted. New balance: {new_balance}")
+    st.write("---")
 
-    # Collect user history
-    saved_jobs = get_user_saved_jobs(user_id)
-    search_history = get_user_search_history(user_id)
+    # ----------------------------------------------------
+    # STEP 1: Extract Skills
+    # ----------------------------------------------------
+    st.write("🔍 **Analyzing your resume…**")
+    extracted = ai_extract_skills(resume_text)
 
-    # Log user preference
-    log_search_history(user_id, preferred_title)
+    st.write("🧠 Extracted Skills:")
+    st.write(extracted)
 
-    # Fetch job list
-    jobs = fetch_jobs_for_recommendation(preferred_title, preferred_location, remote_only)
+    # Create query
+    query_text = ", ".join(extracted.split("\n")[:5])  # pick top 5 skills
+
+    # ----------------------------------------------------
+    # STEP 2: Call JSearch API
+    # ----------------------------------------------------
+    st.write("🌐 Searching for jobs that match your skills…")
+
+    headers = {
+        "X-API-KEY": st.secrets["JSEARCH_API_KEY"]
+    }
+
+    params = {
+        "query": query_text,
+        "num_pages": 1
+    }
+
+    url = "https://jsearch.p.rapidapi.com/search"
+
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        jobs = response.json().get("data", [])
+    except Exception as e:
+        st.error(f"API Error: {e}")
+        st.stop()
 
     if not jobs:
-        st.warning("No jobs found for your preference.")
+        st.warning("No matching jobs found.")
         st.stop()
 
-    # AI ranking
-    ai_output = ai_recommend_jobs(resume, saved_jobs, search_history, jobs)
+    # ----------------------------------------------------
+    # STEP 3: AI Ranking of Jobs
+    # ----------------------------------------------------
+    st.write("📊 Ranking job matches…")
 
-    # Try to parse JSON
-    try:
-        ranked_jobs = json.loads(ai_output)
-    except:
-        st.error("AI returned invalid format.")
-        st.write(ai_output)
-        st.stop()
+    ranked_jobs = []
+    for job in jobs[:20]:  # limit to 20 jobs
+        description = job.get("job_description", "")
+        score = ai_generate_match_score(resume_text, description)
+        ranked_jobs.append((score, job))
 
-    st.subheader("Top Recommended Jobs")
+    ranked_jobs.sort(reverse=True, key=lambda x: x[0])
 
-    for job in ranked_jobs:
-        title = job.get("job_title")
-        company = job.get("company")
-        score = job.get("score")
-        reason = job.get("reason")
-        job_id = job.get("job_id")
+    # ----------------------------------------------------
+    # STEP 4: Display Results
+    # ----------------------------------------------------
+    st.write("⭐ **Top Job Recommendations Based on Your Skills**")
+    st.write("---")
 
-        st.markdown(f"""
-        ### ⭐ {title}  
-        **Company:** {company}  
-        **Match Score:** {score}/100  
-        **Reason:** {reason}
-        """)
+    for score, job in ranked_jobs[:10]:  # show top 10
+        st.markdown(
+            f"""
+            ### 🔹 {job.get('job_title')}
+            **Company:** {job.get('employer_name')}  
+            **Location:** {job.get('job_city', '')}, {job.get('job_country', '')}  
+            **Match Score:** ⭐ {score}  
 
-        if st.button(f"Save Job {job_id}", key=job_id):
-            st.success("Job saved.")
+            [Apply Here]({job.get('job_apply_link')})
+            ---
+            """
+        )

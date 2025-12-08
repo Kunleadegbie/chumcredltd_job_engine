@@ -1,53 +1,57 @@
-import streamlit as st
 import sys, os
+import streamlit as st
 
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+# Fix imports
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from components.sidebar import render_sidebar
 from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from services.ai_engine import ai_generate_resume
 
-st.set_page_config(page_title="AI Resume Writer", page_icon="📄")
+
+st.set_page_config(page_title="Resume Writer | Chumcred", page_icon="📄")
 
 COST = 20
 
-# AUTH CHECK
+# Auth
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
-user = st.session_state["user"]
+user = st.session_state.get("user")
 user_id = user["id"]
 
 render_sidebar()
 
-# SUBSCRIPTION CHECK
 auto_expire_subscription(user)
 subscription = get_subscription(user_id)
-
-if not subscription or subscription["subscription_status"] != "active":
-    st.error("You need an active subscription to use the resume writer.")
+if not subscription or subscription.get("subscription_status") != "active":
+    st.error("❌ Subscription required.")
     st.stop()
 
 credits = subscription.get("credits", 0)
 
+# UI
 st.title("📄 AI Resume Writer")
-st.write(f"💳 Credits Available: {credits}")
+st.info(f"💳 Credits: **{credits}**")
 
-experience = st.text_area("Describe Your Work Experience")
-skills = st.text_area("List Your Skills")
-education = st.text_area("Enter Education History")
+resume_prompt = st.text_area("Describe your experience, roles, skills…")
 
-# Disable button if not enough credits OR text is missing
-button_disabled = credits < COST or not (experience.strip() and skills.strip() and education.strip())
+if st.button(f"Generate Resume (Cost {COST} credits)", disabled=credits < COST):
 
-if st.button(f"Generate Resume (Cost {COST})", disabled=button_disabled):
-
-    ok, balance = deduct_credits(user_id, COST)
-    if not ok:
-        st.error(balance)
+    if not resume_prompt.strip():
+        st.warning("Please enter some details.")
         st.stop()
 
-    st.success(f"{COST} credits deducted. Remaining: {balance}")
+    ok, new_balance = deduct_credits(user_id, COST)
+    if not ok:
+        st.error(new_balance)
+        st.stop()
 
-    resume = ai_generate_resume(experience, skills, education)
-    st.write(resume)
+    st.success(f"Credits deducted. New balance: {new_balance}")
+    st.write("⏳ Creating resume…")
+
+    result = ai_generate_resume(resume_prompt)
+    st.write(result)
