@@ -1,3 +1,5 @@
+from services.supabase_client import supabase
+
 def login_user(email, password):
     print("=== DEBUG LOGIN START ===")
     print("Input email:", email)
