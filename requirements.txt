@@ -1,12 +1,17 @@
 streamlit
 supabase
 python-dotenv
-pandas
-plotly
-requests
 openai
-setuptools
+requests
+pandas
+pydantic
+PyPDF2
+python-docx
+tiktoken
 -e .
+
+
+
 
 
 
