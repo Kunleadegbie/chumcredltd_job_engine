@@ -8,7 +8,8 @@ import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from services.supabase_client import supabase
-from services.auth import login_user, register_user
+from services.auth import login_user
+
 
 # -----------------------------
 # PAGE CONFIG
