@@ -1,3 +1,7 @@
+import os
+print("DEBUG SUPABASE_URL =", os.getenv("SUPABASE_URL"))
+print("DEBUG SUPABASE_KEY =", os.getenv("SUPABASE_KEY"))
+
 from supabase import create_client
 import streamlit as st
 
