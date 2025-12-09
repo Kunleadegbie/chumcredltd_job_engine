@@ -1,47 +1,35 @@
-from openai import OpenAI
-import streamlit as st
-
-client = OpenAI()
-
-def ai_recommend_jobs(resume_text, saved_jobs, search_history, job_list):
+def ai_generate_match_score(resume_text, job_title, job_description):
     """
-    AI ranking engine: reads resume, preferences, history, saved jobs,
-    and ranks job_list by match score.
+    AI Match Scoring Engine.
+    
+    Returns:
+    - a score (0–100)
+    - a brief explanation
     """
 
     prompt = f"""
-    You are an AI Job Recommendation Engine.
+    You are an AI Match Score Engine.
 
     USER RESUME:
     {resume_text}
 
-    SAVED JOBS:
-    {saved_jobs}
+    JOB TITLE:
+    {job_title}
 
-    SEARCH HISTORY:
-    {search_history}
-
-    JOB LISTINGS TO RANK:
-    {job_list}
+    JOB DESCRIPTION:
+    {job_description}
 
     TASK:
-    - Analyze the user's resume for skills, experience, seniority, industry alignment.
-    - Analyze saved jobs to detect user's preference trend.
-    - Analyze search history to identify user intent.
-    - Assign a MATCH SCORE (0–100) to each job.
-    - Return ONLY the ranked list in JSON format.
+    - Compare user resume with job requirements.
+    - Evaluate skill alignment, experience match, seniority fit, industry relevance.
+    - Score the match from 0–100.
+    - Provide a brief explanation (2–3 sentences).
 
-    FORMAT:
-    [
-      {{
-        "job_id": "...",
-        "job_title": "...",
-        "company": "...",
-        "score": 87,
-        "reason": "Why this job fits the user"
-      }},
-      ...
-    ]
+    FORMAT (JSON):
+    {{
+      "score": 85,
+      "reason": "Strong skill alignment with Python, data analysis and APIs..."
+    }}
     """
 
     response = client.chat.completions.create(
@@ -51,8 +39,3 @@ def ai_recommend_jobs(resume_text, saved_jobs, search_history, job_list):
     )
 
     return response.choices[0].message["content"]
-
-
-
-
-
