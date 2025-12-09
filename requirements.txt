@@ -8,7 +8,6 @@ pydantic
 PyPDF2
 python-docx
 tiktoken
--e .
 
 
 
