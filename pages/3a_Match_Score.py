@@ -1,83 +1,60 @@
+
+# ============================
+# 3a_Match_Score.py (FIXED)
+# ============================
+
 import sys, os
+from pathlib import Path
+
+# --- FIX: Ensure root folder is added to PYTHONPATH ---
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.append(str(ROOT_DIR))
+
+# -------------------------------------------------------
+
 import streamlit as st
-
-# ----------------------------------------------------
-# FIX IMPORT PATHS FOR STREAMLIT CLOUD
-# ----------------------------------------------------
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
-
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
-# ----------------------------------------------------
-# SAFE IMPORTS (NOW WORKING)
-# ----------------------------------------------------
-from components.sidebar import render_sidebar
-from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits
-)
 from services.ai_engine import ai_generate_match_score
+from services.supabase_client import supabase
+from services.auth import require_login
 
 
-# ----------------------------------------------------
-# PAGE CONFIG
-# ----------------------------------------------------
-st.set_page_config(page_title="Match Score | Chumcred", page_icon="📊")
+# --- PAGE SETTINGS ---
+st.set_page_config(page_title="Match Score", layout="wide")
 
-COST = 5
-
-
-# ----------------------------------------------------
-# AUTH CHECK
-# ----------------------------------------------------
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.switch_page("app.py")
-
-user = st.session_state.get("user")
-if not isinstance(user, dict):
-    st.switch_page("app.py")
-
-user_id = user["id"]
-
-render_sidebar()
-
-# ----------------------------------------------------
-# SUBSCRIPTION CHECK
-# ----------------------------------------------------
-auto_expire_subscription(user)
-subscription = get_subscription(user_id)
-
-if not subscription or subscription.get("subscription_status") != "active":
-    st.error("❌ You need an active subscription for Match Score.")
+# Redirect if user not logged in
+user = require_login()
+if not user:
     st.stop()
 
-credits = subscription.get("credits", 0)
 
-# ----------------------------------------------------
-# PAGE UI
-# ----------------------------------------------------
-st.title("📊 Resume vs Job Match Score")
-st.info(f"💳 Credits: **{credits}**")
+# --- PAGE CONTENT ---
+st.title("Match Score Analysis")
 
-resume_text = st.text_area("Paste your Resume Content")
-job_description = st.text_area("Paste the Job Description")
+st.write("Upload your resume and job description below to generate your match score.")
 
-if st.button(f"Run Match Score (Cost {COST} credits)", disabled=credits < COST):
+resume = st.file_uploader("Upload your Resume (PDF or DOCX)", type=["pdf", "docx"])
+job_description = st.text_area("Paste Job Description", height=200)
 
-    if not resume_text.strip() or not job_description.strip():
-        st.warning("Both fields are required.")
+if st.button("Generate Match Score"):
+    if not resume or not job_description.strip():
+        st.error("Please upload a resume and enter job description.")
         st.stop()
 
-    ok, new_balance = deduct_credits(user_id, COST)
-    if not ok:
-        st.error(new_balance)
-        st.stop()
+    with st.spinner("Analyzing match score..."):
+        try:
+            # Convert uploaded resume file to bytes
+            resume_bytes = resume.read()
 
-    st.success(f"✔ {COST} credits deducted. New balance: {new_balance}")
+            score_result = ai_generate_match_score(
+                resume_content=resume_bytes,
+                job_description=job_description
+            )
 
-    st.write("⏳ Generating match score…")
-    result = ai_generate_match_score(resume_text, job_description)
-    st.write(result)
+            st.success("Match Score Generated Successfully!")
+            st.metric("Match Score", f"{score_result['score']}%")
+            st.write("### Breakdown")
+            st.write(score_result.get("breakdown", "No breakdown available."))
+
+        except Exception as e:
+            st.error(f"Error generating match score: {e}")
