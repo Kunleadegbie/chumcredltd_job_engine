@@ -3,12 +3,6 @@ import streamlit as st
 import sys, os
 
 
-print("ENV DEBUG:", {
-    "SUPABASE_URL": os.getenv("SUPABASE_URL"),
-    "SUPABASE_KEY": os.getenv("SUPABASE_KEY")[:10] + "..." if os.getenv("SUPABASE_KEY") else None
-})
-
-
 # -----------------------------
 # FIX IMPORT PATH
 # -----------------------------
