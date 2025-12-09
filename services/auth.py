@@ -1,26 +1,32 @@
-from services.supabase_client import supabase
-
 def login_user(email, password):
+    print("=== DEBUG LOGIN START ===")
+    print("Input email:", email)
+    print("Input password:", password)
+
     try:
-        res = supabase.table("users").select("*").eq("email", email).eq("password", password).single().execute()
-        return res.data
-    except:
-        return None
+        # Fetch user by email first
+        response = supabase.table("users").select("*").eq("email", email).execute()
+        print("Supabase raw response:", response.data)
 
+        if not response.data:
+            print("DEBUG: No user found with this email.")
+            return None
 
-def register_user(full_name, email, password):
-    try:
-        exists = supabase.table("users").select("id").eq("email", email).execute()
-        if exists.data:
-            return False, "Email already exists."
+        user = response.data[0]
+        print("DEBUG: Stored user row:", user)
+        print("DEBUG: Stored password:", repr(user.get("password")))
 
-        supabase.table("users").insert({
-            "full_name": full_name,
-            "email": email,
-            "password": password,
-            "role": "user"
-        }).execute()
+        # Compare passwords
+        if user.get("password") == password:
+            print("DEBUG: Password MATCHED.")
+            print("=== DEBUG LOGIN END ===")
+            return user
+        else:
+            print("DEBUG: Password MISMATCH:", repr(user.get("password")), "!=", repr(password))
+            print("=== DEBUG LOGIN END ===")
+            return None
 
-        return True, "Registration successful!"
     except Exception as e:
-        return False, str(e)
+        print("DEBUG ERROR:", e)
+        print("=== DEBUG LOGIN END ===")
+        return None
