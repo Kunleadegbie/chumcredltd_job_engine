@@ -1,22 +1,16 @@
 
 # ============================
-# 3a_Match_Score.py (FIXED)
+# 3a_Match_Score.py (FINAL FIX)
 # ============================
 
-import sys, os
+import streamlit as st
 from pathlib import Path
 
-# --- FIX: Ensure root folder is added to PYTHONPATH ---
-ROOT_DIR = Path(__file__).resolve().parents[1]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.append(str(ROOT_DIR))
-
-# -------------------------------------------------------
-
-import streamlit as st
-from services.ai_engine import ai_generate_match_score
-from services.supabase_client import supabase
-from services.auth import require_login
+# --- NO NEED FOR sys.path FIX ANYMORE ---
+# Absolute import (ensures Streamlit Cloud works)
+from chumcredltd_job_engine.services.ai_engine import ai_generate_match_score
+from chumcredltd_job_engine.services.supabase_client import supabase
+from chumcredltd_job_engine.services.auth import require_login
 
 
 # --- PAGE SETTINGS ---
@@ -27,8 +21,6 @@ user = require_login()
 if not user:
     st.stop()
 
-
-# --- PAGE CONTENT ---
 st.title("Match Score Analysis")
 
 st.write("Upload your resume and job description below to generate your match score.")
@@ -43,7 +35,6 @@ if st.button("Generate Match Score"):
 
     with st.spinner("Analyzing match score..."):
         try:
-            # Convert uploaded resume file to bytes
             resume_bytes = resume.read()
 
             score_result = ai_generate_match_score(
