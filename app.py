@@ -1,49 +1,63 @@
 
 import streamlit as st
-import sys, os
+import sys
+import os
 
+# ---------------------------------------
+# FIX MODULE IMPORT PATH FOR DEPLOYMENT
+# ---------------------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PARENT_DIR = os.path.dirname(BASE_DIR)
+sys.path.append(PARENT_DIR)
 
-# -----------------------------
-# FIX IMPORT PATH
-# -----------------------------
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+# ---------------------------------------
+# IMPORT SERVICES
+# ---------------------------------------
+from config.supabase_client import supabase
+from services.auth import login_user, register_user
 
-from services.supabase_client import supabase
-from services.auth import login_user
-
-
-# -----------------------------
+# ---------------------------------------
 # PAGE CONFIG
-# -----------------------------
+# ---------------------------------------
 st.set_page_config(page_title="Chumcred Job Engine", page_icon="🚀")
 
-# -----------------------------
+# ---------------------------------------
 # SESSION INITIALIZATION
-# -----------------------------
+# ---------------------------------------
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# -----------------------------
-# AUTH UI
-# -----------------------------
+# ---------------------------------------
+# REDIRECT IF ALREADY LOGGED IN
+# ---------------------------------------
+if st.session_state.authenticated:
+    st.switch_page("pages/2_Dashboard.py")
+
+# ---------------------------------------
+# TITLE + TABS
+# ---------------------------------------
 st.title("🔐 Welcome to Chumcred Job Engine")
 st.caption("Empower your career with AI-powered tools.")
 
 tab1, tab2 = st.tabs(["🔓 Sign In", "📝 Register"])
 
-# -----------------------------
-# SIGN IN TAB
-# -----------------------------
+# ---------------------------------------
+# 🔓 SIGN IN TAB
+# ---------------------------------------
 with tab1:
     st.subheader("Sign In")
+
     email = st.text_input("Email", key="login_email")
     password = st.text_input("Password", type="password", key="login_password")
 
     if st.button("Sign In"):
+        st.info("Authenticating...")
+
         user = login_user(email, password)
+
         if user:
             st.session_state.authenticated = True
             st.session_state.user = user
@@ -52,12 +66,12 @@ with tab1:
         else:
             st.error("Invalid email or password")
 
-
-# -----------------------------
-# REGISTER TAB
-# -----------------------------
+# ---------------------------------------
+# 📝 REGISTER TAB
+# ---------------------------------------
 with tab2:
     st.subheader("Create Account")
+
     full_name = st.text_input("Full Name")
     reg_email = st.text_input("Email")
     reg_password = st.text_input("Password", type="password")
@@ -68,23 +82,15 @@ with tab2:
             st.error("Passwords do not match.")
         else:
             ok, msg = register_user(full_name, reg_email, reg_password)
+
             if ok:
                 st.success(msg)
-                st.info("Please sign in using the Login tab.")
+                st.info("Please sign in from the Sign In tab.")
             else:
                 st.error(msg)
 
-
-# -----------------------------
-# AUTO-REDIRECT IF LOGGED IN
-# -----------------------------
-if st.session_state.authenticated:
-    st.switch_page("pages/2_Dashboard.py")
-
-
-# -----------------------------
+# ---------------------------------------
 # FOOTER
-# -----------------------------
+# ---------------------------------------
 st.write("---")
 st.caption("Powered by Chumcred Limited © 2025")
-

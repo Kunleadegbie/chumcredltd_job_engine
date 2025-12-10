@@ -1,34 +1,47 @@
-from services.supabase_client import supabase
+from config.supabase_client import supabase
 
+# ---------------------------------------
+# LOGIN USER
+# ---------------------------------------
 def login_user(email, password):
-    print("=== DEBUG LOGIN START ===")
-    print("Input email:", email)
-    print("Input password:", password)
-
     try:
-        # Fetch user by email first
-        response = supabase.table("users").select("*").eq("email", email).execute()
-        print("Supabase raw response:", response.data)
+        response = (
+            supabase.table("users")
+            .select("*")
+            .eq("email", email)
+            .eq("password", password)
+            .single()
+            .execute()
+        )
 
-        if not response.data:
-            print("DEBUG: No user found with this email.")
-            return None
+        if response.data:
+            print("LOGIN SUCCESS:", response.data)
+            return response.data
 
-        user = response.data[0]
-        print("DEBUG: Stored user row:", user)
-        print("DEBUG: Stored password:", repr(user.get("password")))
-
-        # Compare passwords
-        if user.get("password") == password:
-            print("DEBUG: Password MATCHED.")
-            print("=== DEBUG LOGIN END ===")
-            return user
-        else:
-            print("DEBUG: Password MISMATCH:", repr(user.get("password")), "!=", repr(password))
-            print("=== DEBUG LOGIN END ===")
-            return None
+        print("LOGIN FAILED: No matching user found")
+        return None
 
     except Exception as e:
-        print("DEBUG ERROR:", e)
-        print("=== DEBUG LOGIN END ===")
+        print("Login Error:", e)
         return None
+
+
+# ---------------------------------------
+# REGISTER USER
+# ---------------------------------------
+def register_user(full_name, email, password):
+    try:
+        data = {
+            "full_name": full_name,
+            "email": email,
+            "password": password,
+            "is_active": True,
+        }
+
+        response = supabase.table("users").insert(data).execute()
+
+        return True, "Account created successfully!"
+
+    except Exception as e:
+        print("Registration Error:", e)
+        return False, f"Registration failed: {e}"
