@@ -2,7 +2,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-start = "python3 -m streamlit run app.py --server.port=$PORT --server.address=0.0.0.0"
+start = "python3 -m streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
 
 [variables]
 SUPABASE_URL = "${SUPABASE_URL}"
@@ -10,6 +10,7 @@ SUPABASE_KEY = "${SUPABASE_KEY}"
 OPENAI_API_KEY = "${OPENAI_API_KEY}"
 RAPIDAPI_KEY = "${RAPIDAPI_KEY}"
 JSEARCH_API_KEY = "${JSEARCH_API_KEY}"
+
 
 
 
