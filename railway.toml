@@ -1,16 +1,17 @@
+# Railway Deployment Configuration for chumcredltd_job_engine
+
 [build]
 builder = "NIXPACKS"
 
 [deploy]
 start = "python3 -m streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
+restartPolicyType = "ON_FAILURE"
+numReplicas = 1
 
+# 🔥 IMPORTANT: This section ensures Railway injects your secrets
 [variables]
-SUPABASE_URL = "${SUPABASE_URL}"
-SUPABASE_KEY = "${SUPABASE_KEY}"
-OPENAI_API_KEY = "${OPENAI_API_KEY}"
-RAPIDAPI_KEY = "${RAPIDAPI_KEY}"
-JSEARCH_API_KEY = "${JSEARCH_API_KEY}"
-
-
-
-
+SUPABASE_URL = "{{ SUPABASE_URL }}"
+SUPABASE_KEY = "{{ SUPABASE_KEY }}"
+OPENAI_API_KEY = "{{ OPENAI_API_KEY }}"
+RAPIDAPI_KEY = "{{ RAPIDAPI_KEY }}"
+JSEARCH_API_KEY = "{{ JSEARCH_API_KEY }}"
