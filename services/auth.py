@@ -1,44 +1,58 @@
 from config.supabase_client import supabase
 
+# -------------------------
+# LOGIN USER
+# -------------------------
 def login_user(email, password):
-    print("\n========== LOGIN DEBUG START ==========")
-    print("Email received:", repr(email))
-    print("Password received:", repr(password))
+    if not supabase:
+        print("❌ Supabase client not initialized")
+        return None
 
     try:
-        # 1️⃣ Query Supabase for the user
         response = (
             supabase.table("users")
             .select("*")
             .eq("email", email)
+            .eq("password", password)
+            .single()
+            .execute()
+        )
+        return response.data
+    except Exception as e:
+        print("LOGIN ERROR:", e)
+        return None
+
+
+# -------------------------
+# REGISTER USER
+# -------------------------
+def register_user(full_name, email, password):
+    if not supabase:
+        print("❌ Supabase client not initialized")
+        return False, "Supabase client not initialized"
+
+    try:
+        # Check if user already exists
+        existing = (
+            supabase.table("users")
+            .select("id")
+            .eq("email", email)
             .execute()
         )
 
-        print("Raw Supabase response:", response)
-        print("Response data:", response.data)
+        if existing.data:
+            return False, "User already exists."
 
-        # 2️⃣ If no user found
-        if not response.data:
-            print("❌ No user found with that email")
-            print("========== LOGIN DEBUG END ==========\n")
-            return None
+        # Create new user
+        supabase.table("users").insert({
+            "full_name": full_name,
+            "email": email,
+            "password": password,
+            "role": "user",
+            "status": "active",
+        }).execute()
 
-        user = response.data[0]
-        print("User row fetched:", user)
-
-        # 3️⃣ Check password
-        if user.get("password") != password:
-            print("❌ Password mismatch!")
-            print("DB password:", repr(user.get("password")))
-            print("Input password:", repr(password))
-            print("========== LOGIN DEBUG END ==========\n")
-            return None
-
-        print("✅ LOGIN SUCCESS — USER AUTHENTICATED")
-        print("========== LOGIN DEBUG END ==========\n")
-        return user
-
+        return True, "Registration successful."
     except Exception as e:
-        print("🔥 LOGIN ERROR:", e)
-        print("========== LOGIN DEBUG END ==========\n")
-        return None
+        print("REGISTRATION ERROR:", e)
+        return False, str(e)
