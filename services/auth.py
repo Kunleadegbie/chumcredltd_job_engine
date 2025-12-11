@@ -1,47 +1,36 @@
 from config.supabase_client import supabase
 
-# ---------------------------------------
-# LOGIN USER
-# ---------------------------------------
 def login_user(email, password):
+    print("\n=== LOGIN DEBUG START ===")
+    print("Email received:", repr(email))
+    print("Password received:", repr(password))
+
     try:
         response = (
             supabase.table("users")
             .select("*")
             .eq("email", email)
             .eq("password", password)
-            .single()
+            .limit(1)
             .execute()
         )
 
-        if response.data:
-            print("LOGIN SUCCESS:", response.data)
-            return response.data
+        print("Supabase raw response:", response)
 
-        print("LOGIN FAILED: No matching user found")
+        # Supabase v2 returns .data
+        data = response.data
+        print("Parsed data:", data)
+
+        if data and len(data) > 0:
+            print("LOGIN SUCCESS:", data[0])
+            print("=== LOGIN DEBUG END ===\n")
+            return data[0]
+
+        print("LOGIN FAILED: No user matched.")
+        print("=== LOGIN DEBUG END ===\n")
         return None
 
     except Exception as e:
-        print("Login Error:", e)
+        print("LOGIN ERROR:", e)
+        print("=== LOGIN DEBUG END ===\n")
         return None
-
-
-# ---------------------------------------
-# REGISTER USER
-# ---------------------------------------
-def register_user(full_name, email, password):
-    try:
-        data = {
-            "full_name": full_name,
-            "email": email,
-            "password": password,
-            "is_active": True,
-        }
-
-        response = supabase.table("users").insert(data).execute()
-
-        return True, "Account created successfully!"
-
-    except Exception as e:
-        print("Registration Error:", e)
-        return False, f"Registration failed: {e}"
