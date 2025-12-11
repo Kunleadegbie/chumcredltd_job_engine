@@ -1,63 +1,34 @@
-from datetime import datetime, timedelta
-from services.supabase_client import supabase
+from config.supabase_client import supabase
+
+# Example utility functions — update yours as needed:
 
 def get_subscription(user_id):
+    if not supabase:
+        return None
+
     try:
         res = supabase.table("subscriptions").select("*").eq("user_id", user_id).single().execute()
         return res.data
-    except:
+    except Exception as e:
+        print("Subscription fetch error:", e)
         return None
 
 
-def auto_expire_subscription(user):
-    user_id = user.get("id")
-    sub = get_subscription(user_id)
-    if not sub:
-        return
-
-    expiry = sub.get("expiry_date")
-    if not expiry:
-        return
+def auto_expire_subscription(user_id):
+    if not supabase:
+        return None
 
     try:
-        clean = expiry.split("T")[0].split(" ")[0]
-        exp_date = datetime.strptime(clean, "%Y-%m-%d")
-    except:
-        return
-
-    if exp_date < datetime.now():
-        supabase.table("subscriptions").update({
-            "subscription_status": "expired"
-        }).eq("user_id", user_id).execute()
+        supabase.rpc("expire_user_subscription", {"uid": user_id}).execute()
+    except Exception as e:
+        print("Subscription expiration error:", e)
 
 
 def deduct_credits(user_id, amount):
-    sub = get_subscription(user_id)
-    if not sub:
-        return False, "Subscription not found."
+    if not supabase:
+        return None
 
-    credits = sub.get("credits", 0)
-    if credits < amount:
-        return False, "Not enough credits."
-
-    new_bal = credits - amount
-    supabase.table("subscriptions").update({
-        "credits": new_bal
-    }).eq("user_id", user_id).execute()
-
-    return True, new_bal
-
-
-def activate_subscription(user_id, plan, credits):
     try:
-        expiry = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
-        supabase.table("subscriptions").upsert({
-            "user_id": user_id,
-            "plan": plan,
-            "credits": credits,
-            "expiry_date": expiry,
-            "subscription_status": "active"
-        }).execute()
-        return True
-    except:
-        return False
+        supabase.rpc("deduct_user_credits", {"uid": user_id, "amt": amount}).execute()
+    except Exception as e:
+        print("Credit deduction error:", e)

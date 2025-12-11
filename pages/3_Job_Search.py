@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
 from services.job_api import search_jobs
-from services.supabase_client import supabase
+from config.supabase_client import supabase
 from services.utils import get_subscription, auto_expire_subscription
 
 st.set_page_config(page_title="Job Search", page_icon="🔍")

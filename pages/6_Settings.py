@@ -5,7 +5,7 @@ import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
-from services.supabase_client import supabase
+from config.supabase_client import supabase
 
 st.set_page_config(page_title="Settings", page_icon="⚙️")
 

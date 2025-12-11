@@ -1,8 +1,8 @@
 setup.py
-chumcred_job_engine.egg-info/PKG-INFO
-chumcred_job_engine.egg-info/SOURCES.txt
-chumcred_job_engine.egg-info/dependency_links.txt
-chumcred_job_engine.egg-info/top_level.txt
+chumcredltd_job_engine.egg-info/PKG-INFO
+chumcredltd_job_engine.egg-info/SOURCES.txt
+chumcredltd_job_engine.egg-info/dependency_links.txt
+chumcredltd_job_engine.egg-info/top_level.txt
 components/__init__.py
 components/job_card.py
 components/popup.py

@@ -4,7 +4,7 @@ from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from services.supabase_client import supabase
+from config.supabase_client import supabase
 from services.utils import activate_subscription
 from components.sidebar import render_sidebar
 

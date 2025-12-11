@@ -1,5 +1,5 @@
 import streamlit as st
-from services.supabase_client import supabase
+from config.supabase_client import supabase
 from services.job_api import search_jobs
 from services.ai_engine import ai_recommend_jobs
 

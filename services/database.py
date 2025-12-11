@@ -1,4 +1,4 @@
-from services.supabase_client import supabase
+from config.supabase_client import supabase
 
 def fetch_all_users():
     try:

@@ -25,7 +25,13 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
-from services.utils import get_subscription, auto_expire_subscription
+from services.utils import (
+    get_subscription,
+    auto_expire_subscription,
+    deduct_credits
+)
+
+from config.supabase_client import supabase
 
 # ----------------------------------------------------
 # PAGE CONFIG

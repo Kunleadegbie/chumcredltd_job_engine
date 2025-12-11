@@ -9,7 +9,7 @@ from pathlib import Path
 # --- NO NEED FOR sys.path FIX ANYMORE ---
 # Absolute import (ensures Streamlit Cloud works)
 from chumcredltd_job_engine.services.ai_engine import ai_generate_match_score
-from chumcredltd_job_engine.services.supabase_client import supabase
+from chumcredltd_job_engine.config.supabase_client import supabase
 from chumcredltd_job_engine.services.auth import require_login
 
 
