@@ -5,7 +5,8 @@ import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
-from config.supabase_client import supabase
+from config.supabase_clientres = supabase.table("user_stats").select("*").eq("user_id", user_id).execute()
+ import supabase
 
 st.set_page_config(page_title="Settings", page_icon="⚙️")
 
@@ -24,7 +25,7 @@ st.title("⚙️ Settings")
 st.write("---")
 
 # Fetch settings
-res = supabase.table("user_settings").select("*").eq("user_id", user_id).execute()
+res = supabase.table("user_stats").select("*").eq("user_id", user_id).execute()
 settings = res.data[0] if res.data else {}
 
 notify = settings.get("notifications", True)
