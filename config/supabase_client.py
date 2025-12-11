@@ -1,17 +1,13 @@
-import os
-from supabase import create_client, Client
+[browser]
+gatherUsageStats = false
 
-print("========== DEBUG SUPABASE ENV VARS ==========")
-print("SUPABASE_URL =", repr(os.getenv("SUPABASE_URL")))
-print("SUPABASE_KEY =", repr(os.getenv("SUPABASE_KEY")))
-print("=============================================")
+[server]
+enableCORS = false
+enableXsrfProtection = false
+enableWebsocketCompression = false
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
-supabase: Client = None
-
-if SUPABASE_URL and SUPABASE_KEY:
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-else:
-    print("🚨 Supabase variables missing!")
+[theme]
+primaryColor = "#4CAF50"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#000000"
