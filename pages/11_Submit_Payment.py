@@ -28,18 +28,18 @@ st.title("💰 Complete Payment")
 st.subheader(f"Plan Selected: **{plan}**")
 
 amount = {
-    "Basic": 10,
-    "Pro": 25,
-    "Premium": 60
+    "Basic": 5000,
+    "Pro": 12500,
+    "Premium": 50000
 }[plan]
 
 credits = {
     "Basic": 100,
     "Pro": 300,
-    "Premium": 1200
+    "Premium": 1500
 }[plan]
 
-st.write(f"Amount: **${amount}**")
+st.write(f"Amount: **₦{amount}**")
 
 if st.button("Confirm Payment"):
     supabase.table("payments").insert({

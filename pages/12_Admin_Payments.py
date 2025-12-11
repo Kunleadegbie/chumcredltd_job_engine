@@ -20,7 +20,8 @@ render_sidebar()
 st.title("💳 Payment Management")
 st.write("---")
 
-payments = supabase.table("payments").select("*").execute().data or []
+# Fetch all payments
+payments = supabase.table("payment_requests").select("*").execute().data or []
 
 for p in payments:
     st.markdown(f"""
