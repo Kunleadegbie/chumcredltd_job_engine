@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import sys
 
+# Fix import path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
@@ -17,33 +18,47 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
 
 render_sidebar()
 
-user = st.session_state["user"]
-user_id = user["id"]
+user = st.session_state.get("user")
+user_id = user.get("id")
 
 st.title("💾 Saved Jobs")
+st.write("---")
 
 # ---------------------------
 # FETCH SAVED JOBS
 # ---------------------------
-jobs = supabase.table("saved_jobs").select("*").eq("user_id", user_id).execute().data or []
+try:
+    jobs = (
+        supabase.table("saved_jobs")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+        or []
+    )
+except Exception as e:
+    st.error(f"Failed to load saved jobs: {e}")
+    st.stop()
 
-# Debug print (optional)
-# st.write("DEBUG Saved Jobs:", jobs)
-
+# ---------------------------
+# SHOW MESSAGE IF EMPTY
+# ---------------------------
 if not jobs:
     st.info("You have not saved any jobs yet.")
     st.stop()
 
 # ---------------------------
-# DISPLAY JOBS SAFELY
+# DISPLAY SAVED JOBS
 # ---------------------------
 for job in jobs:
 
-    title = job.get("title") or job.get("job_title") or job.get("position") or "Untitled Job"
-    company = job.get("company") or job.get("employer_name") or "Unknown Company"
-    location = job.get("location") or job.get("job_city") or job.get("job_location") or "Unknown Location"
-    description = job.get("description") or job.get("job_description") or "No description available."
-    url = job.get("apply_link") or job.get("url") or job.get("job_apply_link") or "#"
+    # Ensure all fields have safe fallbacks
+    title = job.get("job_title") or "Untitled Job"
+    company = job.get("company") or "Unknown Company"
+    location = job.get("location") or "Not specified"
+    description = job.get("description") or "No description available."
+    url = job.get("url") or "#"
 
     st.markdown(f"### **{title}**")
     st.write(f"**Company:** {company}")
@@ -57,8 +72,11 @@ for job in jobs:
     # DELETE BUTTON
     # ---------------------------
     if st.button(f"❌ Remove Job", key=f"remove_{job['id']}"):
-        supabase.table("saved_jobs").delete().eq("id", job["id"]).execute()
-        st.success("Job removed successfully!")
-        st.rerun()
+        try:
+            supabase.table("saved_jobs").delete().eq("id", job["id"]).execute()
+            st.success("Job removed successfully!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Failed to remove job: {e}")
 
     st.write("---")
