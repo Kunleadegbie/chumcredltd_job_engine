@@ -20,7 +20,11 @@ render_sidebar()
 st.title("💰 Revenue Dashboard")
 st.write("---")
 
-payments = supabase.table("payments").select("*").execute().data or []
+try:
+    payments = supabase.table("payment_requests").select("*").execute().data or []
+except Exception as e:
+    st.error(f"Error loading payment data: {e}")
+    payments = []
 
 total_amount = sum([float(p.get("amount", 0)) for p in payments])
 st.metric("Total Revenue Collected", f"${total_amount:,.2f}")
