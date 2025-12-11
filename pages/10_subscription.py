@@ -38,7 +38,7 @@ PLANS = {
 
 for plan, details in PLANS.items():
     st.subheader(plan)
-    st.write(f"Price: **${details['price']}**")
+    st.write(f"Price: **₦{details['price']}**")
     st.write(f"Credits: **{details['credits']}**")
 
     if st.button(f"Select {plan}", key=plan):
