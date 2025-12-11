@@ -59,10 +59,8 @@ PLANS = {
 # ============================
 # ACTIVATE SUBSCRIPTION
 # ============================
-
 def activate_subscription(user_id, plan_name, duration_days, credits):
     if not supabase:
-        print("❌ Supabase client not initialized")
         return False, "Supabase not initialized"
 
     try:
@@ -71,23 +69,32 @@ def activate_subscription(user_id, plan_name, duration_days, credits):
         start_date = datetime.utcnow().isoformat()
         end_date = (datetime.utcnow() + timedelta(days=duration_days)).isoformat()
 
+        amount = PLANS[plan_name]["price"]
+
+        # Check if subscription exists
+        existing = supabase.table("subscriptions").select("*").eq("user_id", user_id).single().execute()
+
         payload = {
-            "user_id": user_id,
             "plan": plan_name,
-            "amount": PLANS[plan_name]["price"],   # FIXED
+            "amount": amount,
             "start_date": start_date,
             "end_date": end_date,
             "credits": credits
         }
 
-        supabase.table("subscriptions").insert(payload).execute()
+        if existing.data:
+            # UPDATE existing subscription
+            supabase.table("subscriptions").update(payload).eq("user_id", user_id).execute()
+        else:
+            # INSERT new subscription
+            payload["user_id"] = user_id
+            supabase.table("subscriptions").insert(payload).execute()
 
         return True, "Subscription activated successfully."
 
     except Exception as e:
         print("SUBSCRIPTION ACTIVATION ERROR:", e)
         return False, str(e)
-
 
 
 
