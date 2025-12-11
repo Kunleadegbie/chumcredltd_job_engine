@@ -59,6 +59,7 @@ PLANS = {
 # ============================
 # ACTIVATE SUBSCRIPTION
 # ============================
+
 def activate_subscription(user_id, plan_name, duration_days, credits):
     if not supabase:
         return False, "Supabase not initialized"
@@ -95,6 +96,7 @@ def activate_subscription(user_id, plan_name, duration_days, credits):
     except Exception as e:
         print("SUBSCRIPTION ACTIVATION ERROR:", e)
         return False, str(e)
+
 
 
 
