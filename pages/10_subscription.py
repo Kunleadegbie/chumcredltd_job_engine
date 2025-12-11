@@ -21,10 +21,20 @@ st.title("💳 Subscription Plans")
 st.write("---")
 
 PLANS = {
-    "Basic": {"price": 10, "credits": 100},
-    "Pro": {"price": 25, "credits": 300},
-    "Premium": {"price": 60, "credits": 1200}
+    "Basic": {
+        "price": 5000,      # ₦5,000
+        "credits": 100
+    },
+    "Pro": {
+        "price": 12500,     # ₦12,500
+        "credits": 300
+    },
+    "Premium": {
+        "price": 50000,     # ₦50,000
+        "credits": 1500
+    }
 }
+
 
 for plan, details in PLANS.items():
     st.subheader(plan)
