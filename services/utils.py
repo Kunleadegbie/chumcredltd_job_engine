@@ -1,13 +1,22 @@
 from config.supabase_client import supabase
 
-# Example utility functions — update yours as needed:
+# ============================
+# SUBSCRIPTION HELPERS
+# ============================
 
 def get_subscription(user_id):
+    """Fetch active subscription for a user."""
     if not supabase:
         return None
 
     try:
-        res = supabase.table("subscriptions").select("*").eq("user_id", user_id).single().execute()
+        res = (
+            supabase.table("subscriptions")
+            .select("*")
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
         return res.data
     except Exception as e:
         print("Subscription fetch error:", e)
@@ -15,6 +24,7 @@ def get_subscription(user_id):
 
 
 def auto_expire_subscription(user_id):
+    """Call Supabase RPC to expire subscription."""
     if not supabase:
         return None
 
@@ -25,6 +35,7 @@ def auto_expire_subscription(user_id):
 
 
 def deduct_credits(user_id, amount):
+    """Deduct AI usage credits via RPC."""
     if not supabase:
         return None
 
@@ -32,6 +43,18 @@ def deduct_credits(user_id, amount):
         supabase.rpc("deduct_user_credits", {"uid": user_id, "amt": amount}).execute()
     except Exception as e:
         print("Credit deduction error:", e)
+
+
+# ============================
+# SUBSCRIPTION PLAN DEFINITIONS
+# ============================
+
+PLANS = {
+    "Basic": {"price": 5000, "credits": 100},
+    "Pro": {"price": 12500, "credits": 300},
+    "Premium": {"price": 50000, "credits": 1500},
+}
+
 
 # ============================
 # ACTIVATE SUBSCRIPTION
@@ -66,11 +89,10 @@ def activate_subscription(user_id, plan_name, duration_days, credits):
             "credits": credits
         }
 
-        res = supabase.table("subscriptions").insert(payload).execute()
+        supabase.table("subscriptions").insert(payload).execute()
 
         return True, "Subscription activated successfully."
 
     except Exception as e:
         print("SUBSCRIPTION ACTIVATION ERROR:", e)
         return False, str(e)
-

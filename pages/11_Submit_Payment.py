@@ -1,57 +1,56 @@
 import streamlit as st
-import sys, os
 from datetime import datetime
-
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
 from config.supabase_client import supabase
-from services.utils import activate_subscription
-from components.sidebar import render_sidebar
+from services.utils import PLANS
 
-st.set_page_config(page_title="Submit Payment", page_icon="💰")
+st.set_page_config(page_title="Submit Payment", page_icon="💳")
 
+# Auth Check
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
-
-render_sidebar()
 
 user = st.session_state.get("user")
 user_id = user.get("id")
 
-if "selected_plan" not in st.session_state:
-    st.error("No plan selected.")
+st.title("💳 Complete Your Subscription")
+st.write("---")
+
+# Selected plan
+plan = st.session_state.get("selected_plan")
+
+if not plan:
+    st.error("No plan selected. Please go back and select a subscription plan.")
     st.stop()
 
-plan = st.session_state.selected_plan
+plan_price = PLANS[plan]["price"]
+credits = PLANS[plan]["credits"]
 
-st.title("💰 Complete Payment")
-st.subheader(f"Plan Selected: **{plan}**")
+st.subheader(f"Selected Plan: {plan}")
+st.write(f"**Amount:** ₦{plan_price:,}")
+st.write(f"**Credits:** {credits}")
 
-amount = {
-    "Basic": 5000,
-    "Pro": 12500,
-    "Premium": 50000
-}[plan]
+st.write("---")
+st.info("For now, payment is simulated. Click the button below to mark payment as completed.")
 
-credits = {
-    "Basic": 100,
-    "Pro": 300,
-    "Premium": 1500
-}[plan]
+if st.button("I Have Made the Payment"):
+    try:
+        record = {
+            "user_id": user_id,
+            "plan": plan,
+            "amount": plan_price,
+            "paid_on": datetime.utcnow().isoformat(),
+            "approved": False,
+            "approved_by": None,
+            "approval_date": None
+        }
 
-st.write(f"Amount: **₦{amount}**")
+        supabase.table("subscription_payments").insert(record).execute()
 
-if st.button("Confirm Payment"):
-    supabase.table("payments").insert({
-        "user_id": user_id,
-        "user_email": user["email"],
-        "plan": plan,
-        "amount": amount,
-        "created_at": datetime.utcnow().isoformat()
-    }).execute()
+        st.success("Payment submitted successfully! Admin will review and approve.")
+        st.info("You will receive credits once approved.")
 
-    activate_subscription(user_id, plan, credits)
+        st.session_state.selected_plan = None  # Clear selection
+        st.button("Return to Dashboard", on_click=lambda: st.switch_page("pages/2_Dashboard.py"))
 
-    st.success("Payment successful! Subscription activated.")
-    st.session_state.pop("selected_plan", None)
-    st.rerun()
+    except Exception as e:
+        st.error(f"Error saving payment: {e}")
