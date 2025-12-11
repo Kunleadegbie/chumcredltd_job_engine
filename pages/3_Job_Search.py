@@ -71,8 +71,9 @@ if st.button("Search Jobs") or query:
 
     results = search_jobs(query=query, location=location, page=page, remote=remote_only)
 
-    if isinstance(results, dict) and "error" in results:
-        st.error("API Error: " + results["error"])
+    error_msg = results.get("error")   # ← FIXED (no extra spaces)
+    if error_msg:
+        st.error(f"API Error: {error_msg}")
         st.stop()
 
     if not results:
