@@ -1,61 +1,47 @@
 import streamlit as st
-import sys, os
-
-# Fix import path
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
 from components.sidebar import render_sidebar
-from config.supabase_clientres = supabase.table("user_stats").select("*").eq("user_id", user_id).execute()
- import supabase
+from config.supabase_client import supabase
 
-st.set_page_config(page_title="Settings", page_icon="⚙️")
-
-# --------------------------
+# -------------------------------
 # AUTH CHECK
-# --------------------------
+# -------------------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
+user = st.session_state["user"]
+user_id = user["id"]
+
+st.set_page_config(page_title="Settings", page_icon="⚙️")
+st.title("⚙️ User Settings")
+
 render_sidebar()
 
-user = st.session_state.get("user")
-user_id = user.get("id")
+# -------------------------------
+# LOAD USER SETTINGS OR STATS
+# (Using user_stats for now based on your choice)
+# -------------------------------
 
-st.title("⚙️ Settings")
+try:
+    res = supabase.table("user_stats").select("*").eq("user_id", user_id).execute()
+    user_data = res.data[0] if res.data else None
+
+except Exception as e:
+    st.error(f"Error loading settings: {e}")
+    st.stop()
+
+if not user_data:
+    st.info("No settings or stats found for this user.")
+    st.stop()
+
+
+# -------------------------------
+# DISPLAY SETTINGS / STATS
+# -------------------------------
+st.subheader("📊 User Stats")
+
+st.write(f"**Total Jobs Viewed:** {user_data.get('jobs_viewed', 0)}")
+st.write(f"**Total Jobs Saved:** {user_data.get('jobs_saved', 0)}")
+st.write(f"**Total Searches Made:** {user_data.get('searches_made', 0)}")
+
 st.write("---")
-
-# Fetch settings
-res = supabase.table("user_stats").select("*").eq("user_id", user_id).execute()
-settings = res.data[0] if res.data else {}
-
-notify = settings.get("notifications", True)
-dark_mode = settings.get("dark_mode", False)
-
-# SETTINGS UI
-enable_notifications = st.checkbox("Enable Email Notifications", value=notify)
-enable_dark_mode = st.checkbox("Enable Dark Mode", value=dark_mode)
-
-if st.button("Save Settings"):
-    supabase.table("user_settings").upsert({
-        "user_id": user_id,
-        "notifications": enable_notifications,
-        "dark_mode": enable_dark_mode
-    }).execute()
-
-    st.success("Settings updated successfully!")
-
-st.write("---")
-
-# --------------------------
-# DELETE ACCOUNT
-# --------------------------
-st.subheader("Delete Account")
-st.warning("⚠ This action is permanent and cannot be undone.")
-
-if st.button("Delete My Account"):
-    supabase.table("users").delete().eq("id", user_id).execute()
-    st.success("Your account has been deleted.")
-
-    st.session_state.authenticated = False
-    st.session_state.user = None
-    st.rerun()
+st.success("Settings page loaded successfully.")
