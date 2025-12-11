@@ -61,16 +61,6 @@ PLANS = {
 # ============================
 
 def activate_subscription(user_id, plan_name, duration_days, credits):
-    """
-    Activates or renews a user subscription.
-
-    Args:
-        user_id: UUID of the user
-        plan_name: e.g., 'Basic', 'Pro'
-        duration_days: e.g., 30, 90
-        credits: number of AI credits included
-    """
-
     if not supabase:
         print("❌ Supabase client not initialized")
         return False, "Supabase not initialized"
@@ -84,6 +74,7 @@ def activate_subscription(user_id, plan_name, duration_days, credits):
         payload = {
             "user_id": user_id,
             "plan": plan_name,
+            "amount": PLANS[plan_name]["price"],   # FIXED
             "start_date": start_date,
             "end_date": end_date,
             "credits": credits
@@ -96,3 +87,8 @@ def activate_subscription(user_id, plan_name, duration_days, credits):
     except Exception as e:
         print("SUBSCRIPTION ACTIVATION ERROR:", e)
         return False, str(e)
+
+
+
+
+
