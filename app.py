@@ -3,6 +3,13 @@ import streamlit as st
 import sys
 import os
 
+# --- GLOBAL SESSION STATE FIX ---
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if "user" not in st.session_state:
+    st.session_state.user = None
+
 # ---------------------------------------
 # FIX MODULE IMPORT PATH FOR DEPLOYMENT
 # ---------------------------------------
