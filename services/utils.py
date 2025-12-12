@@ -99,3 +99,13 @@ def activate_subscription(user_id, plan_name):
     except Exception as e:
         print("SUBSCRIPTION ACTIVATION ERROR:", e)
         return False, str(e)
+
+
+def is_low_credit(subscription, minimum_required):
+    """
+    Returns True if user does not have enough credits.
+    """
+    if not subscription:
+        return True
+    return subscription.get("credits", 0) < minimum_required
+
