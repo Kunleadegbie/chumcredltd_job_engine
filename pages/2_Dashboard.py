@@ -193,7 +193,7 @@ After payment, go to **Subscription → Submit Payment**.
 # ======================================================
 # LOW CREDIT WARNING
 # ======================================================
-if is_low_credit(credits):
+if is_low_credit(credits, 20):   # Warn user if credits < 20
     st.warning("⚠️ You are running low on credits. Please top up soon.")
 
 
