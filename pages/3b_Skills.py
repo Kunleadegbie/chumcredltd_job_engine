@@ -1,91 +1,56 @@
-import sys, os
 import streamlit as st
+import os, sys
 
-# ----------------------------------------------------
-# FIX IMPORT PATHS (Required for Streamlit Cloud)
-# ----------------------------------------------------
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
-# ----------------------------------------------------
-# SAFE IMPORTS
-# ----------------------------------------------------
 from components.sidebar import render_sidebar
-from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits
-)
-from services.ai_engine import ai_extract_skills
+from config.supabase_client import supabase
+from services.utils import deduct_credits, get_subscription, auto_expire_subscription
+from ai_engine import ai_extract_skills, extract_text_from_file
 
 
-# ----------------------------------------------------
-# PAGE CONFIG
-# ----------------------------------------------------
-st.set_page_config(page_title="Skills Extractor | Chumcred", page_icon="🧠")
+st.set_page_config(page_title="Skills Extractor", page_icon="🧠")
 
-COST = 5
-
-
-# ----------------------------------------------------
 # AUTH CHECK
-# ----------------------------------------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
-user = st.session_state.get("user")
-if not isinstance(user, dict):
-    st.switch_page("app.py")
-
-user_id = user["id"]
-
-
-# ----------------------------------------------------
-# SIDEBAR
-# ----------------------------------------------------
 render_sidebar()
 
+user = st.session_state["user"]
+user_id = user["id"]
 
-# ----------------------------------------------------
-# SUBSCRIPTION CHECK
-# ----------------------------------------------------
-auto_expire_subscription(user)
+st.title("🧠 AI Skills Extraction Tool")
+st.write("Upload your resume and let AI identify your professional skills.")
+
+auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 
-if not subscription or subscription.get("subscription_status") != "active":
-    st.error("❌ You need an active subscription to extract skills.")
+if not subscription or subscription["subscription_status"] != "active":
+    st.error("Your subscription is not active.")
     st.stop()
 
-credits = subscription.get("credits", 0)
+if subscription["credits"] < 5:
+    st.error("❌ Not enough credits. Skills Extraction requires **5 credits**.")
+    st.stop()
 
+resume_file = st.file_uploader("Upload Resume (PDF / DOCX)", type=["pdf", "docx"])
 
-# ----------------------------------------------------
-# PAGE UI
-# ----------------------------------------------------
-st.title("🧠 AI Skills Extractor")
-st.info(f"💳 Credits Available: **{credits}**")
-
-resume_text = st.text_area("Paste your resume here to extract skills")
-
-
-if st.button(f"Extract Skills (Cost {COST} credits)", disabled=credits < COST):
-
-    if not resume_text.strip():
-        st.warning("Please paste your resume first.")
+if st.button("Extract Skills"):
+    if not resume_file:
+        st.warning("Please upload a resume.")
         st.stop()
 
-    ok, new_balance = deduct_credits(user_id, COST)
-    if not ok:
-        st.error(new_balance)
-        st.stop()
+    resume_text = extract_text_from_file(resume_file)
 
-    st.success(f"✔ {COST} credits deducted. New balance: {new_balance}")
-    st.write("---")
+    with st.spinner("Extracting skills..."):
+        try:
+            deduct_credits(user_id, 5)
+            result = ai_extract_skills(resume_text)
+            st.success("Skills extracted successfully!")
 
-    st.write("⏳ Extracting skills...")
+            st.subheader("Identified Skills")
+            st.write(", ".join(result["skills"]))
 
-    result = ai_extract_skills(resume_text)
-    st.write(result)
+        except Exception as e:
+            st.error(f"Error: {e}")

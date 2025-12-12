@@ -1,11 +1,16 @@
+# utils.py (FULLY REWRITTEN – FINAL VERSION)
+
+import streamlit as st
+from datetime import datetime, timedelta
 from config.supabase_client import supabase
 
-# ============================
+
+# ----------------------------------------
 # SUBSCRIPTION HELPERS
-# ============================
+# ----------------------------------------
 
 def get_subscription(user_id):
-    """Fetch active subscription for a user."""
+    """Return the user's subscription row or None."""
     if not supabase:
         return None
 
@@ -18,86 +23,147 @@ def get_subscription(user_id):
             .execute()
         )
         return res.data
-    except Exception as e:
-        print("Subscription fetch error:", e)
+    except Exception:
         return None
 
 
-def auto_expire_subscription(user_id):
-    """Call Supabase RPC to expire subscription."""
-    if not supabase:
+def ensure_active_subscription(user_id):
+    """
+    Returns the subscription only if active.
+    Otherwise returns None.
+    """
+    sub = get_subscription(user_id)
+    if not sub:
         return None
+
+    if sub.get("subscription_status") != "active":
+        return None
+
+    # Auto-expire if needed
+    now = datetime.utcnow()
+    end_date = sub.get("end_date")
+
+    if end_date and now > datetime.fromisoformat(end_date):
+        # Expire it
+        supabase.table("subscriptions").update(
+            {"subscription_status": "expired"}
+        ).eq("user_id", user_id).execute()
+        return None
+
+    return sub
+
+
+def get_user_credits(user_id):
+    """Return current credit balance."""
+    sub = get_subscription(user_id)
+    if not sub:
+        return 0
+    return int(sub.get("credits", 0))
+
+
+# ----------------------------------------
+# CREDIT SYSTEM: CHECK + DEDUCT
+# ----------------------------------------
+
+def check_and_deduct_credits(user_id, required):
+    """
+    1. Check if subscription is active
+    2. Check if credits are enough
+    3. Deduct credits safely
+    4. Return success or error msg
+
+    Returns:
+        (True, new_balance)  or  (False, "error message")
+    """
+
+    sub = ensure_active_subscription(user_id)
+    if not sub:
+        return False, "You do not have an active subscription."
+
+    current_credits = int(sub.get("credits", 0))
+
+    if current_credits < required:
+        return False, (
+            f"You have only {current_credits} credits, "
+            f"but this action requires {required} credits."
+        )
+
+    # Deduct
+    new_balance = current_credits - required
 
     try:
-        supabase.rpc("expire_user_subscription", {"uid": user_id}).execute()
+        supabase.table("subscriptions").update(
+            {"credits": new_balance}
+        ).eq("user_id", user_id).execute()
+        return True, new_balance
+
     except Exception as e:
-        print("Subscription expiration error:", e)
+        return False, f"Failed to deduct credits: {e}"
 
 
-def deduct_credits(user_id, amount):
-    """Deduct AI usage credits via RPC."""
+# ----------------------------------------
+# LOW CREDIT WARNING
+# ----------------------------------------
+
+def low_credit_warning(credits):
+    """Return a styled warning section for low credits."""
+    if credits >= 10:
+        return  # No warning
+
+    st.warning(
+        f"""
+### ⚠️ Low Credits: {credits} remaining  
+To continue using AI features, please top up your credits.
+
+**Payment Details**  
+**Account Name:** Chumcred Limited  
+**Bank:** Sterling Bank Plc  
+**Account Number:** 0087611334  
+        """,
+        icon="⚠️",
+    )
+
+
+# ----------------------------------------
+# SUBSCRIPTION ACTIVATION (clean version)
+# ----------------------------------------
+
+def activate_subscription(user_id, plan_name, amount, credits, duration_days=30):
+    """
+    Create or refresh a subscription.
+    """
+
     if not supabase:
-        return None
+        return False, "Supabase not initialized"
+
+    start = datetime.utcnow()
+    end = start + timedelta(days=duration_days)
+
+    payload = {
+        "user_id": user_id,
+        "plan": plan_name,
+        "amount": amount,
+        "credits": credits,
+        "created_at": start.isoformat(),
+        "subscription_status": "active",
+        "start_date": start.isoformat(),
+        "end_date": end.isoformat(),
+    }
 
     try:
-        supabase.rpc("deduct_user_credits", {"uid": user_id, "amt": amount}).execute()
+        # Upsert ensures one subscription per user
+        supabase.table("subscriptions").upsert(payload).execute()
+        return True, "Subscription activated successfully."
     except Exception as e:
-        print("Credit deduction error:", e)
+        return False, str(e)
 
 
-# ============================
-# SUBSCRIPTION PLAN DEFINITIONS
-# ============================
+# ----------------------------------------
+# PLAN DEFINITIONS (locked values)
+# ----------------------------------------
 
 PLANS = {
     "Basic": {"price": 5000, "credits": 100},
     "Pro": {"price": 12500, "credits": 300},
     "Premium": {"price": 50000, "credits": 1500},
 }
-
-
-# ============================
-# ACTIVATE SUBSCRIPTION
-# ============================
-
-def activate_subscription(user_id, plan_name, duration_days, credits):
-    if not supabase:
-        return False, "Supabase not initialized"
-
-    try:
-        from datetime import datetime, timedelta
-
-        start_date = datetime.utcnow().isoformat()
-        end_date = (datetime.utcnow() + timedelta(days=duration_days)).isoformat()
-
-        amount = PLANS[plan_name]["price"]
-
-        # Check if subscription exists
-        existing = supabase.table("subscriptions").select("*").eq("user_id", user_id).single().execute()
-
-        payload = {
-            "plan": plan_name,
-            "amount": amount,
-            "start_date": start_date,
-            "end_date": end_date,
-            "credits": credits
-        }
-
-        if existing.data:
-            # UPDATE existing subscription
-            supabase.table("subscriptions").update(payload).eq("user_id", user_id).execute()
-        else:
-            # INSERT new subscription
-            payload["user_id"] = user_id
-            supabase.table("subscriptions").insert(payload).execute()
-
-        return True, "Subscription activated successfully."
-
-    except Exception as e:
-        print("SUBSCRIPTION ACTIVATION ERROR:", e)
-        return False, str(e)
-
-
-
-
-

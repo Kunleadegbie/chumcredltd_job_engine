@@ -1,99 +1,121 @@
-import sys, os
-
-# --------------------------------------------------------
-# FORCE PYTHON TO USE THE TRUE PROJECT ROOT
-# --------------------------------------------------------
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
-
-# Replace WRONG sys.path[0] (like "app.py") with project root
-sys.path = [PROJECT_ROOT] + [p for p in sys.path if p != "app.py" and p != ""]
-
-# Now imports will ALWAYS work:
-from services.ai_engine import ai_generate_match_score
-from components.sidebar import render_sidebar
-from services.utils import get_subscription, auto_expire_subscription, deduct_credits
-
-
 import streamlit as st
-import sys
-import os
+import sys, os
+from datetime import datetime
 
-# ----------------------------------------------------
-# FIX IMPORT PATH
-# ----------------------------------------------------
+# Ensure proper import paths
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
-from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits
-)
-
 from config.supabase_client import supabase
+from services.utils import get_subscription
 
-# ----------------------------------------------------
+
+# ------------------------------
 # PAGE CONFIG
-# ----------------------------------------------------
-st.set_page_config(page_title="Dashboard", page_icon="🏠")
+# ------------------------------
+st.set_page_config(page_title="Dashboard", page_icon="🏠", layout="wide")
 
-# ----------------------------------------------------
+# ------------------------------
 # AUTH CHECK
-# ----------------------------------------------------
+# ------------------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
-user = st.session_state.get("user", {})
-user_id = user.get("id")
+user = st.session_state["user"]
+user_id = user["id"]
 
-# ----------------------------------------------------
-# SIDEBAR
-# ----------------------------------------------------
 render_sidebar()
 
-# ----------------------------------------------------
-# SUBSCRIPTION HANDLING
-# ----------------------------------------------------
-auto_expire_subscription(user)
+st.title("🏠 Your Dashboard")
+st.write("---")
+
+# ------------------------------
+# FETCH SUBSCRIPTION
+# ------------------------------
 subscription = get_subscription(user_id)
 
-status = subscription.get("subscription_status", "inactive") if subscription else "inactive"
-credits = subscription.get("credits", 0) if subscription else 0
-plan = subscription.get("plan", "-") if subscription else "-"
-expiry = subscription.get("expiry_date", "-") if subscription else "-"
+if not subscription:
+    credits = 0
+    plan = "No active plan"
+    end_date = "N/A"
+else:
+    credits = subscription.get("credits", 0)
+    plan = subscription.get("plan", "Unknown")
+    end_date = subscription.get("end_date")
+    if end_date:
+        try:
+            end_date = datetime.fromisoformat(end_date).strftime("%B %d, %Y")
+        except:
+            pass
 
-# ----------------------------------------------------
-# DASHBOARD UI
-# ----------------------------------------------------
-st.title(f"Welcome, {user.get('full_name', 'User')} 👋")
-st.write("---")
 
-col1, col2, col3 = st.columns(3)
+# ------------------------------
+# LAYOUT (LinkedIn/Indeed Style)
+# ------------------------------
+col1, col2 = st.columns([2, 1])
 
 with col1:
-    st.metric("Subscription", status.upper())
+    st.markdown(
+        """
+        ### 👋 Welcome back!
+        Your AI-powered job search and career toolkit is ready.
+        
+        Below is a summary of your current plan and usage.
+        """
+    )
+
+    st.markdown("### 📦 Subscription Summary")
+
+    st.markdown(
+        f"""
+        <div style="padding:15px;border-radius:10px;border:1px solid #ddd;background:#f8faff;">
+            <b>Plan:</b> {plan}<br>
+            <b>Credits Remaining:</b> {credits}<br>
+            <b>Expiry Date:</b> {end_date}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.write("")
+
+    st.markdown("### 💳 How to Pay (Bank Transfer)")
+    st.info(
+        """
+        **Account Name:** Chumcred Limited  
+        **Bank:** Sterling Bank Plc  
+        **Account Number:** 0087611334  
+
+        After payment, kindly notify support for activation.
+        """
+    )
 
 with col2:
-    st.metric("Credits", credits)
+    st.markdown("### ⚙️ Quick Actions")
 
-with col3:
-    st.metric("Expiry", expiry)
+    st.button("🔍 Job Search", on_click=lambda: st.switch_page("pages/3_Job_Search.py"))
+    st.button("📊 Match Score", on_click=lambda: st.switch_page("pages/3a_Match_Score.py"))
+    st.button("🧠 Skills Extractor", on_click=lambda: st.switch_page("pages/3b_Skills.py"))
+    st.button("📝 Cover Letter Generator", on_click=lambda: st.switch_page("pages/3c_Cover_Letter.py"))
+    st.button("📄 Resume Rewrite", on_click=lambda: st.switch_page("pages/3e_Resume_Writer.py"))
+    st.button("🎯 Job Recommendations", on_click=lambda: st.switch_page("pages/3f_Job_Recommendations.py"))
 
 st.write("---")
 
-st.subheader("Quick Navigation")
+st.markdown(
+    """
+    ### ❓ About This App
+    Chumcred Job Engine uses advanced AI to help you:
+    - Generate professional resumes and cover letters  
+    - Score match between your resume and job postings  
+    - Discover targeted job opportunities  
+    - Make smarter career decisions  
 
-c1, c2, c3 = st.columns(3)
+    Powered by AI. Built for Nigerian professionals.  
+    """
+)
 
-with c1:
-    if st.button("🔍 Job Search"):
-        st.switch_page("pages/3_Job_Search.py")
-
-with c2:
-    if st.button("💾 Saved Jobs"):
-        st.switch_page("pages/4_Saved_Jobs.py")
-
-with c3:
-    if st.button("🧠 AI Tools"):
-        st.info("Select an AI tool from the sidebar.")
+# -------------------------------------------------------
+# FOOTER
+# -------------------------------------------------------
+st.caption("Chumcred Job Engine © 2025 — Powered by Chumcred Limited")

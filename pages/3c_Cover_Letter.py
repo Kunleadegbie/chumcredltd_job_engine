@@ -1,58 +1,57 @@
-import sys, os
 import streamlit as st
+import os, sys
 
-# Fix import paths
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
-from services.utils import get_subscription, auto_expire_subscription, deduct_credits
-from services.ai_engine import ai_generate_cover_letter
+from config.supabase_client import supabase
+from services.utils import deduct_credits, get_subscription, auto_expire_subscription
+from ai_engine import ai_cover_letter, extract_text_from_file
 
 
-st.set_page_config(page_title="Cover Letter | Chumcred", page_icon="✍️")
+st.set_page_config(page_title="Cover Letter Generator", page_icon="✍️")
 
-COST = 10
-
-# Auth check
+# AUTH
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
-user = st.session_state.get("user")
-user_id = user["id"]
-
 render_sidebar()
 
-auto_expire_subscription(user)
+user = st.session_state["user"]
+user_id = user["id"]
+
+st.title("✍️ AI Cover Letter Generator")
+
+auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
-if not subscription or subscription.get("subscription_status") != "active":
-    st.error("❌ You need an active subscription to generate cover letters.")
+
+if not subscription or subscription["subscription_status"] != "active":
+    st.error("Your subscription is not active.")
     st.stop()
 
-credits = subscription.get("credits", 0)
+if subscription["credits"] < 10:
+    st.error("❌ Not enough credits. Cover Letter requires **10 credits**.")
+    st.stop()
 
-# UI
-st.title("✍️ AI Cover Letter Generator")
-st.info(f"💳 Credits Available: **{credits}**")
+resume_file = st.file_uploader("Upload Your Resume", type=["pdf", "docx"])
+job_title = st.text_input("Job Title")
+job_description = st.text_area("Job Description", height=200)
 
-resume_text = st.text_area("Paste your resume")
-job_description = st.text_area("Paste the job description")
-
-if st.button(f"Generate Cover Letter (Cost {COST} credits)", disabled=credits < COST):
-
-    if not resume_text.strip() or not job_description.strip():
-        st.warning("Both resume and job description are required.")
+if st.button("Generate Cover Letter"):
+    if not resume_file or not job_title or not job_description.strip():
+        st.warning("All fields are required.")
         st.stop()
 
-    ok, new_balance = deduct_credits(user_id, COST)
-    if not ok:
-        st.error(new_balance)
-        st.stop()
+    resume_text = extract_text_from_file(resume_file)
 
-    st.success(f"✔ {COST} credits deducted. New balance: {new_balance}")
-    st.write("⏳ Generating cover letter…")
+    with st.spinner("Generating cover letter..."):
+        try:
+            deduct_credits(user_id, 10)
+            result = ai_cover_letter(resume_text, job_title, job_description)
 
-    result = ai_generate_cover_letter(resume_text, job_description)
-    st.write(result)
+            st.success("Cover Letter Generated!")
+            st.write("### Your Cover Letter:")
+            st.write(result["content"])
+
+        except Exception as e:
+            st.error(f"Error: {e}")

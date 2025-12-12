@@ -3,43 +3,44 @@
 # ============================
 
 import streamlit as st
+import sys, os
 
-from services.ai_engine import ai_generate_match_score
-from config.supabase_client import supabase
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from services.auth import require_login
+from services.ai_engine import ai_match_score
+from services.utils import get_subscription
+from config.supabase_client import supabase
 
-# --- PAGE SETTINGS ---
-st.set_page_config(page_title="Match Score", layout="wide")
+st.set_page_config(page_title="Match Score", page_icon="📊", layout="wide")
 
-# --- AUTH PROTECTION ---
-require_login()
-user = st.session_state.user   # <-- Correct way to retrieve logged-in user
+user = require_login()
+user_id = user["id"]
 
-st.title("Match Score Analysis")
-st.write("Upload your resume and job description below to generate your match score.")
+st.title("📊 Resume Match Score")
+st.write("Upload your resume and job description to generate an AI-powered match score.")
 
-resume = st.file_uploader("Upload your Resume (PDF or DOCX)", type=["pdf", "docx"])
-job_description = st.text_area("Paste Job Description", height=200)
+# Subscription check
+subscription = get_subscription(user_id)
+if not subscription or subscription["credits"] < 5:
+    st.error("❌ You need at least **5 credits** to run Match Score.")
+    st.stop()
+
+resume = st.file_uploader("Upload Resume", type=["pdf", "docx"])
+job_desc = st.text_area("Job Description", height=200)
 
 if st.button("Generate Match Score"):
-    if not resume or not job_description.strip():
-        st.error("Please upload a resume and enter job description.")
+    if not resume or not job_desc.strip():
+        st.warning("Please upload a resume and enter job description.")
         st.stop()
 
-    with st.spinner("Analyzing match score..."):
-        try:
-            resume_bytes = resume.read()
+    with st.spinner("Analyzing resume... please wait"):
+        result, error = ai_match_score(user_id, resume.read(), job_desc)
 
-            score_result = ai_generate_match_score(
-                resume_content=resume_bytes,
-                job_description=job_description
-            )
-
-            st.success("Match Score Generated Successfully!")
-            st.metric("Match Score", f"{score_result['score']}%")
-
-            st.write("### Breakdown")
-            st.write(score_result.get("breakdown", "No breakdown available."))
-
-        except Exception as e:
-            st.error(f"Error generating match score: {e}")
+    if error:
+        st.error(error)
+    else:
+        st.success("Match Score generated successfully!")
+        st.metric("Match Score", f"{result['score']}%")
+        st.write("### Explanation")
+        st.write(result["reason"])

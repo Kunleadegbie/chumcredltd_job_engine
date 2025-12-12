@@ -1,57 +1,54 @@
-import sys, os
 import streamlit as st
+import os, sys
 
-# Fix imports
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
-from services.utils import get_subscription, auto_expire_subscription, deduct_credits
-from services.ai_engine import ai_generate_resume
+from config.supabase_client import supabase
+from services.utils import deduct_credits, get_subscription, auto_expire_subscription
+from ai_engine import ai_rewrite_resume, extract_text_from_file
 
 
-st.set_page_config(page_title="Resume Writer | Chumcred", page_icon="📄")
+st.set_page_config(page_title="Resume Writer", page_icon="📄")
 
-COST = 20
-
-# Auth
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
-user = st.session_state.get("user")
-user_id = user["id"]
-
 render_sidebar()
 
-auto_expire_subscription(user)
+user = st.session_state["user"]
+user_id = user["id"]
+
+st.title("📄 AI Resume Enhancer")
+
+auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
-if not subscription or subscription.get("subscription_status") != "active":
-    st.error("❌ Subscription required.")
+
+if not subscription or subscription["subscription_status"] != "active":
+    st.error("Subscription required.")
     st.stop()
 
-credits = subscription.get("credits", 0)
+if subscription["credits"] < 15:
+    st.error("❌ Not enough credits. Resume Rewrite requires **15 credits**.")
+    st.stop()
 
-# UI
-st.title("📄 AI Resume Writer")
-st.info(f"💳 Credits: **{credits}**")
+resume_file = st.file_uploader("Upload Resume", type=["pdf", "docx"])
 
-resume_prompt = st.text_area("Describe your experience, roles, skills…")
-
-if st.button(f"Generate Resume (Cost {COST} credits)", disabled=credits < COST):
-
-    if not resume_prompt.strip():
-        st.warning("Please enter some details.")
+if st.button("Rewrite Resume"):
+    if not resume_file:
+        st.warning("Please upload your resume.")
         st.stop()
 
-    ok, new_balance = deduct_credits(user_id, COST)
-    if not ok:
-        st.error(new_balance)
-        st.stop()
+    resume_text = extract_text_from_file(resume_file)
 
-    st.success(f"Credits deducted. New balance: {new_balance}")
-    st.write("⏳ Creating resume…")
+    with st.spinner("Rewriting resume..."):
+        try:
+            deduct_credits(user_id, 15)
+            result = ai_rewrite_resume(resume_text)
 
-    result = ai_generate_resume(resume_prompt)
-    st.write(result)
+            st.success("Resume rewritten successfully!")
+            st.write("### Your Improved Resume")
+            st.write(result["content"])
+
+        except Exception as e:
+            st.error(f"Error: {e}")

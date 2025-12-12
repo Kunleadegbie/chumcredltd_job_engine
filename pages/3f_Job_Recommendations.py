@@ -1,147 +1,57 @@
-import sys, os
 import streamlit as st
-import requests
+import os, sys
 
-# ----------------------------------------------------
-# FIX IMPORT PATHS (Streamlit Cloud-safe)
-# ----------------------------------------------------
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-# Imports
 from components.sidebar import render_sidebar
-from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits
-)
-from services.ai_engine import (
-    ai_extract_skills,
-    ai_generate_match_score     # used for ranking jobs
-)
-
-# ----------------------------------------------------
-# CONFIG
-# ----------------------------------------------------
-st.set_page_config(page_title="Job Recommendations | Chumcred", page_icon="⭐")
-COST = 10  # credits per recommendation session
+from config.supabase_client import supabase
+from services.utils import deduct_credits, get_subscription, auto_expire_subscription
+from ai_engine import ai_job_recommendations, extract_text_from_file
 
 
-# ----------------------------------------------------
-# AUTH CHECK
-# ----------------------------------------------------
+st.set_page_config(page_title="AI Job Recommendations", page_icon="🧭")
+
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
-user = st.session_state.get("user")
-user_id = user["id"]
-
 render_sidebar()
 
-# ----------------------------------------------------
-# SUBSCRIPTION VALIDATION
-# ----------------------------------------------------
-auto_expire_subscription(user)
+user = st.session_state["user"]
+user_id = user["id"]
+
+st.title("🧭 AI Job Recommendations")
+
+auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 
-if not subscription or subscription.get("subscription_status") != "active":
-    st.error("❌ You need an active subscription to get job recommendations.")
+if not subscription or subscription["subscription_status"] != "active":
+    st.error("Subscription required.")
     st.stop()
 
-credits = subscription.get("credits", 0)
+if subscription["credits"] < 5:
+    st.error("❌ Not enough credits. Job Recommendations require **5 credits**.")
+    st.stop()
 
-# ----------------------------------------------------
-# PAGE UI
-# ----------------------------------------------------
-st.title("⭐ AI Job Recommendations")
-st.info(f"💳 Credits Available: **{credits}**")
+resume_file = st.file_uploader("Upload Resume", type=["pdf", "docx"])
 
-resume_text = st.text_area("Paste your Resume Below")
-
-if st.button(f"Get Recommendations (Cost {COST} credits)", disabled=credits < COST):
-
-    if not resume_text.strip():
-        st.warning("Please paste your resume first.")
+if st.button("Generate Recommendations"):
+    if not resume_file:
+        st.warning("Resume required.")
         st.stop()
 
-    # Deduct credits
-    ok, new_balance = deduct_credits(user_id, COST)
-    if not ok:
-        st.error(new_balance)
-        st.stop()
+    resume_text = extract_text_from_file(resume_file)
 
-    st.success(f"✔ {COST} credits deducted. New balance: {new_balance}")
-    st.write("---")
+    with st.spinner("Generating personalized recommendations..."):
+        try:
+            deduct_credits(user_id, 5)
+            result = ai_job_recommendations(resume_text)
 
-    # ----------------------------------------------------
-    # STEP 1: Extract Skills
-    # ----------------------------------------------------
-    st.write("🔍 **Analyzing your resume…**")
-    extracted = ai_extract_skills(resume_text)
+            st.success("Recommendations ready!")
 
-    st.write("🧠 Extracted Skills:")
-    st.write(extracted)
+            for job in result["recommendations"]:
+                st.subheader(job["title"])
+                st.write(f"**Why Recommended:** {job['reason']}")
+                st.write("---")
 
-    # Create query
-    query_text = ", ".join(extracted.split("\n")[:5])  # pick top 5 skills
-
-    # ----------------------------------------------------
-    # STEP 2: Call JSearch API
-    # ----------------------------------------------------
-    st.write("🌐 Searching for jobs that match your skills…")
-
-    headers = {
-        "X-API-KEY": st.secrets["JSEARCH_API_KEY"]
-    }
-
-    params = {
-        "query": query_text,
-        "num_pages": 1
-    }
-
-    url = "https://jsearch.p.rapidapi.com/search"
-
-    try:
-        response = requests.get(url, headers=headers, params=params)
-        jobs = response.json().get("data", [])
-    except Exception as e:
-        st.error(f"API Error: {e}")
-        st.stop()
-
-    if not jobs:
-        st.warning("No matching jobs found.")
-        st.stop()
-
-    # ----------------------------------------------------
-    # STEP 3: AI Ranking of Jobs
-    # ----------------------------------------------------
-    st.write("📊 Ranking job matches…")
-
-    ranked_jobs = []
-    for job in jobs[:20]:  # limit to 20 jobs
-        description = job.get("job_description", "")
-        score = ai_generate_match_score(resume_text, description)
-        ranked_jobs.append((score, job))
-
-    ranked_jobs.sort(reverse=True, key=lambda x: x[0])
-
-    # ----------------------------------------------------
-    # STEP 4: Display Results
-    # ----------------------------------------------------
-    st.write("⭐ **Top Job Recommendations Based on Your Skills**")
-    st.write("---")
-
-    for score, job in ranked_jobs[:10]:  # show top 10
-        st.markdown(
-            f"""
-            ### 🔹 {job.get('job_title')}
-            **Company:** {job.get('employer_name')}  
-            **Location:** {job.get('job_city', '')}, {job.get('job_country', '')}  
-            **Match Score:** ⭐ {score}  
-
-            [Apply Here]({job.get('job_apply_link')})
-            ---
-            """
-        )
+        except Exception as e:
+            st.error(f"Error: {e}")
