@@ -1,175 +1,195 @@
+# ==============================================================
+# Dashboard.py — Fully Redesigned Professional Dashboard
+# ==============================================================
+
 import streamlit as st
+import os, sys
+from datetime import datetime
+
+# Fix paths
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from services.auth import require_login
 from config.supabase_client import supabase
 from services.utils import (
     get_subscription,
     auto_expire_subscription,
-    is_low_credit
+    is_low_credit,
+    deduct_credits,
 )
 
+# ------------------------------------
+# PAGE SETTINGS
+# ------------------------------------
 st.set_page_config(
     page_title="Dashboard",
     page_icon="🏠",
     layout="wide"
 )
 
-# ---------------------------
-# AUTH CHECK
-# ---------------------------
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.switch_page("app.py")
-
-user = st.session_state["user"]
+user = require_login()
 user_id = user["id"]
 
-# ---------------------------
-# SUBSCRIPTION STATUS
-# ---------------------------
+# ------------------------------------
+# FETCH SUBSCRIPTION
+# ------------------------------------
 auto_expire_subscription(user_id)
-subscription = get_subscription(user_id)
+sub = get_subscription(user_id)
 
-credits = subscription["credits"] if subscription else 0
-expiry_date = subscription["end_date"] if subscription else None
-status = subscription["subscription_status"] if subscription else "No Subscription"
+credits = sub.get("credits", 0) if sub else 0
+status = sub.get("subscription_status", "inactive") if sub else "inactive"
 
+start_date = sub.get("start_date")
+end_date = sub.get("end_date")
 
-# =========================
-# PAGE HEADER — LINKEDIN STYLE
-# =========================
+try:
+    if end_date:
+        end_date_fmt = datetime.fromisoformat(end_date).strftime("%d %b %Y")
+    else:
+        end_date_fmt = "Not available"
+except:
+    end_date_fmt = "Not available"
+
+# ------------------------------------
+# HEADER
+# ------------------------------------
+st.title("🏠 Welcome to Chumcred Job Engine")
+st.write("Your all-in-one AI-powered career advancement platform.")
+
+# ------------------------------------
+# TOP SUMMARY CARDS
+# ------------------------------------
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.markdown("""
+    <div style="
+        background:#f0f6ff; padding:20px; border-radius:12px;
+        border-left:5px solid #1a73e8;">
+        <h4>Subscription Status</h4>
+    """, unsafe_allow_html=True)
+
+    if status == "active":
+        st.success("**ACTIVE**")
+    else:
+        st.error("**NOT ACTIVE**")
+
+    st.write(f"**Plan:** {sub.get('plan', 'None')}")
+    st.write(f"**Expires:** {end_date_fmt}")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with col2:
+    st.markdown("""
+    <div style="
+        background:#fff7e6; padding:20px; border-radius:12px;
+        border-left:5px solid #ffa000;">
+        <h4>Credits</h4>
+    """, unsafe_allow_html=True)
+
+    st.write(f"**Credits Remaining:** {credits}")
+    if is_low_credit(user_id):
+        st.warning("⚠️ Low credits — please top up soon.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with col3:
+    st.markdown("""
+    <div style="
+        background:#e8fff1; padding:20px; border-radius:12px;
+        border-left:5px solid #00a152;">
+        <h4>Billing Info</h4>
+    """, unsafe_allow_html=True)
+
+    st.write("**Account Name:** Chumcred Limited")
+    st.write("**Bank:** Sterling Bank Plc")
+    st.write("**Account Number:** 0087611334")
+    st.info("Make payment and contact support for activation.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+st.markdown("---")
+
+# ------------------------------------
+# HOW TO USE THE APP (USER GUIDE)
+# ------------------------------------
+st.subheader("🚀 How to Use This App (Step-by-Step Guide)")
+
 st.markdown("""
-# 👋 Welcome to **Chumcred Job Engine**
-Your **AI-powered career success platform** — combining CV rewriting, interview tools, real-time job search, job recommendations, eligibility checks, skill extraction, and more into **one simple dashboard**.
+### 1️⃣ **Subscribe to a Plan**
+Activate a subscription and unlock AI credits.
+
+### 2️⃣ **Use Any AI Feature**
+Each tool deducts credits:
+- Match Score — 5 credits  
+- Skill Extraction — 5 credits  
+- Cover Letter — 10 credits  
+- Resume Rewrite — 15 credits  
+- Job Recommendations — 5 credits  
+- Job Search — 3 credits  
+
+### 3️⃣ **Your Subscription Automatically Tracks Usage**
+Credits update after every action.
+
+### 4️⃣ **Manage Your Saved Jobs**
+Save jobs and review later.
+
+### 5️⃣ **Upgrade or Renew Anytime**
+Just make a payment to the bank details above and your plan will be activated.
 """)
 
-if is_low_credit(user_id):
-    st.warning("⚠️ Your credits are low. Please top up to continue enjoying all AI features.")
+st.markdown("---")
 
-# ---------------------------
-# ACCOUNT BOX
-# ---------------------------
-with st.container():
-    st.subheader("📊 Account Overview")
+# ------------------------------------
+# BENEFITS OVER OTHER PLATFORMS
+# ------------------------------------
+st.subheader("💡 Why Choose Chumcred Job Engine?")
 
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric("Subscription Status", status)
-
-    with col2:
-        st.metric("Credits Remaining", credits)
-
-    with col3:
-        st.metric("Expiry Date", expiry_date if expiry_date else "Not Available")
-
-
-# =================================================
-# BANK PAYMENT DETAILS — REQUIRED FOR SUBSCRIPTION
-# =================================================
 st.markdown("""
-## 💳 Payment Details for Manual Subscription
+### ✔ **All-in-One Platform**
+Resume, cover letter, job search, scoring, and recommendations — everything in one place.
 
-To renew your subscription or buy more credits, please make payment to the account below:
+### ✔ **AI Personalized for Nigerian & Global Job Markets**
+Many platforms are US-centric. Yours understands Nigerian context too.
 
-**Account Name:** Chumcred Limited  
-**Bank:** Sterling Bank Plc  
-**Account Number:** 0087611334  
+### ✔ **Affordable Credit System**
+Pay only for what you use.
 
-After payment, click the **Submit Payment** button on the Subscription page.
+### ✔ **Better Job Intelligence**
+Unlike generic AI apps, your platform uses:
+- Resume trends  
+- User behavior  
+- Job ranking intelligence  
+
+### ✔ **Bank Payment Option**
+Users without cards can still subscribe.
+
+### ✔ **Privacy-Safe**
+All resume processes happen securely within your system.
 """)
 
+st.markdown("---")
 
-# =================================================
-# HOW TO USE THE APP — STEP BY STEP
-# =================================================
-st.markdown("""
-## 🚀 How to Use This App (Step-by-Step)
+# ------------------------------------
+# FAQs SECTION
+# ------------------------------------
+st.subheader("❓ Frequently Asked Questions (FAQ)")
 
-1️⃣ **Go to Subscription page** → Activate a plan to get AI credits  
-2️⃣ **Use AI Tools**:  
-- Match Score (5 credits)  
-- Skills Extraction (5 credits)  
-- Cover Letter Writer (10 credits)  
-- Resume Rewrite (15 credits)  
-- Job Recommendations (5 credits)  
-- Job Search (3 credits)  
+with st.expander("How do I subscribe?"):
+    st.write("""
+    Make a payment to the Chumcred Limited account listed above.  
+    Contact support with proof of payment — your account will be activated.
+    """)
 
-3️⃣ Credits deduct automatically  
-4️⃣ Download or copy your results instantly  
-5️⃣ Save job posts for review later  
-6️⃣ Upgrade or renew your subscription anytime  
-""")
+with st.expander("How are credits deducted?"):
+    st.write("Each AI tool deducts a fixed number of credits automatically.")
 
+with st.expander("Can I use multiple AI tools at once?"):
+    st.write("Yes! As long as you have credits, everything works instantly.")
 
-# =================================================
-# WHY THIS PLATFORM IS BETTER (COMPARISON)
-# =================================================
-st.markdown("""
-## ⭐ Why Choose **Chumcred Job Engine**?
+with st.expander("Can I cancel or pause my subscription?"):
+    st.write("Subscriptions expire automatically when the duration ends.")
 
-### Compared to other platforms (LinkedIn, Indeed, standard resume builders):
-| Feature | LinkedIn / Others | Chumcred Job Engine |
-|--------|-------------------|----------------------|
-| Real-time job search | ✔ Yes | ✔ Yes — plus instant AI evaluation |
-| AI Match Score | ❌ No | ✔ Yes |
-| AI Resume Rewrite | ⚠ Limited | ✔ Full rewrite using GPT-grade models |
-| Cover Letter Generator | ⚠ Basic | ✔ Tailored, role-specific, ATS-optimized |
-| Eligibility Checker | ❌ No | ✔ Yes |
-| Skill Extraction | ❌ No | ✔ Yes |
-| Localized Nigeria-friendly features | ❌ No | ✔ Yes |
-| Pay-in-bank subscription | ❌ No | ✔ Yes |
-| Save job posts | ✔ Yes | ✔ Yes |
-| Credit-based usage | ❌ No | ✔ Affordable credit system |
+with st.expander("Is my resume stored?"):
+    st.write("No. Resumes are processed temporarily and never stored permanently.")
 
-### 💡 Summary:
-**Chumcred Job Engine is a true all-in-one AI career platform** designed for serious job seekers who want speed, accuracy, and personalized results.
-""")
+st.markdown("---")
 
-
-# =================================================
-# FAQ SECTION
-# =================================================
-st.markdown("""
-## ❓ Frequently Asked Questions (FAQ)
-
-### **1. Why do I need credits?**
-Credits allow you to use premium AI tools without a recurring monthly fee.  
-You only pay for what you use.
-
-### **2. Can I pay manually through a bank transfer?**
-Yes — see the payment details above.
-
-### **3. Can I use this app without a subscription?**
-Basic navigation works, but AI services require credits.
-
-### **4. Are my documents stored?**
-No — your resume and job descriptions are processed securely and deleted immediately.
-
-### **5. Can I use this app on mobile?**
-Yes — it is fully mobile responsive.
-""")
-
-
-# =================================================
-# QUICK NAVIGATION BUTTONS
-# =================================================
-st.markdown("## ⚡ Quick Actions")
-
-colA, colB, colC, colD = st.columns(4)
-
-with colA:
-    st.page_link("pages/3a_Match_Score.py", label="Match Score", icon="📊")
-
-with colB:
-    st.page_link("pages/3e_Resume_Writer.py", label="Resume Writer", icon="📝")
-
-with colC:
-    st.page_link("pages/3c_Cover_Letter.py", label="Cover Letter", icon="✉️")
-
-with colD:
-    st.page_link("pages/3_Job_Search.py", label="Job Search", icon="🔍")
-
-st.write("---")
-
-# -------------------------------------------------------
-# FOOTER
-# -------------------------------------------------------
-st.caption("Chumcred Job Engine © 2025 — Powered by Chumcred Limited")
+st.caption("Powered by Chumcred Job Engine © 2025")
