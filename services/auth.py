@@ -3,10 +3,16 @@ from config.supabase_client import supabase
 import streamlit as st
 
 def require_login():
-    """Redirect user to login page if not authenticated."""
+    """Ensure user is logged in and return user object."""
     if "authenticated" not in st.session_state or not st.session_state.authenticated:
-        st.warning("You must log in to access this page.")
+        st.switch_page("app.py")
         st.stop()
+
+    if "user" not in st.session_state or st.session_state.user is None:
+        st.switch_page("app.py")
+        st.stop()
+
+    return st.session_state.user
 
 # -------------------------
 # LOGIN USER
