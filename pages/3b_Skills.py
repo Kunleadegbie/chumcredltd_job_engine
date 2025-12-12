@@ -1,56 +1,51 @@
 import streamlit as st
 import os, sys
-
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from components.sidebar import render_sidebar
-from config.supabase_client import supabase
-from services.utils import deduct_credits, get_subscription, auto_expire_subscription
-from ai_engine import ai_extract_skills, extract_text_from_file
+from services.auth import require_login
+from services.utils import get_subscription, auto_expire_subscription, deduct_credits
+from services.ai_engine import ai_extract_skills
 
 
-st.set_page_config(page_title="Skills Extractor", page_icon="🧠")
+st.set_page_config(page_title="Skills Extraction", page_icon="🧠", layout="wide")
 
-# AUTH CHECK
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.switch_page("app.py")
-
-render_sidebar()
-
-user = st.session_state["user"]
+user = require_login()
 user_id = user["id"]
-
-st.title("🧠 AI Skills Extraction Tool")
-st.write("Upload your resume and let AI identify your professional skills.")
 
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 
 if not subscription or subscription["subscription_status"] != "active":
-    st.error("Your subscription is not active.")
+    st.error("You must have an active subscription to extract skills.")
     st.stop()
 
 if subscription["credits"] < 5:
-    st.error("❌ Not enough credits. Skills Extraction requires **5 credits**.")
+    st.error("You do not have enough AI credits. Please upgrade.")
     st.stop()
 
-resume_file = st.file_uploader("Upload Resume (PDF / DOCX)", type=["pdf", "docx"])
+st.title("🧠 AI Skills Extraction")
+st.write("Upload your resume to extract key skills.")
+
+resume = st.file_uploader("Upload Resume", type=["pdf", "docx"])
 
 if st.button("Extract Skills"):
-    if not resume_file:
-        st.warning("Please upload a resume.")
+    if not resume:
+        st.error("Upload a resume first.")
         st.stop()
 
-    resume_text = extract_text_from_file(resume_file)
+    resume_bytes = resume.read()
 
     with st.spinner("Extracting skills..."):
-        try:
-            deduct_credits(user_id, 5)
-            result = ai_extract_skills(resume_text)
-            st.success("Skills extracted successfully!")
+        success, msg = deduct_credits(user_id, 5)
+        if not success:
+            st.error(msg)
+            st.stop()
 
-            st.subheader("Identified Skills")
-            st.write(", ".join(result["skills"]))
+        try:
+            skills = ai_extract_skills(resume_bytes)
+            st.success("Skills Extracted!")
+            st.write("### Top Skills")
+            st.write(skills)
 
         except Exception as e:
             st.error(f"Error: {e}")

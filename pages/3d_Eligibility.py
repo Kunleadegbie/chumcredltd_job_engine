@@ -1,54 +1,63 @@
 import streamlit as st
 import os, sys
-
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from components.sidebar import render_sidebar
-from config.supabase_client import supabase
-from services.utils import deduct_credits, get_subscription, auto_expire_subscription
-from ai_engine import ai_eligibility_score, extract_text_from_file
+from services.auth import require_login
+from services.utils import get_subscription, auto_expire_subscription, deduct_credits
+from services.ai_engine import ai_eligibility_check
 
 
-st.set_page_config(page_title="Eligibility Checker", page_icon="📊")
+st.set_page_config(page_title="Eligibility Checker", page_icon="📌", layout="wide")
 
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.switch_page("app.py")
-
-render_sidebar()
-
-user = st.session_state["user"]
+# ------------------------
+# AUTH
+# ------------------------
+user = require_login()
 user_id = user["id"]
 
-st.title("📊 Job Eligibility Checker")
-
+# ------------------------
+# SUBSCRIPTION CHECK
+# ------------------------
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 
 if not subscription or subscription["subscription_status"] != "active":
-    st.error("You need an active subscription.")
+    st.error("You must have an active subscription to use Eligibility Check.")
     st.stop()
 
 if subscription["credits"] < 5:
-    st.error("❌ Not enough credits. Eligibility Check requires **5 credits**.")
+    st.error("Not enough AI credits. Eligibility Check requires 5 credits.")
     st.stop()
 
-resume_file = st.file_uploader("Upload Resume", type=["pdf", "docx"])
-job_description = st.text_area("Paste Job Description", height=200)
+# ------------------------
+# PAGE UI
+# ------------------------
+st.title("📌 AI Eligibility Checker")
+st.write("Paste a job description and upload your resume.")
 
-if st.button("Check Eligibility"):
-    if not resume_file or not job_description.strip():
-        st.warning("Both fields are required.")
+resume = st.file_uploader("Upload Resume", type=["pdf", "docx"])
+job_description = st.text_area("Job Description", height=250)
+
+if st.button("Analyze Eligibility"):
+    if not resume or not job_description.strip():
+        st.error("Both resume and job description are required.")
         st.stop()
 
-    resume_text = extract_text_from_file(resume_file)
-
     with st.spinner("Analyzing eligibility..."):
-        try:
-            deduct_credits(user_id, 5)
-            result = ai_eligibility_score(resume_text, job_description)
+        success, msg = deduct_credits(user_id, 5)
+        if not success:
+            st.error(msg)
+            st.stop()
 
-            st.metric("Eligibility Score", f"{result['score']}%")
-            st.write("### Explanation")
+        try:
+            resume_bytes = resume.read()
+            result = ai_eligibility_check(resume_bytes, job_description)
+
+            st.success("Eligibility Analysis Complete!")
+            st.subheader("Eligibility Result")
+            st.write(result["eligibility"])
+
+            st.subheader("Why?")
             st.write(result["reason"])
 
         except Exception as e:

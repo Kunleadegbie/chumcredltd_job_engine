@@ -1,16 +1,33 @@
 # utils.py (FULLY REWRITTEN – FINAL VERSION)
 
-import streamlit as st
-from datetime import datetime, timedelta
+# ==========================================
+# utils.py (FINAL — CLEAN, CENTRALIZED LOGIC)
+# ==========================================
+
 from config.supabase_client import supabase
+from datetime import datetime, timedelta
 
 
-# ----------------------------------------
-# SUBSCRIPTION HELPERS
-# ----------------------------------------
+# ==========================
+#  CREDIT COST CONFIGURATION
+# ==========================
+CREDIT_COSTS = {
+    "match_score": 5,
+    "skills_extract": 5,
+    "cover_letter": 10,
+    "resume_rewrite": 15,
+    "job_recommend": 5,
+    "job_search": 3,
+}
 
+
+# ==========================
+#  GET USER SUBSCRIPTION
+# ==========================
 def get_subscription(user_id):
-    """Return the user's subscription row or None."""
+    """
+    Returns latest subscription for the user.
+    """
     if not supabase:
         return None
 
@@ -19,151 +36,117 @@ def get_subscription(user_id):
             supabase.table("subscriptions")
             .select("*")
             .eq("user_id", user_id)
-            .single()
+            .order("created_at", desc=True)
+            .limit(1)
             .execute()
         )
-        return res.data
-    except Exception:
+        return res.data[0] if res.data else None
+
+    except Exception as e:
+        print("GET SUBSCRIPTION ERROR:", e)
         return None
 
 
-def ensure_active_subscription(user_id):
+# ==========================
+#  AUTO EXPIRE SUBSCRIPTION
+# ==========================
+def auto_expire_subscription(user_id):
     """
-    Returns the subscription only if active.
-    Otherwise returns None.
+    If subscription end_date has passed, mark it expired.
     """
     sub = get_subscription(user_id)
     if not sub:
-        return None
+        return
 
-    if sub.get("subscription_status") != "active":
-        return None
-
-    # Auto-expire if needed
-    now = datetime.utcnow()
-    end_date = sub.get("end_date")
-
-    if end_date and now > datetime.fromisoformat(end_date):
-        # Expire it
-        supabase.table("subscriptions").update(
-            {"subscription_status": "expired"}
-        ).eq("user_id", user_id).execute()
-        return None
-
-    return sub
-
-
-def get_user_credits(user_id):
-    """Return current credit balance."""
-    sub = get_subscription(user_id)
-    if not sub:
-        return 0
-    return int(sub.get("credits", 0))
-
-
-# ----------------------------------------
-# CREDIT SYSTEM: CHECK + DEDUCT
-# ----------------------------------------
-
-def check_and_deduct_credits(user_id, required):
-    """
-    1. Check if subscription is active
-    2. Check if credits are enough
-    3. Deduct credits safely
-    4. Return success or error msg
-
-    Returns:
-        (True, new_balance)  or  (False, "error message")
-    """
-
-    sub = ensure_active_subscription(user_id)
-    if not sub:
-        return False, "You do not have an active subscription."
-
-    current_credits = int(sub.get("credits", 0))
-
-    if current_credits < required:
-        return False, (
-            f"You have only {current_credits} credits, "
-            f"but this action requires {required} credits."
-        )
-
-    # Deduct
-    new_balance = current_credits - required
+    if not sub.get("end_date"):
+        return
 
     try:
-        supabase.table("subscriptions").update(
-            {"credits": new_balance}
-        ).eq("user_id", user_id).execute()
+        end_date = datetime.fromisoformat(sub["end_date"].replace("Z", ""))
+        now = datetime.utcnow()
+
+        if now > end_date and sub["subscription_status"] != "expired":
+            supabase.table("subscriptions").update({
+                "subscription_status": "expired"
+            }).eq("id", sub["id"]).execute()
+
+    except Exception as e:
+        print("AUTO EXPIRE ERROR:", e)
+
+
+# ==========================
+#  CREDIT DEDUCTION
+# ==========================
+def deduct_credits(user_id, amount):
+    """
+    Deduct credits inside the subscription table.
+    """
+
+    subscription = get_subscription(user_id)
+    if not subscription:
+        return False, "No active subscription"
+
+    credits_left = subscription.get("credits", 0)
+
+    if credits_left < amount:
+        return False, "Insufficient credits"
+
+    new_balance = credits_left - amount
+
+    try:
+        supabase.table("subscriptions").update({
+            "credits": new_balance
+        }).eq("id", subscription["id"]).execute()
+
         return True, new_balance
 
     except Exception as e:
-        return False, f"Failed to deduct credits: {e}"
+        print("DEDUCT CREDIT ERROR:", e)
+        return False, str(e)
 
 
-# ----------------------------------------
-# LOW CREDIT WARNING
-# ----------------------------------------
-
-def low_credit_warning(credits):
-    """Return a styled warning section for low credits."""
-    if credits >= 10:
-        return  # No warning
-
-    st.warning(
-        f"""
-### ⚠️ Low Credits: {credits} remaining  
-To continue using AI features, please top up your credits.
-
-**Payment Details**  
-**Account Name:** Chumcred Limited  
-**Bank:** Sterling Bank Plc  
-**Account Number:** 0087611334  
-        """,
-        icon="⚠️",
-    )
-
-
-# ----------------------------------------
-# SUBSCRIPTION ACTIVATION (clean version)
-# ----------------------------------------
-
+# ==========================
+#  SUBSCRIPTION ACTIVATION
+# ==========================
 def activate_subscription(user_id, plan_name, amount, credits, duration_days=30):
     """
-    Create or refresh a subscription.
+    Inserts new subscription row.
     """
 
     if not supabase:
-        return False, "Supabase not initialized"
+        return False, "Supabase client unavailable"
 
-    start = datetime.utcnow()
-    end = start + timedelta(days=duration_days)
+    start_date = datetime.utcnow()
+    end_date = start_date + timedelta(days=duration_days)
 
     payload = {
         "user_id": user_id,
         "plan": plan_name,
         "amount": amount,
         "credits": credits,
-        "created_at": start.isoformat(),
         "subscription_status": "active",
-        "start_date": start.isoformat(),
-        "end_date": end.isoformat(),
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
     }
 
     try:
-        # Upsert ensures one subscription per user
-        supabase.table("subscriptions").upsert(payload).execute()
-        return True, "Subscription activated successfully."
+        supabase.table("subscriptions").insert(payload).execute()
+        return True, "Subscription activated!"
+
     except Exception as e:
+        print("SUBSCRIPTION ACTIVATION ERROR:", e)
         return False, str(e)
 
 
-# ----------------------------------------
-# PLAN DEFINITIONS (locked values)
-# ----------------------------------------
+# ==========================
+#  LOW CREDIT CHECK
+# ==========================
+def is_low_credit(user_id):
+    """
+    Returns True if user has < 10 credits.
+    """
+    sub = get_subscription(user_id)
+    if not sub:
+        return False
 
-PLANS = {
-    "Basic": {"price": 5000, "credits": 100},
-    "Pro": {"price": 12500, "credits": 300},
-    "Premium": {"price": 50000, "credits": 1500},
-}
+    return sub.get("credits", 0) < 10
