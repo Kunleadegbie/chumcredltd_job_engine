@@ -101,11 +101,20 @@ def activate_subscription(user_id, plan_name):
         return False, str(e)
 
 
-def is_low_credit(subscription, minimum_required):
+def is_low_credit(credits, minimum_required):
     """
-    Returns True if user does not have enough credits.
+    Accepts either:
+    - credits as an integer, OR
+    - subscription dict with {credits: int}
     """
-    if not subscription:
-        return True
-    return subscription.get("credits", 0) < minimum_required
+    # If it's a dict → extract the credits
+    if isinstance(credits, dict):
+        credits = credits.get("credits", 0)
+
+    # If it's None → treat as 0
+    if credits is None:
+        credits = 0
+
+    return credits < minimum_required
+
 
