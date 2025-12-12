@@ -3,193 +3,202 @@
 # ==============================================================
 
 import streamlit as st
-import os, sys
 from datetime import datetime
-
-# Fix paths
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
-from services.auth import require_login
 from config.supabase_client import supabase
-from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    is_low_credit,
-    deduct_credits,
-)
+from services.utils import get_subscription, is_low_credit, deduct_credits
 
-# ------------------------------------
-# PAGE SETTINGS
-# ------------------------------------
+
+# ======================================================
+# PAGE CONFIG
+# ======================================================
 st.set_page_config(
-    page_title="Dashboard",
-    page_icon="🏠",
+    page_title="Dashboard – Job Engine",
+    page_icon="📊",
     layout="wide"
 )
 
-user = require_login()
-user_id = user["id"]
 
-# ------------------------------------
-# FETCH SUBSCRIPTION
-# ------------------------------------
-auto_expire_subscription(user_id)
-sub = get_subscription(user_id)
+# ======================================================
+# AUTHENTICATION SAFETY CHECK
+# ======================================================
+# Ensure user is logged in
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
 
-credits = sub.get("credits", 0) if sub else 0
-status = sub.get("subscription_status", "inactive") if sub else "inactive"
+user = st.session_state.get("user")
 
-start_date = sub.get("start_date")
-end_date = sub.get("end_date")
+# Handle expired session
+if not user:
+    st.error("Session expired. Please log in again.")
+    st.switch_page("app.py")
+    st.stop()
 
-try:
-    if end_date:
-        end_date_fmt = datetime.fromisoformat(end_date).strftime("%d %b %Y")
-    else:
-        end_date_fmt = "Not available"
-except:
-    end_date_fmt = "Not available"
+user_id = user.get("id")
+full_name = user.get("full_name", "User")
 
-# ------------------------------------
-# HEADER
-# ------------------------------------
-st.title("🏠 Welcome to Chumcred Job Engine")
-st.write("Your all-in-one AI-powered career advancement platform.")
 
-# ------------------------------------
-# TOP SUMMARY CARDS
-# ------------------------------------
+# ======================================================
+# FETCH SUBSCRIPTION DETAILS
+# ======================================================
+subscription = get_subscription(user_id)
+
+plan = subscription.get("plan") if subscription else "None"
+credits = subscription.get("credits") if subscription else 0
+status = subscription.get("subscription_status") if subscription else "inactive"
+
+start_date = subscription.get("start_date") if subscription else None
+end_date = subscription.get("end_date") if subscription else None
+
+expiry_str = (
+    datetime.fromisoformat(end_date).strftime("%d %b %Y")
+    if end_date else "—"
+)
+
+sub_active = status == "active"
+
+
+# ======================================================
+# DASHBOARD HEADER — LinkedIn/Indeed Style
+# ======================================================
+st.markdown(f"""
+# 👋 Welcome back, **{full_name}**  
+Your one-stop AI-powered career advancement platform.
+""")
+st.write("---")
+
+
+# ======================================================
+#  TOP SUMMARY CARDS (Plan, Credits, Expiry)
+# ======================================================
 col1, col2, col3 = st.columns(3)
 
 with col1:
     st.markdown("""
-    <div style="
-        background:#f0f6ff; padding:20px; border-radius:12px;
-        border-left:5px solid #1a73e8;">
-        <h4>Subscription Status</h4>
-    """, unsafe_allow_html=True)
-
-    if status == "active":
-        st.success("**ACTIVE**")
-    else:
-        st.error("**NOT ACTIVE**")
-
-    st.write(f"**Plan:** {sub.get('plan', 'None')}")
-    st.write(f"**Expires:** {end_date_fmt}")
-    st.markdown("</div>", unsafe_allow_html=True)
+    <div style='padding:18px; border-radius:12px; background:#F0F7FF; border:1px solid #C2DAFF;'>
+        <h4 style='margin-bottom:0;'>🧩 Subscription Plan</h4>
+        <p style='font-size:22px; font-weight:bold; margin-top:5px;'>""", unsafe_allow_html=True)
+    st.markdown(f"**{plan}**")
+    st.markdown("</p></div>", unsafe_allow_html=True)
 
 with col2:
-    st.markdown("""
-    <div style="
-        background:#fff7e6; padding:20px; border-radius:12px;
-        border-left:5px solid #ffa000;">
-        <h4>Credits</h4>
+    color = "red" if credits < 5 else "#0047AB"
+    st.markdown(f"""
+    <div style='padding:18px; border-radius:12px; background:#FFF7EA; border:1px solid #FFE0A3;'>
+        <h4 style='margin-bottom:0;'>💳 Credits Remaining</h4>
+        <p style='font-size:22px; font-weight:bold; margin-top:5px; color:{color};'>{credits} credits</p>
+    </div>
     """, unsafe_allow_html=True)
-
-    st.write(f"**Credits Remaining:** {credits}")
-    if is_low_credit(user_id):
-        st.warning("⚠️ Low credits — please top up soon.")
-    st.markdown("</div>", unsafe_allow_html=True)
 
 with col3:
     st.markdown("""
-    <div style="
-        background:#e8fff1; padding:20px; border-radius:12px;
-        border-left:5px solid #00a152;">
-        <h4>Billing Info</h4>
-    """, unsafe_allow_html=True)
+    <div style='padding:18px; border-radius:12px; background:#EFFFF4; border:1px solid #A0E8C3;'>
+        <h4 style='margin-bottom:0;'>⏳ Subscription Expires</h4>
+        <p style='font-size:22px; font-weight:bold; margin-top:5px;'>""", unsafe_allow_html=True)
+    st.markdown(f"{expiry_str}")
+    st.markdown("</p></div>", unsafe_allow_html=True)
 
-    st.write("**Account Name:** Chumcred Limited")
-    st.write("**Bank:** Sterling Bank Plc")
-    st.write("**Account Number:** 0087611334")
-    st.info("Make payment and contact support for activation.")
-    st.markdown("</div>", unsafe_allow_html=True)
 
-st.markdown("---")
+st.write("---")
 
-# ------------------------------------
-# HOW TO USE THE APP (USER GUIDE)
-# ------------------------------------
-st.subheader("🚀 How to Use This App (Step-by-Step Guide)")
 
+# ======================================================
+#  ABOUT THIS APP — Strong Marketing Version
+# ======================================================
 st.markdown("""
-### 1️⃣ **Subscribe to a Plan**
-Activate a subscription and unlock AI credits.
+## 🌟 About This App (Read This First)
 
-### 2️⃣ **Use Any AI Feature**
-Each tool deducts credits:
-- Match Score — 5 credits  
-- Skill Extraction — 5 credits  
-- Cover Letter — 10 credits  
-- Resume Rewrite — 15 credits  
-- Job Recommendations — 5 credits  
-- Job Search — 3 credits  
+Chumcred Job Engine is an **AI-powered career platform** designed to give job seekers a competitive edge.
 
-### 3️⃣ **Your Subscription Automatically Tracks Usage**
-Credits update after every action.
+This app combines **six intelligence engines**:
 
-### 4️⃣ **Manage Your Saved Jobs**
-Save jobs and review later.
+1. **Match Score Analyzer** — compares your CV against job descriptions  
+2. **AI Skills Extraction** — reveals missing and relevant skills  
+3. **AI Cover Letter Writer** — tailored to each job  
+4. **Eligibility Checker** — evaluates your suitability  
+5. **Resume Rewrite Engine** — professionally restructures your CV  
+6. **AI Job Recommendations** — finds jobs matching your profile  
 
-### 5️⃣ **Upgrade or Renew Anytime**
-Just make a payment to the bank details above and your plan will be activated.
+Everything works in **one place**, making this tool more powerful than Indeed, LinkedIn, Jobberman, and MyJobMag combined.
 """)
 
-st.markdown("---")
+st.write("---")
 
-# ------------------------------------
-# BENEFITS OVER OTHER PLATFORMS
-# ------------------------------------
-st.subheader("💡 Why Choose Chumcred Job Engine?")
 
-st.markdown("""
-### ✔ **All-in-One Platform**
-Resume, cover letter, job search, scoring, and recommendations — everything in one place.
+# ======================================================
+#   HOW TO USE THE APP (Step-by-Step Guide)
+# ======================================================
+with st.expander("📘 How to Use This App (Step-by-Step Guide)"):
+    st.markdown("""
+### **1️⃣ Create an account or log in**
+Your dashboard keeps all your activity and saved jobs.
 
-### ✔ **AI Personalized for Nigerian & Global Job Markets**
-Many platforms are US-centric. Yours understands Nigerian context too.
+### **2️⃣ Subscribe to a plan**
+You need credits to run AI tools.  
+Prices start from **₦5,000 for 100 credits.**
 
-### ✔ **Affordable Credit System**
-Pay only for what you use.
+### **3️⃣ Upload your resume / paste a job description**
+Each AI module guides you step by step.
 
-### ✔ **Better Job Intelligence**
-Unlike generic AI apps, your platform uses:
-- Resume trends  
-- User behavior  
-- Job ranking intelligence  
+### **4️⃣ View results instantly**
+Match score, rewritten resume, skills analysis, job recommendations — all in seconds.
 
-### ✔ **Bank Payment Option**
-Users without cards can still subscribe.
+### **5️⃣ Save jobs you like**
+Job postings in the "Job Search" page can be bookmarked.
 
-### ✔ **Privacy-Safe**
-All resume processes happen securely within your system.
+### **6️⃣ Track credits & subscription**
+Your dashboard keeps real-time status.
+
+### **That's it — your full job-search ecosystem in one place.**
 """)
 
-st.markdown("---")
 
-# ------------------------------------
-# FAQs SECTION
-# ------------------------------------
-st.subheader("❓ Frequently Asked Questions (FAQ)")
+# ======================================================
+# BENEFITS — WHY THIS APP IS BETTER THAN OTHERS
+# ======================================================
+with st.expander("💡 Why Job Engine is Better Than LinkedIn / Indeed / Jobberman"):
+    st.markdown("""
+### **Direct Benefits**
+- Personalized **Match Score** for every job  
+- Cover Letter + Resume rewriting using **advanced AI**  
+- Skills gap identification  
+- Local + global job search  
+- Save jobs + track activity  
 
-with st.expander("How do I subscribe?"):
-    st.write("""
-    Make a payment to the Chumcred Limited account listed above.  
-    Contact support with proof of payment — your account will be activated.
-    """)
+### **Advantages Over Other Platforms**
+- LinkedIn does NOT analyze your resume against job descriptions  
+- Indeed does NOT rewrite your resume with AI  
+- Jobberman does NOT give match score analytics  
+- ChatGPT alone doesn’t provide credit tracking, subscription, job saving, or real job feeds  
 
-with st.expander("How are credits deducted?"):
-    st.write("Each AI tool deducts a fixed number of credits automatically.")
+**Job Engine combines all of these into ONE platform.**
+""")
 
-with st.expander("Can I use multiple AI tools at once?"):
-    st.write("Yes! As long as you have credits, everything works instantly.")
 
-with st.expander("Can I cancel or pause my subscription?"):
-    st.write("Subscriptions expire automatically when the duration ends.")
+# ======================================================
+# BANK DETAILS FOR PAYMENT
+# ======================================================
+st.write("---")
+st.markdown("""
+### 💰 **Payment Information (For Manual Transfers)**  
+Use these account details if paying outside the platform:
 
-with st.expander("Is my resume stored?"):
-    st.write("No. Resumes are processed temporarily and never stored permanently.")
+**🏦 Account Name:** Chumcred Limited  
+**🏛 Bank:** Sterling Bank Plc  
+**🔢 Account Number:** 0087611334  
 
-st.markdown("---")
+After payment, go to **Subscription → Submit Payment**.
+""")
 
-st.caption("Powered by Chumcred Job Engine © 2025")
+
+# ======================================================
+# LOW CREDIT WARNING
+# ======================================================
+if is_low_credit(credits):
+    st.warning("⚠️ You are running low on credits. Please top up soon.")
+
+
+# ======================================================
+# END OF PAGE
+# ======================================================
+st.write("---")
+st.caption("Chumcred Job Engine © 2025")
