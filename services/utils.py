@@ -43,18 +43,31 @@ def get_subscription(user_id):
 # ============================================================
 def deduct_credits(user_id, amount):
     """
-    Deduct credits using Supabase RPC.
-    Automatically prevents negative numbers.
+    Deduct credits safely using Supabase RPC.
+    Always returns (success: bool, message: str)
     """
+
     if not supabase:
-        return False
+        return False, "Supabase client not initialized"
 
     try:
-        supabase.rpc("deduct_user_credits", {"uid": user_id, "amt": amount}).execute()
-        return True
+        # Call the RPC function
+        result = supabase.rpc("deduct_user_credits", {
+            "uid": user_id,
+            "amt": amount
+        }).execute()
+
+        # Supabase RPC returns null on success — this is normal
+        return True, "Credits deducted successfully"
+
     except Exception as e:
-        print("CREDIT DEDUCTION ERROR:", e)
-        return False
+        error_msg = str(e)
+
+        # Detect insufficient credit error
+        if "insufficient" in error_msg.lower():
+            return False, "Insufficient credits"
+
+        return False, f"Credit deduction error: {error_msg}"
 
 
 # ============================================================
