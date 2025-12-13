@@ -60,15 +60,16 @@ def deduct_credits(user_id, amount):
 # ============================================================
 #  CHECK IF USER HAS LOW CREDIT
 # ============================================================
-def is_low_credit(subscription, minimum_required):
+def is_low_credit(subscription: dict, minimum_required: int = 20) -> bool:
     """
-    Returns True if user credits < threshold.
+    Returns True if user credits are below minimum_required.
+    Expects the FULL subscription object, not just an integer.
     """
     if not subscription:
-        return True
-
-    return subscription.get("credits", 0) < minimum_required
-
+        return True  # Treat no subscription as low credit
+    
+    credits = subscription.get("credits", 0)
+    return credits < minimum_required
 
 # ============================================================
 #  AUTO EXPIRE SUBSCRIPTION
