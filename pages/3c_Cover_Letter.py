@@ -1,93 +1,120 @@
-# =========================================================
-# 3c_Cover_Letter.py — AI Cover Letter Generator (FINAL)
-# =========================================================
+
+# ================================================================
+# 3c_Cover_Letter.py — AI Cover Letter Generator (Stable Version)
+# ================================================================
 
 import streamlit as st
-import os, sys
+import sys, os
 
-# Ensure project root is in Python path
+# Fix imports for Streamlit execution
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from services.auth import require_login
+from config.supabase_client import supabase
 from services.utils import (
-    deduct_credits,
     get_subscription,
     auto_expire_subscription,
-    is_low_credit
+    has_enough_credits,
+    deduct_credits,
 )
 from services.ai_engine import ai_generate_cover_letter
-from config.supabase_client import supabase
 
 
-# -------------------------------------------------------
+# ================================================================
 # PAGE CONFIG
-# -------------------------------------------------------
-st.set_page_config(page_title="Cover Letter Generator", page_icon="✍️", layout="wide")
+# ================================================================
+st.set_page_config(page_title="AI Cover Letter Generator", page_icon="✉️")
+
+
+# ================================================================
+# LOGIN CHECK
+# ================================================================
 user = require_login()
+if not user:
+    st.stop()
+
 user_id = user["id"]
 
-# -------------------------------------------------------
-# SUBSCRIPTION VALIDATION
-# -------------------------------------------------------
+
+# ================================================================
+# SUBSCRIPTION & CREDIT VALIDATION
+# ================================================================
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 
 if not subscription or subscription["subscription_status"] != "active":
-    st.error("You need an active subscription to use the Cover Letter Generator.")
+    st.error("❌ Your subscription is inactive. Please subscribe to continue.")
     st.stop()
 
 credits = subscription.get("credits", 0)
 
-if is_low_credit(subscription, 10):
-    st.warning(f"⚠ Low Credits: You have {credits} left. Generating a Cover Letter costs 10 credits.")
+if not has_enough_credits(subscription, 10):
+    st.error(f"❌ You need at least 10 credits. You currently have {credits}.")
+    st.stop()
 
 
-# -------------------------------------------------------
-# PAGE UI
-# -------------------------------------------------------
-st.title("✍️ AI Cover Letter Generator")
-st.write("Enter job details and your resume to generate a professional, customized cover letter.")
-
-job_title = st.text_input("Job Title", placeholder="e.g., Data Analyst, Product Manager")
-company_name = st.text_input("Company Name", placeholder="e.g., Google, Access Bank")
-job_description = st.text_area("Job Description", height=180)
-resume_text = st.text_area("Paste Your Resume Text", height=220)
+# ================================================================
+# PAGE HEADER
+# ================================================================
+st.title("✉️ AI Cover Letter Generator")
+st.write("Create a professional, personalized cover letter in seconds.")
 
 
-# -------------------------------------------------------
-# PROCESSING
-# -------------------------------------------------------
-if st.button("Generate Cover Letter (Cost: 10 credits)"):
+# ================================================================
+# INPUTS
+# ================================================================
+resume = st.file_uploader("Upload Your Resume (PDF or DOCX)", type=["pdf", "docx"])
+job_title = st.text_input("Job Title", placeholder="e.g., Product Manager, Data Analyst")
+job_description = st.text_area(
+    "Job Description",
+    height=200,
+    placeholder="Paste the job description here...",
+)
 
-    # Required fields check
-    if not job_title.strip() or not company_name.strip() or not job_description.strip() or not resume_text.strip():
-        st.error("Please fill out all fields before generating a cover letter.")
+
+# ================================================================
+# RUN COVER LETTER GENERATION
+# ================================================================
+if st.button("Generate Cover Letter"):
+
+    # Validate inputs
+    if not resume:
+        st.error("Please upload your resume.")
         st.stop()
 
-    # Credit check
-    if credits < 10:
-        st.error("❌ Not enough credits. Please upgrade your subscription or top-up.")
+    if not job_title.strip():
+        st.error("Job title is required.")
         st.stop()
 
-    with st.spinner("Generating personalized cover letter…"):
-        try:
+    if not job_description.strip():
+        st.error("Job description is required.")
+        st.stop()
+
+    # Deduct credits BEFORE calling AI
+    success, msg = deduct_credits(user_id, 10)
+    if not success:
+        st.error(f"Credit deduction failed: {msg}")
+        st.stop()
+
+    st.info("🔄 10 credits deducted.")
+
+    try:
+        with st.spinner("Generating cover letter..."):
+
+            resume_bytes = resume.read()
+
+            # AI ENGINE CALL (correct signature)
             result = ai_generate_cover_letter(
-                resume_text=resume_text,
-                job_title=job_title,
-                company=company_name,
-                job_description=job_description
+                resume_bytes,
+                job_title,
+                job_description,
             )
 
-            # Deduct credits AFTER success
-            deduct_credits(user_id, 10)
+        st.success("🎉 Cover letter generated successfully!")
+        st.write(result)
 
-            st.success("Cover Letter generated successfully!")
-
-            st.subheader("📄 Your AI-Generated Cover Letter")
-            st.write(result.get("cover_letter", "No cover letter generated."))
-
-        except Exception as e:
-            st.error(f"Error generating cover letter: {e}")
+    except Exception as e:
+        st.error(f"Error generating cover letter: {e}")
 
 st.write("---")
 st.caption("Powered by Chumcred Job Engine © 2025")
