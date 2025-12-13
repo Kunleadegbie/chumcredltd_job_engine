@@ -3,122 +3,109 @@
 # ================================================================
 
 import streamlit as st
-import sys, os
+import os, sys
 
-# Fix import paths for Streamlit
+# Fix import paths for Render & Streamlit Cloud
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from services.auth import require_login
-from config.supabase_client import supabase
+from services.ai_engine import ai_generate_job_recommendations
 from services.utils import (
     get_subscription,
     auto_expire_subscription,
-    has_enough_credits,
     deduct_credits,
+    is_low_credit
 )
-from services.ai_engine import ai_generate_job_recommendations
+from config.supabase_client import supabase
 
 
-# ================================================================
+# --------------------------------------------------
 # PAGE CONFIG
-# ================================================================
-st.set_page_config(page_title="AI Job Recommendations", page_icon="🎯")
+# --------------------------------------------------
+st.set_page_config(page_title="AI Job Recommendations", page_icon="🧭")
 
 
-# ================================================================
+# --------------------------------------------------
 # AUTH CHECK
-# ================================================================
-user = require_login()
+# --------------------------------------------------
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
+
+user = st.session_state.get("user")
+
 if not user:
+    st.error("Session expired. Please log in again.")
+    st.switch_page("app.py")
     st.stop()
 
 user_id = user["id"]
 
 
-# ================================================================
-# SUBSCRIPTION + CREDIT CHECK
-# ================================================================
+# --------------------------------------------------
+# SUBSCRIPTION & CREDIT VALIDATION
+# --------------------------------------------------
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 
-if not subscription or subscription["subscription_status"] != "active":
-    st.error("❌ Your subscription is inactive. Please subscribe to continue.")
+if not subscription or subscription.get("subscription_status") != "active":
+    st.error("❌ You need an active subscription to use Job Recommendations.")
     st.stop()
 
 credits = subscription.get("credits", 0)
+CREDIT_COST = 5
 
-# Job Recommendations cost 5 credits
-REQUIRED_CREDITS = 5
-
-if not has_enough_credits(subscription, REQUIRED_CREDITS):
-    st.error(f"❌ You need at least {REQUIRED_CREDITS} credits. You currently have {credits}.")
+if credits < CREDIT_COST:
+    st.error(f"❌ You need at least {CREDIT_COST} credits to use this feature.")
     st.stop()
 
 
-# ================================================================
-# UI HEADER
-# ================================================================
-st.title("🎯 AI Job Recommendations")
-st.caption("Upload your resume or provide your skills, and AI will recommend suitable roles.")
+# --------------------------------------------------
+# PAGE UI
+# --------------------------------------------------
+st.title("🧭 AI Job Recommendations")
+st.write(
+    "Paste your resume below and the AI will recommend jobs that best match your skills, "
+    "experience, and industry profile."
+)
 
-
-# ================================================================
-# USER INPUT SECTION
-# ================================================================
-resume = st.file_uploader("Upload Your Resume (PDF or DOCX)", type=["pdf", "docx"])
-
-skills_text = st.text_area(
-    "Or describe your skills (Optional)",
-    placeholder="e.g., Data analysis, SQL, Python, Power BI, Financial modeling...",
-    height=120,
+resume_text = st.text_area(
+    "Paste Your Resume Here",
+    height=350,
+    placeholder="Paste your full resume…"
 )
 
 
-st.write("---")
-
-
-# ================================================================
-# RUN AI JOB RECOMMENDER
-# ================================================================
-if st.button("Generate Recommendations"):
-
-    if not resume and not skills_text.strip():
-        st.error("Please upload a resume or provide a skills summary.")
+# --------------------------------------------------
+# RUN JOB RECOMMENDATION
+# --------------------------------------------------
+if st.button("Generate Job Recommendations"):
+    if not resume_text.strip():
+        st.warning("Please paste your resume first.")
         st.stop()
 
-    resume_bytes = resume.read() if resume else None
-
-    # Deduct credits BEFORE AI action
-    success, msg = deduct_credits(user_id, REQUIRED_CREDITS)
+    # Deduct credits BEFORE calling AI
+    success, msg = deduct_credits(user_id, CREDIT_COST)
     if not success:
-        st.error(f"❌ Credit deduction failed: {msg}")
+        st.error(msg)
         st.stop()
 
-    st.info(f"🔄 {REQUIRED_CREDITS} credits deducted successfully.")
-
-    try:
-        with st.spinner("Analyzing your profile and generating job recommendations..."):
-
-            # AI engine call — aligned EXACTLY with ai_engine.py signature (Option A)
-            results = ai_generate_job_recommendations(
-                resume_bytes=resume_bytes,
-                skills_text=skills_text,
+    with st.spinner("Analyzing your resume and generating job recommendations…"):
+        try:
+            recommendations = ai_generate_job_recommendations(
+                resume_text=resume_text
             )
 
-        st.success("🎉 Job recommendations ready!")
+            st.success("Job recommendations generated!")
+            st.write(recommendations)
 
-        st.markdown("## 🔍 Recommended Jobs Based on Your Profile")
-        st.write(results)
+        except Exception as e:
+            st.error(f"Error generating recommendations: {e}")
 
-        st.download_button(
-            "⬇ Download Recommendations",
-            data=results,
-            file_name="job_recommendations.txt",
-            mime="text/plain",
-        )
 
-    except Exception as e:
-        st.error(f"Error generating recommendations: {e}")
+# --------------------------------------------------
+# LOW CREDIT WARNING
+# --------------------------------------------------
+if is_low_credit(subscription, CREDIT_COST):
+    st.warning("⚠️ Your credits are running low. Please top up soon.")
 
 # Footer
 st.write("---")

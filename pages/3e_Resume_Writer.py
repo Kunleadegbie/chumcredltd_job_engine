@@ -1,135 +1,108 @@
 # ================================================================
 # 3e_Resume_Writer.py — AI Resume Rewrite Engine (Stable Version)
 # ================================================================
-
 import streamlit as st
-import sys, os
+import os, sys
 
-# Fix import paths for Streamlit
+# Ensure imports work on Render & Streamlit Cloud
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from services.auth import require_login
-from config.supabase_client import supabase
+from services.ai_engine import ai_generate_resume_rewrite
 from services.utils import (
     get_subscription,
     auto_expire_subscription,
-    has_enough_credits,
     deduct_credits,
+    is_low_credit
 )
-from services.ai_engine import ai_rewrite_resume
+from config.supabase_client import supabase
 
 
-# ================================================================
+# --------------------------------------------------
 # PAGE CONFIG
-# ================================================================
-st.set_page_config(page_title="AI Resume Rewrite", page_icon="📝")
+# --------------------------------------------------
+st.set_page_config(page_title="AI Resume Writer", page_icon="📝")
 
 
-# ================================================================
+# --------------------------------------------------
 # AUTH CHECK
-# ================================================================
-user = require_login()
+# --------------------------------------------------
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
+
+user = st.session_state.get("user")
+
 if not user:
+    st.error("Session expired. Please log in again.")
+    st.switch_page("app.py")
     st.stop()
 
 user_id = user["id"]
 
 
-# ================================================================
-# SUBSCRIPTION CHECK
-# ================================================================
+# --------------------------------------------------
+# SUBSCRIPTION & CREDIT VALIDATION
+# --------------------------------------------------
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 
-if not subscription or subscription["subscription_status"] != "active":
-    st.error("❌ Your subscription is inactive. Please subscribe to continue.")
+if not subscription or subscription.get("subscription_status") != "active":
+    st.error("❌ You need an active subscription to use the resume writer.")
     st.stop()
 
 credits = subscription.get("credits", 0)
+CREDIT_COST = 15
 
-# Resume Writer costs 15 credits
-REQUIRED_CREDITS = 15
-
-if not has_enough_credits(subscription, REQUIRED_CREDITS):
-    st.error(f"❌ You need at least {REQUIRED_CREDITS} credits. You currently have {credits}.")
+if credits < CREDIT_COST:
+    st.error(f"❌ You need at least {CREDIT_COST} credits to use this feature.")
     st.stop()
 
 
-# ================================================================
-# UI HEADER
-# ================================================================
+# --------------------------------------------------
+# PAGE UI
+# --------------------------------------------------
 st.title("📝 AI Resume Rewrite Engine")
-st.caption("Upload your resume and let AI rewrite it professionally.")
-
-
-# ================================================================
-# USER INPUTS
-# ================================================================
-resume = st.file_uploader("Upload Your Resume (PDF or DOCX)", type=["pdf", "docx"])
-
-rewrite_style = st.selectbox(
-    "Rewrite Style",
-    [
-        "Professional",
-        "Modern Corporate",
-        "Impact-driven",
-        "Tech Industry Optimized",
-        "Concise & Achievement-Focused",
-    ],
+st.write(
+    "Paste your resume below and the AI will rewrite it professionally for better job matching, "
+    "ATS optimization, and clarity."
 )
 
-additional_notes = st.text_area(
-    "Optional Notes for the AI",
-    placeholder="e.g., Focus on leadership achievements, highlight project management...",
-    height=120,
+resume_text = st.text_area(
+    "Paste Your Resume Here",
+    height=350,
+    placeholder="Paste your full resume or career summary…"
 )
 
 
-# ================================================================
+# --------------------------------------------------
 # RUN RESUME REWRITE
-# ================================================================
+# --------------------------------------------------
 if st.button("Rewrite My Resume"):
-
-    if not resume:
-        st.error("Please upload your resume.")
+    if not resume_text.strip():
+        st.warning("Please paste your resume first.")
         st.stop()
-
-    resume_bytes = resume.read()
 
     # Deduct credits BEFORE running AI
-    success, msg = deduct_credits(user_id, REQUIRED_CREDITS)
-
+    success, msg = deduct_credits(user_id, CREDIT_COST)
     if not success:
-        st.error(f"Credit deduction failed: {msg}")
+        st.error(msg)
         st.stop()
 
-    st.info(f"🔄 {REQUIRED_CREDITS} credits deducted.")
+    with st.spinner("Rewriting your resume…"):
+        try:
+            result = ai_generate_resume_rewrite(resume_text=resume_text)
 
-    try:
-        with st.spinner("Rewriting your resume... this may take a moment..."):
+            st.success("Resume rewritten successfully!")
+            st.write(result)
 
-            # AI ENGINE CALL — aligned with ai_engine.py (Option A)
-            rewritten = ai_rewrite_resume(
-                resume_bytes=resume_bytes,
-                rewrite_style=rewrite_style,
-                extra_notes=additional_notes
-            )
+        except Exception as e:
+            st.error(f"Error generating resume rewrite: {e}")
 
-        st.success("🎯 Resume rewrite complete!")
 
-        st.markdown("## ✨ Your Rewritten Resume")
-        st.write(rewritten)
-
-        # Optional: Allow user to download rewritten resume text
-        st.download_button(
-            "⬇ Download Rewritten Resume",
-            data=rewritten,
-            file_name="rewritten_resume.txt",
-            mime="text/plain",
-        )
-
-    except Exception as e:
-        st.error(f"Error rewriting resume: {e}")
+# --------------------------------------------------
+# LOW CREDIT WARNING
+# --------------------------------------------------
+if is_low_credit(subscription, CREDIT_COST):
+    st.warning("⚠️ Your credits are running low. Please top up soon.")
 
 # Footer
 st.write("---")
