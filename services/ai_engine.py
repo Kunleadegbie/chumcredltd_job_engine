@@ -2,83 +2,158 @@
 # ai_engine.py (FINAL VERSION)
 # ============================
 
-import json
+import os
 from openai import OpenAI
-from PyPDF2 import PdfReader
-import docx
 
-client = OpenAI()
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# ----------------------------
-# FILE TEXT EXTRACTOR
-# ----------------------------
+# =========================================================
+#  AI: MATCH SCORE
+# =========================================================
 
-def extract_text_from_file(uploaded_file):
+def ai_generate_match_score(resume_text: str, job_description: str) -> dict:
     """
-    Converts uploaded DOCX or PDF file into clean text.
+    Compare resume with job description.
+    Returns: { score: int, summary: str }
     """
-    if uploaded_file is None:
-        return ""
 
-    filename = uploaded_file.name.lower()
+    prompt = f"""
+    You are an AI Match Score Engine.
 
-    try:
-        if filename.endswith(".pdf"):
-            pdf = PdfReader(uploaded_file)
-            text = ""
-            for page in pdf.pages:
-                text += page.extract_text() or ""
-            return text
+    USER RESUME:
+    {resume_text}
 
-        elif filename.endswith(".docx"):
-            doc = docx.Document(uploaded_file)
-            return "\n".join([para.text for para in doc.paragraphs])
+    JOB DESCRIPTION:
+    {job_description}
 
-        else:
-            return uploaded_file.read().decode("utf-8", errors="ignore")
+    TASK:
+    - Compare resume and job description.
+    - Evaluate skills, experience fit, industry relevance, keyword alignment.
+    - Produce:
+      - Match score (0–100)
+      - Short explanation.
 
-    except Exception:
-        return ""
-    
-
-# ----------------------------
-# OPENAI JSON CALL WRAPPER
-# ----------------------------
-
-def ask_json(model, prompt):
-    """
-    Ensures OpenAI always returns VALID JSON.
+    Return JSON only:
+    {{
+        "score": 85,
+        "summary": "Strong match in data analysis and reporting. Slight gap in SQL depth."
+    }}
     """
 
     response = client.chat.completions.create(
-        model=model,
-        temperature=0.2,
-        messages=[
-            {"role": "system", "content": "Return ONLY valid JSON. No explanations."},
-            {"role": "user", "content": prompt}
-        ]
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.15
     )
 
-    raw = response.choices[0].message.content
+    result = response.choices[0].message.content
 
     try:
-        return json.loads(raw)
+        import json
+        return json.loads(result)
     except:
-        # Try fixing malformed JSON
-        fixed = raw.strip().replace("```json", "").replace("```", "")
-        try:
-            return json.loads(fixed)
-        except:
-            return {"error": "Invalid JSON returned by AI", "raw": raw}
+        return {"score": 0, "summary": "Unable to evaluate match score."}
 
 
-# ----------------------------
-# 1️⃣ MATCH SCORE (5 credits)
-# ----------------------------
+# =========================================================
+#  AI: SKILLS EXTRACTION
+# =========================================================
 
-def ai_match_score(resume_text, job_description):
+def ai_extract_skills(text: str) -> dict:
+    """
+    Extract skills from resume text.
+    Returns: { skills: [list] }
+    """
+
     prompt = f"""
-    You are an AI Job Match Engine.
+    Extract all technical, soft, analytical, leadership, and domain skills 
+    from the text below.
+
+    TEXT:
+    {text}
+
+    Return JSON only:
+    {{
+        "skills": ["Python", "Data Analysis", "Communication", ...]
+    }}
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1
+    )
+
+    result = response.choices[0].message.content
+
+    try:
+        import json
+        return json.loads(result)
+    except:
+        return {"skills": []}
+
+
+# =========================================================
+#  AI: COVER LETTER GENERATOR
+# =========================================================
+
+def ai_generate_cover_letter(resume_text: str, job_description: str) -> dict:
+    """
+    Generates a personalized cover letter.
+    Returns: { cover_letter: "..." }
+    """
+
+    prompt = f"""
+    You are an expert cover letter writer.
+
+    USER RESUME:
+    {resume_text}
+
+    JOB DESCRIPTION:
+    {job_description}
+
+    TASK:
+    - Create a polished, ATS-friendly professional cover letter.
+    - Should include:
+      - Brief intro
+      - Relevant achievements
+      - Skills match
+      - Closing paragraph
+
+    Return JSON only:
+    {{
+        "cover_letter": "Here is your cover letter..."
+    }}
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.25
+    )
+
+    result = response.choices[0].message.content
+
+    try:
+        import json
+        return json.loads(result)
+    except:
+        return {"cover_letter": "Unable to generate cover letter."}
+
+
+# =========================================================
+#  AI: JOB ELIGIBILITY CHECK
+# =========================================================
+
+def ai_check_eligibility(resume_text: str, job_description: str) -> dict:
+    """
+    Checks if candidate is eligible for the job.
+    Returns: { eligible: true/false, reasons: [...] }
+    """
+
+    prompt = f"""
+    Evaluate whether the following resume matches the job requirements.
 
     RESUME:
     {resume_text}
@@ -86,148 +161,119 @@ def ai_match_score(resume_text, job_description):
     JOB DESCRIPTION:
     {job_description}
 
-    Evaluate:
-    - Skill alignment
-    - Experience match
-    - Industry fit
-    - Seniority level
+    TASK:
+    - Identify eligibility.
+    - List reasons.
+    - Suggest improvements if not eligible.
 
-    Return JSON:
+    Return JSON only:
     {{
-        "score": 0-100,
-        "summary": "2–3 sentence explanation"
+        "eligible": true,
+        "reasons": ["Meets skill requirements", "Has relevant experience"],
+        "improvements": ["Gain more SQL experience"]
     }}
     """
 
-    return ask_json("gpt-4o-mini", prompt)
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
+    )
+
+    result = response.choices[0].message.content
+
+    try:
+        import json
+        return json.loads(result)
+    except:
+        return {
+            "eligible": False,
+            "reasons": ["AI could not analyse eligibility"],
+            "improvements": []
+        }
 
 
-# ----------------------------
-# 2️⃣ SKILLS EXTRACTION (5 credits)
-# ----------------------------
+# =========================================================
+#  AI: RESUME REWRITER
+# =========================================================
 
-def ai_extract_skills(resume_text):
+def ai_rewrite_resume(text: str) -> dict:
+    """
+    Rewrites resume in a polished ATS-friendly format.
+    Returns: { resume: "..." }
+    """
+
     prompt = f"""
-    Extract all key skills from this resume.
+    Rewrite the resume text below into a strong, ATS-optimized version.
 
-    RESUME:
-    {resume_text}
+    TEXT:
+    {text}
 
-    Group into:
-    - technical_skills
-    - soft_skills
-    - tools
+    Requirements:
+    - Improve clarity & impact
+    - Use action verbs
+    - Strengthen achievements
+    - Maintain structure
+    - Fix grammar and tone
 
-    Return JSON:
+    Return JSON only:
     {{
-        "technical_skills": [...],
-        "soft_skills": [...],
-        "tools": [...]
+        "resume": "Rewritten resume here..."
     }}
     """
 
-    return ask_json("gpt-4o-mini", prompt)
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
+    )
+
+    result = response.choices[0].message.content
+
+    try:
+        import json
+        return json.loads(result)
+    except:
+        return {"resume": "Unable to rewrite resume."}
 
 
-# ----------------------------
-# 3️⃣ COVER LETTER WRITER (10 credits)
-# ----------------------------
+# =========================================================
+#  AI: JOB RECOMMENDATIONS
+# =========================================================
 
-def ai_cover_letter(resume_text, job_title, company, job_description):
-    prompt = f"""
-    Write a professional cover letter tailored to:
-
-    JOB TITLE: {job_title}
-    COMPANY: {company}
-
-    JOB DESCRIPTION:
-    {job_description}
-
-    APPLICANT RESUME:
-    {resume_text}
-
-    Tone: professional, concise, achievement-focused.
-
-    Return JSON:
-    {{
-        "cover_letter": "full letter text"
-    }}
+def ai_job_recommendations(resume_text: str) -> dict:
+    """
+    Recommend 3 to 5 job roles that fit the user's resume.
+    Returns: { recommendations: [...] }
     """
 
-    return ask_json("gpt-4o", prompt)
-
-
-# ----------------------------
-# 4️⃣ RESUME REWRITER (15 credits)
-# ----------------------------
-
-def ai_rewrite_resume(resume_text):
     prompt = f"""
-    Rewrite this resume in a modern, ATS-optimized style.
+    Based on this resume:
 
-    RESUME:
     {resume_text}
 
-    Improve formatting, clarity, bullet structure, and action verbs.
+    Suggest 3–5 job roles that match the user's skills, seniority, and experience.
 
-    Return JSON:
-    {{
-        "rewritten_resume": "full rewritten text"
-    }}
-    """
-
-    return ask_json("gpt-4o", prompt)
-
-
-# ----------------------------
-# 5️⃣ ELIGIBILITY CHECKER (5 credits)
-# ----------------------------
-
-def ai_eligibility_score(resume_text, job_description):
-    prompt = f"""
-    Evaluate the candidate's eligibility for the job.
-
-    RESUME:
-    {resume_text}
-
-    JOB DESCRIPTION:
-    {job_description}
-
-    Return JSON:
-    {{
-        "eligibility_score": 0-100,
-        "strengths": [...],
-        "gaps": [...],
-        "verdict": "Hire / Consider / Not Suitable"
-    }}
-    """
-
-    return ask_json("gpt-4o-mini", prompt)
-
-
-# ----------------------------
-# 6️⃣ JOB RECOMMENDATIONS (5 credits)
-# ----------------------------
-
-def ai_job_recommendations(resume_text, saved_jobs, search_history):
-    prompt = f"""
-    Recommend job types based on:
-
-    RESUME:
-    {resume_text}
-
-    SAVED JOBS:
-    {saved_jobs}
-
-    SEARCH HISTORY:
-    {search_history}
-
-    Return JSON:
+    Return JSON only:
     {{
         "recommendations": [
-            {{"job_title": "...", "reason": "..."}}
+            {{"title": "Data Analyst", "reason": "Strong analytical skills"}},
+            {{"title": "Business Analyst", "reason": "Experience in reporting"}},
+            ...
         ]
     }}
     """
 
-    return ask_json("gpt-4o-mini", prompt)
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
+    )
+
+    result = response.choices[0].message.content
+
+    try:
+        import json
+        return json.loads(result)
+    except:
+        return {"recommendations": []}
