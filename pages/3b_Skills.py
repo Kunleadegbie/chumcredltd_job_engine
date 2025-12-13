@@ -4,94 +4,91 @@
 
 import streamlit as st
 import os, sys
-from io import BytesIO
 
-# Fix import path
+# Ensure project root is in path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from config.supabase_client import supabase
 from services.auth import require_login
 from services.utils import (
+    deduct_credits,
     get_subscription,
     auto_expire_subscription,
-    deduct_credits,
-    is_low_credit,
+    is_low_credit
 )
 from services.ai_engine import ai_extract_skills
+from config.supabase_client import supabase
 
 
-# ---------------------------------------------------------
-# PAGE SETTINGS
-# ---------------------------------------------------------
-st.set_page_config(page_title="AI Skills Extractor", page_icon="🧠", layout="wide")
-
+# -------------------------------------------------------
+# PAGE CONFIG
+# -------------------------------------------------------
+st.set_page_config(page_title="Skills Extraction", page_icon="🧠", layout="wide")
 user = require_login()
 user_id = user["id"]
 
+# -------------------------------------------------------
+# SUBSCRIPTION VALIDATION
+# -------------------------------------------------------
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 
-if not subscription:
-    st.error("You need an active subscription to use this feature.")
+if not subscription or subscription["subscription_status"] != "active":
+    st.error("You need an active subscription to use Skills Extraction.")
     st.stop()
 
 credits = subscription.get("credits", 0)
-if credits < 5:
-    st.error("You need at least 5 credits to use Skills Extraction.")
-    st.stop()
 
-if is_low_credit(user_id):
-    st.warning("⚠️ Your credits are running low. Please top-up soon.")
+if is_low_credit(subscription, 5):
+    st.warning(f"⚠ Low Credits: You have {credits} left. Skills Extraction costs 5 credits.")
 
 
-# ---------------------------------------------------------
+# -------------------------------------------------------
 # PAGE UI
-# ---------------------------------------------------------
+# -------------------------------------------------------
 st.title("🧠 AI Skills Extraction")
-st.write("This tool analyzes your resume and extracts **technical**, **soft**, and **industry** skills.")
+st.write("Upload your resume and the AI will extract key hard skills, soft skills, and technical competencies.")
 
-uploaded_resume = st.file_uploader("Upload Resume (PDF or DOCX)", type=["pdf", "docx"])
+resume = st.file_uploader("Upload Resume (PDF or DOCX)", type=["pdf", "docx"])
 
 
-# ---------------------------------------------------------
-# PROCESS REQUEST
-# ---------------------------------------------------------
-if st.button("Extract Skills"):
-    if not uploaded_resume:
-        st.error("Please upload your resume first.")
+# -------------------------------------------------------
+# PROCESSING
+# -------------------------------------------------------
+if st.button("Extract Skills (Cost: 5 credits)"):
+
+    if not resume:
+        st.error("Please upload a resume file first.")
         st.stop()
 
-    with st.spinner("Extracting skills... please wait"):
-        resume_bytes = uploaded_resume.read()
+    if credits < 5:
+        st.error("❌ Not enough credits. Please upgrade your subscription or top-up.")
+        st.stop()
 
-        response = ai_extract_skills(resume_bytes)
+    with st.spinner("Extracting skills from your resume…"):
+        try:
+            resume_bytes = resume.read()
 
-        if not response or "error" in response:
-            st.error("Unable to extract skills. Please try again.")
-            st.stop()
+            result = ai_extract_skills(resume_bytes)
 
-        # Deduct credits **after successful AI output**
-        deduct_credits(user_id, "skills_extraction")
+            # Deduct credits AFTER successful processing
+            deduct_credits(user_id, 5)
 
-        st.success("Skills extracted successfully!")
+            st.success("Skills extracted successfully!")
 
-        # Display results
-        st.markdown("### 🧩 Extracted Skills")
+            # ----------------------------
+            # DISPLAY RESULTS
+            # ----------------------------
+            st.subheader("Hard Skills")
+            st.write(result.get("hard_skills", []))
 
-        if isinstance(response, dict):
-            skills_list = response.get("skills", [])
-        else:
-            st.error("Invalid response format received from AI.")
-            st.stop()
+            st.subheader("Soft Skills")
+            st.write(result.get("soft_skills", []))
 
-        if skills_list:
-            for skill in skills_list:
-                st.markdown(f"- **{skill}**")
-        else:
-            st.info("No skills detected.")
+            st.subheader("Technical Skills")
+            st.write(result.get("technical_skills", []))
 
-        st.info("✔ 5 credits deducted from your account.")
-
+        except Exception as e:
+            st.error(f"Error extracting skills: {e}")
 
 st.write("---")
 st.caption("Powered by Chumcred Job Engine © 2025")

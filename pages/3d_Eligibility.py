@@ -5,95 +5,108 @@
 import streamlit as st
 import os, sys
 
-# Fix path for imports
+# Ensure correct project path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from config.supabase_client import supabase
 from services.auth import require_login
 from services.utils import (
+    deduct_credits,
     get_subscription,
     auto_expire_subscription,
-    deduct_credits,
-    is_low_credit,
+    is_low_credit
 )
 from services.ai_engine import ai_check_eligibility
 
 
-# ---------------------------------------------------------
-# PAGE SETTINGS
-# ---------------------------------------------------------
-st.set_page_config(page_title="AI Eligibility Checker", page_icon="🧠", layout="wide")
+# -------------------------------------------------------
+# PAGE CONFIG
+# -------------------------------------------------------
+st.set_page_config(page_title="Job Eligibility Checker", page_icon="🧩", layout="wide")
 
 user = require_login()
 user_id = user["id"]
 
-# Validate subscription
+# -------------------------------------------------------
+# SUBSCRIPTION VALIDATION
+# -------------------------------------------------------
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 
-if not subscription:
-    st.error("You need an active subscription to check job eligibility.")
+if not subscription or subscription.get("subscription_status") != "active":
+    st.error("You need an active subscription to use Job Eligibility Checker.")
     st.stop()
 
 credits = subscription.get("credits", 0)
-if credits < 5:
-    st.error("You need at least 5 credits to run an eligibility check.")
-    st.stop()
 
-if is_low_credit(user_id):
-    st.warning("⚠️ You are running low on credits. Consider renewing your subscription soon.")
+if is_low_credit(subscription, 5):
+    st.warning(f"⚠ Low Credits: You have {credits} credits left. Eligibility check costs **5 credits**.")
 
 
-# ---------------------------------------------------------
+# -------------------------------------------------------
 # PAGE UI
-# ---------------------------------------------------------
-st.title("🧠 AI Job Eligibility Check")
-st.write("Upload your resume and paste a job description to determine your fitness and gaps.")
+# -------------------------------------------------------
+st.title("🧩 AI Job Eligibility Checker")
+st.write("Paste the job description and your resume. The AI will evaluate how eligible you are for the job.")
 
-resume_file = st.file_uploader("Upload Resume (PDF or DOCX)", type=["pdf", "docx"])
-job_description = st.text_area("Paste Job Description", height=220)
+job_description = st.text_area(
+    "Job Description",
+    height=200,
+    placeholder="Paste the full job description here..."
+)
+
+resume_text = st.text_area(
+    "Your Resume Text",
+    height=220,
+    placeholder="Paste your resume text here..."
+)
 
 
-# ---------------------------------------------------------
-# PROCESS REQUEST
-# ---------------------------------------------------------
-if st.button("Check Eligibility"):
-    if not resume_file:
-        st.error("Please upload your resume.")
+# -------------------------------------------------------
+# PROCESSING
+# -------------------------------------------------------
+if st.button("Check Eligibility (Cost: 5 credits)"):
+
+    # Required fields
+    if not resume_text.strip() or not job_description.strip():
+        st.error("Please fill out both fields before checking eligibility.")
         st.stop()
 
-    if not job_description.strip():
-        st.error("Please paste the job description.")
+    # Credit check
+    if credits < 5:
+        st.error("❌ Not enough credits. Please upgrade your subscription or top-up.")
         st.stop()
 
-    with st.spinner("Analyzing your eligibility..."):
-        resume_bytes = resume_file.read()
+    with st.spinner("Analyzing eligibility…"):
 
-        response = ai_check_eligibility(
-            resume_bytes=resume_bytes,
-            job_description=job_description
-        )
+        try:
+            result = ai_check_eligibility(
+                resume_text=resume_text,
+                job_description=job_description
+            )
 
-        if not response or "error" in response:
-            st.error("Eligibility analysis failed. Please try again.")
-            st.stop()
+            # Deduct credits AFTER success
+            deduct_credits(user_id, 5)
 
-        # Deduct credits only after a successful analysis
-        deduct_credits(user_id, "eligibility")
+            score = result.get("score", "N/A")
+            reasons = result.get("reasons", [])
+            summary = result.get("summary", "")
 
-        st.success("Eligibility analysis completed!")
+            # -------------------------------------------------------
+            # DISPLAY RESULTS
+            # -------------------------------------------------------
+            st.success("Eligibility analysis completed!")
 
-        st.markdown("### ✅ Overall Verdict")
-        st.write(response.get("verdict", "No verdict available."))
+            st.metric("Eligibility Score", f"{score}%")
 
-        st.markdown("### 📊 Strengths")
-        st.write(response.get("strengths", "No strengths found."))
+            st.subheader("📌 Summary")
+            st.write(summary)
 
-        st.markdown("### ⚠️ Improvement Areas")
-        st.write(response.get("gaps", "No gaps detected."))
+            st.subheader("📍 Key Reasons")
+            for r in reasons:
+                st.write(f"- {r}")
 
-        st.info("✔ 5 credits deducted from your account.")
-
+        except Exception as e:
+            st.error(f"Error generating eligibility analysis: {e}")
 
 st.write("---")
 st.caption("Powered by Chumcred Job Engine © 2025")

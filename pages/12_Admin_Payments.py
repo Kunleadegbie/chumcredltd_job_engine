@@ -3,55 +3,110 @@
 # ======================================================================
 
 import streamlit as st
+import sys, os
+from datetime import datetime
+
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from config.supabase_client import supabase
-from services.utils import activate_subscription
+from services.utils import activate_subscription, PLANS
 
-st.set_page_config(page_title="Admin - Payments", page_icon="🛠")
+st.set_page_config(page_title="Admin — Payments", page_icon="💼")
 
-st.title("🛠 Admin Payment Approvals")
-st.write("---")
+# -----------------------------------
+# ADMIN AUTH CHECK
+# -----------------------------------
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
 
-# Fetch pending payments
-pending = (
-    supabase.table("subscription_payments")
-    .select("*")
-    .eq("approved", False)
-    .execute()
-    .data
-)
+user = st.session_state.get("user")
 
-if not pending:
-    st.info("No pending payments.")
+if not user or user.get("role") != "admin":
+    st.error("Access Denied — Admin Only")
     st.stop()
 
-for pay in pending:
-    st.markdown(f"""
-    ### Payment from User ID: **{pay['user_id']}**
-    **Plan:** {pay['plan']}  
-    **Amount:** ₦{pay['amount']:,}  
-    **Paid On:** {pay.get('paid_on', 'N/A')}  
+st.title("💼 Admin — Payment Approvals")
+st.write("---")
 
-    ---   
+# -----------------------------------
+# FETCH PENDING PAYMENTS
+# -----------------------------------
+try:
+    payments = (
+        supabase.table("subscription_payments")
+        .select("*")
+        .eq("approved", False)
+        .order("paid_on", desc=True)
+        .execute()
+        .data
+        or []
+    )
+except Exception as e:
+    st.error(f"Error loading payments: {e}")
+    st.stop()
+
+if not payments:
+    st.info("No pending payments to approve.")
+    st.stop()
+
+# -----------------------------------
+# DISPLAY PENDING PAYMENTS
+# -----------------------------------
+for payment in payments:
+
+    payment_id = payment.get("id")
+    user_id = payment.get("user_id")
+    plan_name = payment.get("plan")
+    amount = payment.get("amount")
+    paid_on = payment.get("paid_on")
+    approved = payment.get("approved")
+
+    # Safety checks
+    if not plan_name or plan_name not in PLANS:
+        st.error(f"Invalid plan for payment {payment_id}. Cannot activate.")
+        continue
+
+    credits = PLANS[plan_name]["credits"]
+
+    st.markdown(f"""
+    ### 🔹 Payment ID: `{payment_id}`
+    **User ID:** {user_id}  
+    **Plan:** {plan_name}  
+    **Amount Paid:** ₦{amount:,}  
+    **Credits to Assign:** {credits}  
+    **Paid On:** {paid_on}  
     """)
 
-    if st.button(f"Approve Payment {pay['id']}", key=pay["id"]):
+    # ---------------------------------------------------
+    # APPROVAL BUTTON
+    # ---------------------------------------------------
+    if st.button(f"✅ Approve Payment {payment_id}", key=f"approve_{payment_id}"):
 
-        # Mark payment as approved
-        supabase.table("subscription_payments").update({
-            "approved": True,
-            "approved_by": "admin",
-            "approval_date": "now()"
-        }).eq("id", pay["id"]).execute()
+        # 1️⃣ Mark payment as approved
+        try:
+            supabase.table("subscription_payments").update({
+                "approved": True,
+                "approved_by": user.get("email"),
+                "approval_date": datetime.utcnow().isoformat()
+            }).eq("id", payment_id).execute()
+        except Exception as e:
+            st.error(f"Failed to mark payment approved: {e}")
+            st.stop()
 
-        # Auto-activate subscription
-        success, msg = activate_subscription(
-            user_id=pay["user_id"],
-            plan_name=pay["plan"]
+        # 2️⃣ Activate or renew subscription
+        ok, msg = activate_subscription(
+            user_id=user_id,
+            plan_name=plan_name,
+            amount=amount,
+            credits=credits,
+            duration_days=30
         )
 
-        if success:
-            st.success("Payment approved + subscription activated!")
+        if ok:
+            st.success(f"Subscription activated successfully for user {user_id}.")
         else:
-            st.error(f"Activation error: {msg}")
+            st.error(f"Subscription activation failed: {msg}")
 
         st.rerun()
+
+    st.write("---")

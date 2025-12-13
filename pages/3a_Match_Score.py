@@ -2,98 +2,89 @@
 # 3a_Match_Score.py (FIXED)
 # ============================
 
-# =========================================================
-# 3a_Match_Score.py — AI Match Score (FINAL VERSION)
-# =========================================================
-
 import streamlit as st
 import os, sys
-from io import BytesIO
 
-# Fix import path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from config.supabase_client import supabase
 from services.auth import require_login
 from services.utils import (
+    deduct_credits,
     get_subscription,
     auto_expire_subscription,
-    deduct_credits,
-    is_low_credit,
+    is_low_credit
 )
-from services.ai_engine import ai_match_score
+from services.ai_engine import ai_generate_match_score
+from config.supabase_client import supabase
 
 
-# ---------------------------------------------------------
-# PAGE SETTINGS
-# ---------------------------------------------------------
-st.set_page_config(page_title="AI Match Score", page_icon="📊", layout="wide")
-
+# -------------------------------------------------------
+# PAGE SETUP
+# -------------------------------------------------------
+st.set_page_config(page_title="Match Score", page_icon="📊", layout="wide")
 user = require_login()
+
 user_id = user["id"]
 
+# -------------------------------------------------------
+# SUBSCRIPTION CHECK
+# -------------------------------------------------------
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 
-if not subscription:
-    st.error("You need an active subscription to use this tool.")
+if not subscription or subscription["subscription_status"] != "active":
+    st.error("You need an active subscription to access Match Score.")
     st.stop()
 
 credits = subscription.get("credits", 0)
-if credits < 5:
-    st.error("You do not have enough credits. Match Score requires 5 credits.")
-    st.stop()
 
-if is_low_credit(user_id):
-    st.warning("⚠️ Your credits are running low. Please top-up soon.")
+if is_low_credit(subscription, 5):
+    st.warning(f"⚠ Low Credits: You have only {credits} credits left. Match Score requires 5 credits.")
 
 
-# ---------------------------------------------------------
+# -------------------------------------------------------
 # PAGE UI
-# ---------------------------------------------------------
-st.title("📊 AI Match Score")
-st.write("Upload your resume and job description to calculate an AI-powered similarity match score.")
+# -------------------------------------------------------
+st.title("📊 Match Score Analysis")
+st.write("Upload your CV and job description to generate a personalized match score.")
 
-resume_file = st.file_uploader("Upload Resume (PDF or DOCX)", type=["pdf", "docx"])
-job_description = st.text_area("Paste Job Description", height=250)
+resume = st.file_uploader("Upload Resume (PDF or DOCX)", type=["pdf", "docx"])
+job_description = st.text_area("Paste Job Description", height=200)
 
 
-# ---------------------------------------------------------
-# PROCESS REQUEST
-# ---------------------------------------------------------
-if st.button("Generate Match Score"):
-    if not resume_file:
-        st.error("Please upload a resume.")
+# -------------------------------------------------------
+# MATCH SCORE PROCESSING
+# -------------------------------------------------------
+if st.button("Generate Match Score (Cost: 5 credits)"):
+
+    if not resume or not job_description.strip():
+        st.error("Please upload a resume and paste a job description.")
         st.stop()
 
-    if not job_description.strip():
-        st.error("Please enter a job description.")
+    if credits < 5:
+        st.error("❌ Not enough credits. Please subscribe or top up.")
         st.stop()
 
-    with st.spinner("Analyzing match score... please wait"):
-        resume_bytes = resume_file.read()
+    with st.spinner("Analyzing your CV…"):
+        try:
+            resume_bytes = resume.read()
 
-        result = ai_match_score(
-            resume_text=resume_bytes,
-            job_description=job_description
-        )
+            result = ai_generate_match_score(
+                resume_bytes,
+                job_description
+            )
 
-        if not result or "error" in result:
-            st.error("Failed to generate match score. Please try again.")
-            st.stop()
+            # Deduct credits only AFTER success
+            deduct_credits(user_id, 5)
 
-        # Deduct credits AFTER successful AI result
-        deduct_credits(user_id, "match_score")
+            st.success("Match Score generated successfully!")
 
-        st.success("Match Score Generated Successfully!")
+            st.metric("Match Score", f"{result['score']}%")
+            st.write("### Explanation")
+            st.write(result.get("reason", ""))
 
-        st.metric("Match Score", f"{result['score']}%")
-
-        st.markdown("### Explanation")
-        st.write(result["reason"])
-        
-        st.info("✔ 5 credits deducted from your account.")
-
+        except Exception as e:
+            st.error(f"Error generating match score: {e}")
 
 st.write("---")
 st.caption("Powered by Chumcred Job Engine © 2025")

@@ -3,25 +3,24 @@
 # ==============================================================
 
 import streamlit as st
-import os, sys
+import sys, os
 
-# Fix import path
+# Fix import path for Streamlit
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from services.auth import require_login
-from config.supabase_client import supabase
 from services.utils import (
+    deduct_credits,
     get_subscription,
     auto_expire_subscription,
-    deduct_credits,
-    is_low_credit,
+    is_low_credit
 )
 from services.ai_engine import ai_job_recommendations
 
 
-# ---------------------------------------------------------
-# PAGE SETTINGS
-# ---------------------------------------------------------
+# -------------------------------------------------------
+# PAGE CONFIG
+# -------------------------------------------------------
 st.set_page_config(
     page_title="AI Job Recommendations",
     page_icon="🎯",
@@ -31,97 +30,91 @@ st.set_page_config(
 user = require_login()
 user_id = user["id"]
 
-# ---------------------------------------------------------
-# SUBSCRIPTION CHECK
-# ---------------------------------------------------------
+
+# -------------------------------------------------------
+# VALIDATE SUBSCRIPTION
+# -------------------------------------------------------
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 
-if not subscription:
-    st.error("You need an active subscription to use AI job recommendations.")
+if not subscription or subscription.get("subscription_status") != "active":
+    st.error("🚫 You need an active subscription to use AI Job Recommendations.")
     st.stop()
 
 credits = subscription.get("credits", 0)
 
-if credits < 5:
-    st.error("You need at least **5 credits** to generate AI recommendations.")
-    st.stop()
+if is_low_credit(subscription, 5):
+    st.warning(
+        f"⚠ Low Credits: You have {credits} credits remaining. "
+        "AI Job Recommendations cost **5 credits**."
+    )
 
-if is_low_credit(user_id):
-    st.warning("⚠️ You are running low on credits. Consider upgrading or renewing your plan.")
 
-
-# ---------------------------------------------------------
+# -------------------------------------------------------
 # PAGE UI
-# ---------------------------------------------------------
+# -------------------------------------------------------
 st.title("🎯 AI Job Recommendations")
 st.write(
-    "Get personalized job recommendations based on your resume, skills and profile. "
-    "Powered by advanced AI matching."
+    "Upload your resume and let AI generate tailored job recommendations "
+    "based on your skills, background, and experience."
 )
 
-resume_file = st.file_uploader(
-    "Upload your Resume (PDF or DOCX)", 
-    type=["pdf", "docx"]
+resume_text = st.text_area(
+    "Paste Your Resume",
+    height=300,
+    placeholder="Paste the full text of your resume here..."
 )
 
-user_interests = st.text_area(
-    "Describe your job interests (Optional)",
-    placeholder="e.g., fintech roles, data-focused positions, remote jobs, leadership roles..."
+num_results = st.slider(
+    "How many job recommendations do you want?",
+    min_value=3,
+    max_value=15,
+    value=5
 )
 
-if st.button("Get Recommendations"):
-    if not resume_file:
-        st.error("Please upload a resume before requesting recommendations.")
+
+# -------------------------------------------------------
+# PROCESS USER ACTION
+# -------------------------------------------------------
+if st.button(f"Generate Recommendations (Cost: 5 credits)"):
+
+    if not resume_text.strip():
+        st.error("Please paste your resume first.")
         st.stop()
 
-    resume_bytes = resume_file.read()
-
-    with st.spinner("Generating AI recommendations…"):
-        response = ai_job_recommendations(
-            resume_bytes=resume_bytes,
-            interests=user_interests
-        )
-
-    if not response or "error" in response:
-        st.error("Unable to generate recommendations. Please try again later.")
+    if credits < 5:
+        st.error("❌ Not enough credits. Please upgrade or add more credits.")
         st.stop()
 
-    # Deduct credits AFTER successful generation
-    deduct_credits(user_id, "recommendation")
+    with st.spinner("Analyzing your resume and generating recommendations..."):
 
-    st.success("AI Recommended Jobs Generated Successfully ✔")
-    st.info("5 credits deducted from your account.")
+        try:
+            recommendations = ai_job_recommendations(
+                resume_text=resume_text,
+                num_results=num_results
+            )
 
-    st.markdown("---")
-    st.markdown("## 🔎 Recommended Jobs")
+            # Deduct credits AFTER successful AI response
+            deduct_credits(user_id, 5)
 
-    recommendations = response.get("recommendations", [])
+            st.success("Job Recommendations Generated!")
 
-    if not recommendations:
-        st.warning("No recommendations returned. Try refining your resume or interests.")
-        st.stop()
+            st.subheader("🎯 Recommended Roles For You")
 
-    # ----------------------------------------------
-    # DISPLAY AI JOB RECOMMENDATIONS
-    # ----------------------------------------------
-    for idx, job in enumerate(recommendations, start=1):
-        title = job.get("title", "Untitled Role")
-        company = job.get("company", "Unknown Company")
-        score = job.get("score", "N/A")
-        reason = job.get("reason", "")
-        link = job.get("apply_link") or "#"
+            for job in recommendations:
+                title = job.get("job_title", "Untitled Role")
+                reason = job.get("reason", "No reason provided.")
+                similarity = job.get("match_score", "N/A")
 
-        st.markdown(f"""
-        ### {idx}. **{title}**
-        **Company:** {company}  
-        **Match Score:** ⭐ {score}%  
-        **Why This Fits You:**  
-        {reason}
+                st.markdown(f"""
+                ### 🔹 {title}
+                **Match Score:** {similarity}  
+                **Reason:** {reason}  
+                ---  
+                """)
 
-        🔗 [Apply Here]({link})
-        """)
-        st.write("---")
+        except Exception as e:
+            st.error(f"Error generating recommendations: {e}")
 
 # Footer
 st.write("---")
