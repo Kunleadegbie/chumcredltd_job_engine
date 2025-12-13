@@ -1,11 +1,8 @@
-# utils.py (FULLY REWRITTEN – FINAL VERSION)
-
 from config.supabase_client import supabase
 from datetime import datetime, timedelta
 
-
 # ============================================================
-#  PLAN DEFINITIONS (Linked to Subscription pages + Admin)
+#  PLAN DEFINITIONS (Used across subscription + admin)
 # ============================================================
 PLANS = {
     "Basic":   {"price": 5000,  "credits": 100},
@@ -18,13 +15,9 @@ PLANS = {
 #  GET USER SUBSCRIPTION
 # ============================================================
 def get_subscription(user_id):
-    """
-    Retrieves the user's subscription row.
-    Returns dict or None.
-    """
+    """Fetch the user’s subscription as a dict, or None."""
     if not supabase:
         return None
-
     try:
         res = (
             supabase.table("subscriptions")
@@ -43,57 +36,44 @@ def get_subscription(user_id):
 # ============================================================
 def deduct_credits(user_id, amount):
     """
-    Deduct credits safely using Supabase RPC.
+    Deduct credits using Supabase RPC.
     Always returns (success: bool, message: str)
     """
-
     if not supabase:
-        return False, "Supabase client not initialized"
+        return False, "Supabase not initialized"
 
     try:
-        # Call the RPC function
-        result = supabase.rpc("deduct_user_credits", {
+        supabase.rpc("deduct_user_credits", {
             "uid": user_id,
             "amt": amount
         }).execute()
 
-        # Supabase RPC returns null on success — this is normal
         return True, "Credits deducted successfully"
 
     except Exception as e:
-        error_msg = str(e)
-
-        # Detect insufficient credit error
-        if "insufficient" in error_msg.lower():
+        err = str(e)
+        if "insufficient" in err.lower():
             return False, "Insufficient credits"
-
-        return False, f"Credit deduction error: {error_msg}"
+        return False, f"Credit deduction error: {err}"
 
 
 # ============================================================
-#  CHECK IF USER HAS LOW CREDIT
+#  CHECK LOW CREDIT
 # ============================================================
-def is_low_credit(subscription: dict, minimum_required: int = 20) -> bool:
-    """
-    Returns True if user credits are below minimum_required.
-    Expects the FULL subscription object, not just an integer.
-    """
+def is_low_credit(subscription: dict, minimum_required: int = 20):
+    """Returns True if the user's credits fall below the minimum_required."""
     if not subscription:
-        return True  # Treat no subscription as low credit
-    
-    credits = subscription.get("credits", 0)
-    return credits < minimum_required
+        return True
+    return subscription.get("credits", 0) < minimum_required
+
 
 # ============================================================
-#  AUTO EXPIRE SUBSCRIPTION
+#  AUTO-EXPIRE SUBSCRIPTIONS
 # ============================================================
 def auto_expire_subscription(user_id):
-    """
-    Calls RPC function to expire subscription when due.
-    """
+    """Calls RPC to mark expired subscriptions."""
     if not supabase:
         return
-
     try:
         supabase.rpc("expire_user_subscription", {"uid": user_id}).execute()
     except Exception as e:
@@ -101,37 +81,30 @@ def auto_expire_subscription(user_id):
 
 
 # ============================================================
-#  SMART SUBSCRIPTION ACTIVATION + RENEWAL ENGINE
+#  ACTIVATE / RENEW SUBSCRIPTION (NO CREDIT ROLLOVER)
 # ============================================================
 def activate_subscription(user_id, plan_name, amount, credits, duration_days):
     """
-    Activates or renews subscriptions:
+    Handles:
+    • First subscription
+    • Renewal while active (extend + add credits)
+    • Renewal after expiry (reset credits — NO ROLLOVER)
 
-    • If no subscription → creates new
-    • If active → extends end date + adds credits
-    • If expired → restarts subscription
-    • Fully compatible with Supabase RLS
-    • Cannot crash from missing fields
-
-    Returns:
-        (True, "message") OR (False, "error")
+    Returns (success: bool, message: str)
     """
 
     if not supabase:
-        return False, "Supabase not initialized."
+        return False, "Supabase not initialized"
 
     now = datetime.utcnow()
-    new_end = (now + timedelta(days=duration_days)).isoformat()
+    new_end_date = (now + timedelta(days=duration_days)).isoformat()
 
-    # -----------------------------------------
-    # Fetch existing subscription if available
-    # -----------------------------------------
     subscription = get_subscription(user_id)
 
     try:
-        # -----------------------------------------
-        # CASE 1 — No subscription: create a new one
-        # -----------------------------------------
+        # -------------------------------------------------------
+        # CASE 1: No subscription → create fresh
+        # -------------------------------------------------------
         if not subscription:
             payload = {
                 "user_id": user_id,
@@ -140,25 +113,24 @@ def activate_subscription(user_id, plan_name, amount, credits, duration_days):
                 "credits": credits,
                 "subscription_status": "active",
                 "start_date": now.isoformat(),
-                "end_date": new_end,
+                "end_date": new_end_date,
             }
-
             supabase.table("subscriptions").insert(payload).execute()
             return True, "Subscription activated successfully."
 
-        # -----------------------------------------
-        # CASE 2 — Subscription exists
-        # -----------------------------------------
+        # Extract existing properties
         existing_end = subscription.get("end_date")
         existing_credits = subscription.get("credits", 0)
 
-        # If subscription is still active, extend it
+        # -------------------------------------------------------
+        # CASE 2: Subscription still active → extend & add credits
+        # -------------------------------------------------------
         if existing_end and existing_end > now.isoformat():
             updated_end = (
                 datetime.fromisoformat(existing_end) + timedelta(days=duration_days)
             ).isoformat()
 
-            updated_credits = existing_credits + credits
+            updated_credits = existing_credits + credits  # add-on credits
 
             supabase.table("subscriptions").update({
                 "plan": plan_name,
@@ -170,15 +142,15 @@ def activate_subscription(user_id, plan_name, amount, credits, duration_days):
 
             return True, "Subscription extended successfully."
 
-        # -----------------------------------------
-        # CASE 3 — Subscription expired: restart fresh
-        # -----------------------------------------
+        # -------------------------------------------------------
+        # CASE 3: Subscription expired → START FRESH (NO ROLLOVER)
+        # -------------------------------------------------------
         supabase.table("subscriptions").update({
             "plan": plan_name,
             "amount": amount,
-            "credits": credits,
+            "credits": credits,      # RESET credits (no rollover)
             "start_date": now.isoformat(),
-            "end_date": new_end,
+            "end_date": new_end_date,
             "subscription_status": "active"
         }).eq("user_id", user_id).execute()
 
@@ -190,16 +162,15 @@ def activate_subscription(user_id, plan_name, amount, credits, duration_days):
 
 
 # ============================================================
-#  SAVE PAYMENT (ADMIN APPROVAL WORKFLOW)
+#  APPROVE PAYMENT
 # ============================================================
 def mark_payment_as_approved(payment_id, admin_name):
     """
-    Marks payment as approved and sets approval timestamp.
-    Admin panel uses this.
+    Admin Approval:
+    Marks payment as approved.
     """
-
     if not supabase:
-        return False, "Supabase not initialized."
+        return False, "Supabase not initialized"
 
     try:
         supabase.table("subscription_payments").update({
