@@ -3,26 +3,29 @@
 # ==============================================================
 
 import streamlit as st
-import sys, os
+import os
+import sys
 
-# Fix import path
+# Ensure correct import paths
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
 from config.supabase_client import supabase
 from services.job_api import search_jobs
-from services.utils import get_subscription, auto_expire_subscription, deduct_credits
+from services.utils import (
+    get_subscription,
+    deduct_credits,
+    is_low_credit
+)
 
+# ---------------------------------------------------------
+#  PAGE CONFIG
+# ---------------------------------------------------------
+st.set_page_config(page_title="Job Search", page_icon="🔍")
 
-# ==============================================================
-# PAGE CONFIG
-# ==============================================================
-st.set_page_config(page_title="Job Search", page_icon="🔍", layout="wide")
-
-
-# ==============================================================
-# AUTH CHECK
-# ==============================================================
+# ---------------------------------------------------------
+#  AUTH CHECK
+# ---------------------------------------------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
@@ -36,132 +39,135 @@ if not user:
 
 user_id = user.get("id")
 
-
-# ==============================================================
-# SUBSCRIPTION VALIDATION
-# ==============================================================
-
-# Auto-expire if needed (uses Supabase function)
-auto_expire_subscription(user_id)
-
+# ---------------------------------------------------------
+#  FETCH SUBSCRIPTION
+# ---------------------------------------------------------
 subscription = get_subscription(user_id)
 
 if not subscription or subscription.get("subscription_status") != "active":
-    st.error("❌ You need an active subscription to use Job Search.")
+    st.error("🚫 You need an active subscription to use Job Search.")
     st.stop()
 
 credits = subscription.get("credits", 0)
+
 if credits < 3:
-    st.error("❌ You do not have enough credits. Please top up your subscription.")
+    st.error("⚠️ You do not have enough credits to search for jobs.")
     st.stop()
 
 
-# ==============================================================
-# PAGE HEADER
-# ==============================================================
+# ---------------------------------------------------------
+#  INPUTS
+# ---------------------------------------------------------
 st.title("🔍 Real-Time Job Search")
-st.caption("Search live global job opportunities powered by JSearch API.")
+
+query = st.text_input("Job Title (Required)", placeholder="e.g., Data Analyst, Product Manager")
+location = st.text_input("Location (Optional)", placeholder="e.g., Lagos, London, Remote")
+remote_only = st.checkbox("Remote Jobs Only")
 
 st.write("---")
 
-
-# ==============================================================
-# SEARCH FORM
-# ==============================================================
-query = st.text_input("Job Title (Required)", placeholder="e.g., Data Analyst, Product Manager")
-location = st.text_input("Location (Optional)", placeholder="e.g., Lagos, Remote, London")
-remote_only = st.checkbox("Remote Jobs Only")
-
-# Pagination memory
+# Pagination State
 if "job_page" not in st.session_state:
     st.session_state.job_page = 1
 
-col_prev, col_next = st.columns([1, 1])
-
-with col_prev:
-    if st.button("⬅ Previous", disabled=st.session_state.job_page <= 1):
+col1, col2 = st.columns([1, 1])
+with col1:
+    if st.button("⬅ Previous Page", disabled=st.session_state.job_page <= 1):
         st.session_state.job_page -= 1
 
-with col_next:
-    if st.button("Next ➡"):
+with col2:
+    if st.button("Next Page ➡"):
         st.session_state.job_page += 1
 
 page = st.session_state.job_page
 
+# ---------------------------------------------------------
+#  SEARCH BUTTON
+# ---------------------------------------------------------
+search_triggered = st.button("Search Jobs")
 
-# ==============================================================
-# EXECUTE SEARCH
-# ==============================================================
+if search_triggered:
 
-if st.button("Search Jobs"):
-
-    # Validate input
     if not query.strip():
         st.warning("Please enter a job title before searching.")
         st.stop()
 
-    # Deduct 3 credits BEFORE calling the API
+    # Deduct credits
     success, msg = deduct_credits(user_id, 3)
-
     if not success:
         st.error(msg)
         st.stop()
 
-    st.info("3 credits deducted ✔")
+    st.info("🔍 Searching for jobs... (3 credits deducted)")
 
-    st.subheader(f"Search Results — Page {page}")
-
-    # Perform API search
+    # -----------------------------------------------------
+    # API CALL
+    # -----------------------------------------------------
     results = search_jobs(query=query, location=location, page=page, remote=remote_only)
 
+    # -----------------------------------------------------
+    # HANDLE ALL RESPONSE TYPES SAFELY
+    # -----------------------------------------------------
     if isinstance(results, dict) and results.get("error"):
         st.error(f"API Error: {results.get('error')}")
         st.stop()
 
-    jobs = results.get("data", [])
+    if isinstance(results, dict) and "data" in results:
+        jobs = results["data"]
 
-    if not jobs:
-        st.warning("No results found.")
+    elif isinstance(results, list):
+        jobs = results
+
+    else:
+        st.error("Unexpected API response format.")
         st.stop()
 
-    # ==========================================================
-    # DISPLAY RESULTS
-    # ==========================================================
+    if not jobs:
+        st.warning("No job results found.")
+        st.stop()
+
+    st.write(f"### Results — Page {page}")
+    st.write("---")
+
+    # -----------------------------------------------------
+    # DISPLAY EACH JOB
+    # -----------------------------------------------------
     for job in jobs:
 
-        title = job.get("job_title") or "Untitled Job"
-        company = job.get("employer_name") or "Unknown Company"
-        description = (job.get("job_description") or "")[:350] + "..."
-        apply_link = job.get("job_apply_link") or "#"
+        title = job.get("job_title", "Untitled Job")
+        company = job.get("employer_name", "Unknown Company")
+        apply_link = job.get("job_apply_link", "#")
+        location_text = f"{job.get('job_city', '')}, {job.get('job_country', '')}"
+        description = (job.get("job_description", "")[:350] + "...")
+
         job_id = job.get("job_id")
-        job_location = job.get("job_city", "") + ", " + job.get("job_country", "")
 
         st.markdown(f"""
         ### **{title}**
         **Company:** {company}  
-        **Location:** {job_location}
+        **Location:** {location_text}  
 
         {description}
 
         🔗 [Apply Here]({apply_link})
         """)
 
-        # SAVE JOB
+        # Save Job Button
         if st.button(f"💾 Save Job", key=f"save_{job_id}"):
 
-            payload = {
-                "user_id": user_id,
-                "job_id": job_id,
-                "job_title": title,
-                "company": company,
-                "location": job_location,
-                "url": apply_link,
-                "description": description
-            }
-
             try:
-                supabase.table("saved_jobs").insert(payload).execute()
+                supabase.table("saved_jobs").insert({
+                    "user_id": user_id,
+                    "job_id": job_id,
+                    "job_title": title,
+                    "company": company,
+                    "location": location_text,
+                    "url": apply_link,
+                    "description": description
+                }).execute()
+
                 st.success("Job saved successfully!")
+
             except Exception as e:
                 st.error(f"Failed to save job: {e}")
 
