@@ -3,109 +3,48 @@
 # ================================================================
 
 import streamlit as st
-import os, sys
-
-# Fix import paths for Render & Streamlit Cloud
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
-from services.ai_engine import ai_generate_job_recommendations
-from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits,
-    is_low_credit
-)
+from services.ai_engine import ai_recommend_jobs
+from services.utils import get_subscription, deduct_credits
 from config.supabase_client import supabase
 
+CREDIT_COST = 5  # Job recommendation costs 5 credits
 
-# --------------------------------------------------
-# PAGE CONFIG
-# --------------------------------------------------
-st.set_page_config(page_title="AI Job Recommendations", page_icon="🧭")
+st.set_page_config(page_title="Job Recommendations", page_icon="🧠")
 
-
-# --------------------------------------------------
 # AUTH CHECK
-# --------------------------------------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
-user = st.session_state.get("user")
-
-if not user:
-    st.error("Session expired. Please log in again.")
-    st.switch_page("app.py")
-    st.stop()
-
+user = st.session_state["user"]
 user_id = user["id"]
 
+st.title("🧠 AI Job Recommendations")
 
-# --------------------------------------------------
-# SUBSCRIPTION & CREDIT VALIDATION
-# --------------------------------------------------
-auto_expire_subscription(user_id)
-subscription = get_subscription(user_id)
+resume_file = st.file_uploader("Upload your Resume (PDF or DOCX)", type=["pdf", "docx"])
 
-if not subscription or subscription.get("subscription_status") != "active":
-    st.error("❌ You need an active subscription to use Job Recommendations.")
-    st.stop()
-
-credits = subscription.get("credits", 0)
-CREDIT_COST = 5
-
-if credits < CREDIT_COST:
-    st.error(f"❌ You need at least {CREDIT_COST} credits to use this feature.")
-    st.stop()
-
-
-# --------------------------------------------------
-# PAGE UI
-# --------------------------------------------------
-st.title("🧭 AI Job Recommendations")
-st.write(
-    "Paste your resume below and the AI will recommend jobs that best match your skills, "
-    "experience, and industry profile."
-)
-
-resume_text = st.text_area(
-    "Paste Your Resume Here",
-    height=350,
-    placeholder="Paste your full resume…"
-)
-
-
-# --------------------------------------------------
-# RUN JOB RECOMMENDATION
-# --------------------------------------------------
-if st.button("Generate Job Recommendations"):
-    if not resume_text.strip():
-        st.warning("Please paste your resume first.")
+if st.button("Generate Recommendations"):
+    if not resume_file:
+        st.error("Please upload a resume.")
         st.stop()
 
-    # Deduct credits BEFORE calling AI
+    # Subscription check
+    subscription = get_subscription(user_id)
+    if not subscription or subscription.get("subscription_status") != "active":
+        st.error("You need an active subscription.")
+        st.stop()
+
+    # Deduct credits
     success, msg = deduct_credits(user_id, CREDIT_COST)
     if not success:
-        st.error(msg)
+        st.error(msg)  # "Insufficient credits"
         st.stop()
 
-    with st.spinner("Analyzing your resume and generating job recommendations…"):
-        try:
-            recommendations = ai_generate_job_recommendations(
-                resume_text=resume_text
-            )
+    with st.spinner("Analyzing resume and generating recommendations..."):
+        text = resume_file.read().decode("latin-1")
+        result = ai_recommend_jobs(text)
 
-            st.success("Job recommendations generated!")
-            st.write(recommendations)
-
-        except Exception as e:
-            st.error(f"Error generating recommendations: {e}")
-
-
-# --------------------------------------------------
-# LOW CREDIT WARNING
-# --------------------------------------------------
-if is_low_credit(subscription, CREDIT_COST):
-    st.warning("⚠️ Your credits are running low. Please top up soon.")
+    st.success("Job recommendations generated!")
+    st.write(result)
 
 # Footer
 st.write("---")
