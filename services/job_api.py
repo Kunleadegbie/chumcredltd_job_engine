@@ -1,5 +1,5 @@
 # ============================================================
-# services/job_api.py — TRUE Worldwide + Country-Strict Search
+# services/job_api.py — Worldwide + Country-Strict + Remote
 # ============================================================
 
 import requests
@@ -21,7 +21,7 @@ HEADERS = {
 }
 
 # ------------------------------------------------------------
-# COUNTRY NAME → ISO CODE MAP (KEY FIX)
+# COUNTRY NAME → ISO CODE MAP
 # ------------------------------------------------------------
 COUNTRY_MAP = {
     "united kingdom": "GB",
@@ -44,14 +44,19 @@ COUNTRY_MAP = {
     "india": "IN",
 }
 
+# Default multi-country scope to simulate “worldwide”
+DEFAULT_GLOBAL_COUNTRIES = "US,GB,DE,FR,CA,AU,NG,IN,ZA"
+
 # ------------------------------------------------------------
 # JOB SEARCH FUNCTION
 # ------------------------------------------------------------
 def search_jobs(query, location=None, remote=False, page=1):
     """
-    - Worldwide by default
-    - Country-strict when location matches known country
-    - Remote jobs supported globally
+    Behaviour:
+    - Empty location → multi-country (pseudo-worldwide)
+    - Country name → strict country filter
+    - City/region → location search
+    - Remote → global remote jobs
     """
 
     params = {
@@ -60,21 +65,24 @@ def search_jobs(query, location=None, remote=False, page=1):
         "num_pages": 1,
     }
 
-    # --------------------------------------------------
-    # LOCATION & COUNTRY HANDLING (STRICT)
-    # --------------------------------------------------
     country_code = None
 
+    # --------------------------------------------------
+    # LOCATION / COUNTRY HANDLING
+    # --------------------------------------------------
     if location and location.strip():
         loc = location.strip().lower()
 
-        # If location maps to a country → enforce country code
         if loc in COUNTRY_MAP:
+            # Strict country filter
             country_code = COUNTRY_MAP[loc]
             params["country_codes"] = country_code
         else:
-            # Otherwise treat as city / region search
+            # City or region search
             params["location"] = location.strip()
+    else:
+        # No location → pseudo-worldwide
+        params["country_codes"] = DEFAULT_GLOBAL_COUNTRIES
 
     # --------------------------------------------------
     # REMOTE HANDLING
