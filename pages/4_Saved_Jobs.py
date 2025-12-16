@@ -1,5 +1,6 @@
+
 # ==============================================================
-# 4_Saved_Jobs.py — Saved Jobs Library
+# 4_Saved_Jobs.py — Saved Jobs Library (FIXED & SAFE)
 # ==============================================================
 
 import streamlit as st
@@ -14,7 +15,7 @@ from config.supabase_client import supabase
 # ---------------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------------
-st.set_page_config(page_title="Saved Jobs", page_icon="💾")
+st.set_page_config(page_title="Saved Jobs", page_icon="💾", layout="wide")
 
 # ---------------------------------------------------------
 # AUTH CHECK
@@ -39,17 +40,24 @@ st.title("💾 Saved Jobs")
 st.caption("Jobs you saved from the search results appear here.")
 
 # ---------------------------------------------------------
-# FETCH SAVED JOBS FROM DATABASE
+# FETCH SAVED JOBS
 # ---------------------------------------------------------
 try:
-    data = supabase.table("saved_jobs").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
-    jobs = data.data or []
+    response = (
+        supabase
+        .table("saved_jobs")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    jobs = response.data or []
 except Exception as e:
     st.error(f"Failed to load saved jobs: {e}")
     st.stop()
 
 # ---------------------------------------------------------
-# IF NO SAVED JOBS
+# NO SAVED JOBS
 # ---------------------------------------------------------
 if not jobs:
     st.info("You have not saved any jobs yet.")
@@ -59,11 +67,24 @@ if not jobs:
 # DISPLAY SAVED JOBS
 # ---------------------------------------------------------
 for job in jobs:
-    title = job.get("job_title", "Untitled Job")
-    company = job.get("company", "Unknown Company")
-    location = job.get("location", "Unknown Location")
-    description = job.get("description", "")[:350] + "..."
-    url = job.get("url") or job.get("apply_link") or "#"
+
+    title = job.get("job_title") or "Untitled Job"
+    company = job.get("company") or "Unknown Company"
+    location = job.get("location") or "Location not specified"
+
+    # ---------------- SAFE DESCRIPTION HANDLING ----------------
+    raw_description = job.get("description") or ""
+    description = raw_description[:350]
+    if len(raw_description) > 350:
+        description += "..."
+
+    # ---------------- SAFE URL HANDLING ----------------
+    url = (
+        job.get("url")
+        or job.get("apply_link")
+        or "#"
+    )
+
     record_id = job.get("id")
 
     st.markdown(f"""
@@ -71,29 +92,34 @@ for job in jobs:
     **Company:** {company}  
     **Location:** {location}  
 
-    {description}
+    {description if description else "_No description provided._"}
     """)
 
-    # Apply Button
-    if url and url != "#":
-        st.markdown(
-            f"<a href='{url}' target='_blank'><button style='padding:8px 18px;'>Apply Now</button></a>",
-            unsafe_allow_html=True
-        )
+    col_apply, col_delete = st.columns([1, 1])
 
-    # Delete Button
-    if st.button(f"❌ Remove Job", key=f"remove_{record_id}"):
-        try:
-            supabase.table("saved_jobs").delete().eq("id", record_id).execute()
-            st.success("Job removed successfully!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Failed to delete job: {e}")
+    # ---------------- APPLY BUTTON ----------------
+    with col_apply:
+        if url and url != "#":
+            st.markdown(
+                f"<a href='{url}' target='_blank'>"
+                f"<button style='padding:8px 18px;'>Apply Now</button>"
+                f"</a>",
+                unsafe_allow_html=True
+            )
+
+    # ---------------- DELETE BUTTON ----------------
+    with col_delete:
+        if st.button("❌ Remove Job", key=f"remove_{record_id}"):
+            try:
+                supabase.table("saved_jobs").delete().eq("id", record_id).execute()
+                st.success("Job removed successfully!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to delete job: {e}")
 
     st.write("---")
 
 # ---------------------------------------------------------
 # FOOTER
 # ---------------------------------------------------------
-st.caption("Chumcred Job Engine — Admin Analytics © 2025")
-
+st.caption("Chumcred Job Engine © 2025")
