@@ -59,7 +59,7 @@ with tab1:
             st.session_state.authenticated = True
             st.session_state.user = user
             st.success("Login successful!")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Invalid email or password")
 
