@@ -120,14 +120,11 @@ def is_admin(user_id: str):
 
 def activate_subscription_from_payment(payment: dict):
     """
-    Applies credits & activates subscription after admin approval.
-    SAFE: fully idempotent (cannot be applied twice).
+    Atomically approves payment and applies credits.
+    IMPOSSIBLE to double-credit.
     """
 
-    # 🚨 HARD STOP — prevents double crediting
-    if payment.get("status") == "approved":
-        raise ValueError("Payment already approved")
-
+    payment_id = payment["id"]
     user_id = payment["user_id"]
     plan = payment["plan"]
     credits = payment.get("credits", 0)
@@ -139,7 +136,27 @@ def activate_subscription_from_payment(payment: dict):
     now = datetime.now(timezone.utc)
     end_date = now + timedelta(days=PLANS[plan]["duration_days"])
 
-    # Fetch subscription
+    # --------------------------------------------------
+    # 🔐 ATOMIC STEP: APPROVE PAYMENT ONLY IF PENDING
+    # --------------------------------------------------
+    update = (
+        supabase.table("subscription_payments")
+        .update({
+            "status": "approved",
+            "approved_at": now.isoformat(),
+        })
+        .eq("id", payment_id)
+        .eq("status", "pending")   # 👈 THIS IS THE KEY
+        .execute()
+    )
+
+    # If no row was updated, payment was already approved
+    if not update.data:
+        raise ValueError("Payment already approved")
+
+    # --------------------------------------------------
+    # APPLY CREDITS (NOW SAFE)
+    # --------------------------------------------------
     sub = (
         supabase.table("subscriptions")
         .select("*")
@@ -150,7 +167,6 @@ def activate_subscription_from_payment(payment: dict):
     )
 
     if sub:
-        # Update existing subscription
         supabase.table("subscriptions").update({
             "plan": plan,
             "credits": sub.get("credits", 0) + credits,
@@ -160,7 +176,6 @@ def activate_subscription_from_payment(payment: dict):
             "updated_at": now.isoformat(),
         }).eq("user_id", user_id).execute()
     else:
-        # Create new subscription
         supabase.table("subscriptions").insert({
             "user_id": user_id,
             "plan": plan,
@@ -170,15 +185,6 @@ def activate_subscription_from_payment(payment: dict):
             "start_date": now.isoformat(),
             "end_date": end_date.isoformat(),
         }).execute()
-
-    # ✅ Mark payment approved LAST
-    supabase.table("subscription_payments").update({
-        "status": "approved",
-        "approved_at": now.isoformat()
-    }).eq("id", payment["id"]).execute()
-
-
-
 
 
 
