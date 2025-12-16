@@ -2,6 +2,10 @@
 # 13_Admin_Credit_Usage.py — Admin Credit / AI Usage Dashboard
 # ============================================================
 
+# ============================================================
+# 13_Admin_Credit_Usage.py — Admin AI / Credit Usage Dashboard
+# ============================================================
+
 import streamlit as st
 import pandas as pd
 import sys, os
@@ -34,13 +38,14 @@ st.title("📊 Admin — AI / Credit Usage Dashboard")
 st.caption("Tracks how credits are consumed across AI features.")
 
 # ---------------------------------------------------------
-# FETCH USAGE LOGS (FIXED TABLE NAME)
+# FETCH USAGE LOGS (FIXED COLUMN NAME)
 # ---------------------------------------------------------
 try:
     logs = (
-        supabase.table("ai_usage_logs")   # ✅ CORRECT TABLE
+        supabase
+        .table("ai_usage_logs")
         .select("*")
-        .order("timestamp", desc=True)
+        .order("created_at", desc=True)   # ✅ FIXED
         .execute()
         .data
         or []
@@ -78,11 +83,16 @@ col2.metric("Total AI Actions", len(df))
 # ---------------------------------------------------------
 # GROUPED ANALYSIS
 # ---------------------------------------------------------
-if "action" in df.columns and "credits_used" in df.columns:
+if {"action", "credits_used"}.issubset(df.columns):
     st.subheader("Usage by AI Action")
     st.bar_chart(df.groupby("action")["credits_used"].sum())
 else:
     st.info("Usage breakdown not available (missing columns).")
+
+# ---------------------------------------------------------
+# FOOTER
+# ---------------------------------------------------------
+st.caption("Chumcred Job Engine — Admin Analytics © 2025")
 
 # ---------------------------------------------------------
 # FOOTER
