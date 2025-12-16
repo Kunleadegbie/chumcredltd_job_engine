@@ -1,5 +1,5 @@
 # ============================================================
-# services/job_api.py — Global Job Search (Worldwide + Remote)
+# services/job_api.py — TRUE Worldwide + Country-Strict Search
 # ============================================================
 
 import requests
@@ -21,42 +21,70 @@ HEADERS = {
 }
 
 # ------------------------------------------------------------
+# COUNTRY NAME → ISO CODE MAP (KEY FIX)
+# ------------------------------------------------------------
+COUNTRY_MAP = {
+    "united kingdom": "GB",
+    "uk": "GB",
+    "great britain": "GB",
+    "england": "GB",
+
+    "united states": "US",
+    "usa": "US",
+    "us": "US",
+
+    "canada": "CA",
+    "germany": "DE",
+    "france": "FR",
+    "nigeria": "NG",
+    "ghana": "GH",
+    "kenya": "KE",
+    "south africa": "ZA",
+    "australia": "AU",
+    "india": "IN",
+}
+
+# ------------------------------------------------------------
 # JOB SEARCH FUNCTION
 # ------------------------------------------------------------
 def search_jobs(query, location=None, remote=False, page=1):
     """
-    Perform a global job search.
     - Worldwide by default
-    - Optional location-based filtering
-    - Optional remote-only jobs
+    - Country-strict when location matches known country
+    - Remote jobs supported globally
     """
 
-    # -----------------------------
-    # BASE PARAMETERS
-    # -----------------------------
     params = {
         "query": query,
         "page": page,
         "num_pages": 1,
     }
 
-    # -----------------------------
-    # LOCATION HANDLING
-    # -----------------------------
-    # Only apply location if user explicitly provides it
-    if location and location.strip():
-        params["location"] = location.strip()
+    # --------------------------------------------------
+    # LOCATION & COUNTRY HANDLING (STRICT)
+    # --------------------------------------------------
+    country_code = None
 
-    # -----------------------------
-    # REMOTE JOB HANDLING
-    # -----------------------------
-    # JSearch prefers this flag for remote roles
+    if location and location.strip():
+        loc = location.strip().lower()
+
+        # If location maps to a country → enforce country code
+        if loc in COUNTRY_MAP:
+            country_code = COUNTRY_MAP[loc]
+            params["country_codes"] = country_code
+        else:
+            # Otherwise treat as city / region search
+            params["location"] = location.strip()
+
+    # --------------------------------------------------
+    # REMOTE HANDLING
+    # --------------------------------------------------
     if remote:
         params["remote_jobs_only"] = "true"
 
-    # -----------------------------
+    # --------------------------------------------------
     # API REQUEST
-    # -----------------------------
+    # --------------------------------------------------
     try:
         response = requests.get(
             BASE_URL,
@@ -70,9 +98,6 @@ def search_jobs(query, location=None, remote=False, page=1):
             "error": f"Network error: {e}"
         }
 
-    # -----------------------------
-    # RESPONSE HANDLING
-    # -----------------------------
     if response.status_code != 200:
         return {
             "data": [],
@@ -80,9 +105,8 @@ def search_jobs(query, location=None, remote=False, page=1):
         }
 
     payload = response.json()
+    jobs = payload.get("data", [])
 
-    # Defensive parsing
-    jobs = payload.get("data")
     if not isinstance(jobs, list):
         return {
             "data": [],
@@ -92,9 +116,10 @@ def search_jobs(query, location=None, remote=False, page=1):
     return {
         "data": jobs,
         "meta": {
-            "page": page,
             "query": query,
             "location": location,
+            "country_code": country_code,
             "remote": remote,
+            "page": page,
         }
     }
