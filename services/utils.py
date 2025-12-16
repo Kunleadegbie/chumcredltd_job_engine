@@ -1,6 +1,21 @@
 from datetime import datetime, timezone
 from config.supabase_client import supabase
 
+# ==========================================================
+#   AUTO-EXPIRE SUBSCRIPTION (USED BY PAGES)
+# ==========================================================
+def auto_expire_subscription(user_id: str):
+    """
+    Page-safe function.
+    Ensures expired subscriptions are normalized.
+    """
+
+    sub = get_subscription(user_id)
+
+    # normalize_subscription already handles expiry logic
+    normalize_subscription(sub)
+
+    return None
 
 # ==========================================================
 #   FETCH USER SUBSCRIPTION
