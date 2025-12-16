@@ -129,8 +129,9 @@ def activate_subscription_from_payment(payment: dict):
     user_id = payment["user_id"]
     plan = payment["plan"]
     credits = payment.get("credits", 0)
+    amount = payment.get("amount", 0)
 
-    if plan not in PLANS or credits <= 0:
+    if credits <= 0 or amount <= 0:
         raise ValueError("Invalid payment data")
 
     now = datetime.now(timezone.utc)
@@ -139,10 +140,11 @@ def activate_subscription_from_payment(payment: dict):
     existing = get_subscription(user_id)
 
     if existing:
-        # Upgrade existing subscription
+        # Update existing subscription
         supabase.table("subscriptions").update({
             "plan": plan,
             "credits": existing.get("credits", 0) + credits,
+            "amount": amount,  # ✅ FIX
             "subscription_status": "active",
             "end_date": end_date.isoformat(),
             "updated_at": now.isoformat(),
@@ -153,6 +155,7 @@ def activate_subscription_from_payment(payment: dict):
             "user_id": user_id,
             "plan": plan,
             "credits": credits,
+            "amount": amount,  # ✅ FIX
             "subscription_status": "active",
             "start_date": now.isoformat(),
             "end_date": end_date.isoformat(),
