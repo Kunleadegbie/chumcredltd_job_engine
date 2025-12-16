@@ -1,111 +1,81 @@
-# =========================================================
-# 3b_Skills.py — AI Resume Skills Extraction (FINAL VERSION)
-# =========================================================
+
+# ============================
+# 3b_Skills.py — Persistent
+# ============================
 
 import streamlit as st
 import os, sys
 
-# Ensure project root import path works
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from services.ai_engine import ai_extract_skills
-from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits,
-    is_low_credit
-)
+from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from config.supabase_client import supabase
 
-
-# --------------------------------------------------
-# PAGE CONFIG
-# --------------------------------------------------
 st.set_page_config(page_title="Skills Extraction", page_icon="🧠")
 
-
-# --------------------------------------------------
-# AUTH CHECK
-# --------------------------------------------------
+# ---------------- AUTH ----------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
 user = st.session_state.get("user")
-
-if not user:
-    st.error("Session expired. Please log in again.")
-    st.switch_page("app.py")
-    st.stop()
-
 user_id = user["id"]
 
-
-# --------------------------------------------------
-# SUBSCRIPTION VALIDATION
-# --------------------------------------------------
+# ---------------- SUBSCRIPTION ----------------
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 
 if not subscription or subscription.get("subscription_status") != "active":
-    st.error("❌ You need an active subscription to use this tool.")
+    st.error("Active subscription required.")
     st.stop()
 
-credits = subscription.get("credits", 0)
-
-# Credit requirement for this tool
 CREDIT_COST = 5
+TOOL = "skills_extraction"
 
-if credits < CREDIT_COST:
-    st.error(f"❌ You need at least {CREDIT_COST} credits to use Skills Extraction.")
-    st.stop()
+# ---------------- LOAD LAST OUTPUT ----------------
+saved = (
+    supabase.table("ai_outputs")
+    .select("*")
+    .eq("user_id", user_id)
+    .eq("tool", TOOL)
+    .order("created_at", desc=True)
+    .limit(1)
+    .execute()
+).data
 
+if saved:
+    st.info("📌 Your last Skills Extraction")
+    st.write(saved[0]["output"])
 
-# --------------------------------------------------
-# PAGE UI
-# --------------------------------------------------
+# ---------------- UI ----------------
 st.title("🧠 AI Skills Extraction")
-st.write("Paste your resume text below or upload a resume file to extract key skills.")
 
-resume_file = st.file_uploader("Upload Resume File (PDF or DOCX)", type=["pdf", "docx"])
-resume_text = st.text_area("Or Paste Resume Text Here", height=260)
+resume_file = st.file_uploader("Upload Resume (PDF/DOCX)", type=["pdf", "docx"])
+resume_text = st.text_area("Or Paste Resume Text", height=260)
 
-
-# --------------------------------------------------
-# RUN EXTRACTION
-# --------------------------------------------------
 if st.button("Extract Skills"):
     if not resume_file and not resume_text.strip():
-        st.warning("Please upload a resume or paste text.")
+        st.warning("Provide resume input.")
         st.stop()
 
-    # Deduct credits before processing
-    success, msg = deduct_credits(user_id, CREDIT_COST)
-    if not success:
+    ok, msg = deduct_credits(user_id, CREDIT_COST)
+    if not ok:
         st.error(msg)
         st.stop()
 
-    # Prepare resume content
-    if resume_file:
-        content = resume_file.read()
-    else:
-        content = resume_text
+    content = resume_file.read() if resume_file else resume_text
 
-    with st.spinner("Extracting skills using AI..."):
-        try:
-            output = ai_extract_skills(resume_text=content)
+    output = ai_extract_skills(resume_text=content)
 
-            st.success("Skills extracted successfully!")
-            st.write(output)
+    supabase.table("ai_outputs").insert({
+        "user_id": user_id,
+        "tool": TOOL,
+        "input": {"resume_preview": str(content)[:200]},
+        "output": output,
+        "credits_used": CREDIT_COST
+    }).execute()
 
-        except Exception as e:
-            st.error(f"Error extracting skills: {e}")
+    st.success("Skills extracted!")
+    st.write(output)
 
-
-# --------------------------------------------------
-# LOW CREDIT WARNING
-# --------------------------------------------------
-if is_low_credit(subscription, 10):
-    st.warning("⚠️ Your credits are running low. Consider upgrading your plan.")
-
-st.write("---")
-st.caption("Powered by Chumcred Job Engine © 2025")
+st.caption("Chumcred Job Engine © 2025")

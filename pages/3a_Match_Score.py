@@ -1,5 +1,5 @@
 # ============================
-# 3a_Match_Score.py (FIXED)
+# 3a_Match_Score.py — Persistent
 # ============================
 
 import streamlit as st
@@ -8,56 +8,48 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from services.ai_engine import ai_generate_match_score
-from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits,
-    is_low_credit
-)
+from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from config.supabase_client import supabase
 
-# --------------------------------------------------
-# PAGE CONFIG
-# --------------------------------------------------
 st.set_page_config(page_title="Match Score Analyzer", page_icon="📊")
 
-# --------------------------------------------------
-# AUTH CHECK
-# --------------------------------------------------
+# ---------------- AUTH ----------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
 user = st.session_state.get("user")
-if not user:
-    st.error("Session expired. Please log in again.")
-    st.switch_page("app.py")
-    st.stop()
-
 user_id = user["id"]
 
-# --------------------------------------------------
-# SUBSCRIPTION + CREDITS CHECK
-# --------------------------------------------------
+# ---------------- SUBSCRIPTION ----------------
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 
 if not subscription or subscription.get("subscription_status") != "active":
-    st.error("Your subscription is inactive. Please subscribe to use this feature.")
+    st.error("Active subscription required.")
     st.stop()
 
-credits = subscription.get("credits", 0)
+CREDIT_COST = 5
+TOOL = "match_score"
 
-if credits < 5:
-    st.error("You do not have enough credits for this action (requires 5).")
-    st.stop()
+# ---------------- LOAD LAST OUTPUT ----------------
+saved = (
+    supabase.table("ai_outputs")
+    .select("*")
+    .eq("user_id", user_id)
+    .eq("tool", TOOL)
+    .order("created_at", desc=True)
+    .limit(1)
+    .execute()
+).data
 
-# --------------------------------------------------
-# PAGE UI
-# --------------------------------------------------
+if saved:
+    st.info("📌 Your last Match Score result")
+    st.write(saved[0]["output"])
+
+# ---------------- UI ----------------
 st.title("📊 Match Score Analyzer")
-st.write("Upload your resume and paste the job description to calculate match score.")
 
-resume = st.file_uploader("Upload Resume (PDF or DOCX)", type=["pdf", "docx"])
+resume = st.file_uploader("Upload Resume (PDF/DOCX)", type=["pdf", "docx"])
 job_description = st.text_area("Paste Job Description", height=220)
 
 if st.button("Generate Match Score"):
@@ -65,26 +57,25 @@ if st.button("Generate Match Score"):
         st.warning("Resume and job description are required.")
         st.stop()
 
-    # Deduct credits before running
-    success, msg = deduct_credits(user_id, 5)
-    if not success:
+    ok, msg = deduct_credits(user_id, CREDIT_COST)
+    if not ok:
         st.error(msg)
         st.stop()
 
-    with st.spinner("Analyzing match score..."):
-        resume_bytes = resume.read()
+    output = ai_generate_match_score(
+        resume_text=resume.read(),
+        job_description=job_description
+    )
 
-        try:
-            output = ai_generate_match_score(
-                resume_text=resume_bytes,
-                job_description=job_description
-            )
+    supabase.table("ai_outputs").insert({
+        "user_id": user_id,
+        "tool": TOOL,
+        "input": {"job_description": job_description[:200]},
+        "output": output,
+        "credits_used": CREDIT_COST
+    }).execute()
 
-            st.success("Match Score Generated Successfully!")
-            st.write(output)
+    st.success("Match Score generated!")
+    st.write(output)
 
-        except Exception as e:
-            st.error(f"Error generating match score: {e}")
-
-st.write("---")
-st.caption("Powered by Chumcred Job Engine © 2025")
+st.caption("Chumcred Job Engine © 2025")
