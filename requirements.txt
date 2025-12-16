@@ -8,6 +8,9 @@ pydantic
 PyPDF2
 python-docx
 tiktoken
+pdfplumber
+python-docx
+
 
 
 
