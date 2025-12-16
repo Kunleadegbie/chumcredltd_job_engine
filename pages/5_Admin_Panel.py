@@ -47,3 +47,10 @@ if st.button("Update Role"):
     supabase.table("users").update({"role": new_role}).eq("email", email).execute()
     st.success(f"Role updated to {new_role}")
     st.rerun()
+
+
+# ---------------------------------------------------------
+# FOOTER
+# ---------------------------------------------------------
+st.caption("Chumcred Job Engine — Admin Analytics © 2025")
+

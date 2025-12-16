@@ -45,3 +45,10 @@ st.write(f"**Total Searches Made:** {user_data.get('searches_made', 0)}")
 
 st.write("---")
 st.success("Settings page loaded successfully.")
+
+
+# ---------------------------------------------------------
+# FOOTER
+# ---------------------------------------------------------
+st.caption("Chumcred Job Engine — Admin Analytics © 2025")
+

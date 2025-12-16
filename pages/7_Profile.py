@@ -82,3 +82,10 @@ if st.button("Change Password"):
     else:
         supabase.table("users").update({"password": new_pw}).eq("id", user_id).execute()
         st.success("Password changed successfully!")
+
+
+# ---------------------------------------------------------
+# FOOTER
+# ---------------------------------------------------------
+st.caption("Chumcred Job Engine — Admin Analytics © 2025")
+

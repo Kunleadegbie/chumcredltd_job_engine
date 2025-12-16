@@ -172,3 +172,9 @@ if run_search:
                 st.error(f"Failed to save job: {e}")
 
         st.write("---")
+
+# ---------------------------------------------------------
+# FOOTER
+# ---------------------------------------------------------
+st.caption("Chumcred Job Engine — Admin Analytics © 2025")
+

@@ -91,3 +91,9 @@ for job in jobs:
             st.error(f"Failed to delete job: {e}")
 
     st.write("---")
+
+# ---------------------------------------------------------
+# FOOTER
+# ---------------------------------------------------------
+st.caption("Chumcred Job Engine — Admin Analytics © 2025")
+

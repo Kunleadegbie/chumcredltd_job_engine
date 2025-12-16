@@ -65,3 +65,10 @@ for p in payments:
         activate_subscription(p["user_id"], plan)
         st.success("Subscription activated.")
         st.rerun()
+
+
+# ---------------------------------------------------------
+# FOOTER
+# ---------------------------------------------------------
+st.caption("Chumcred Job Engine — Admin Analytics © 2025")
+

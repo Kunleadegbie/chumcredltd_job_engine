@@ -45,3 +45,10 @@ for u in users:
     Joined: {u.get('created_at', '---')}
     ---
     """)
+
+
+# ---------------------------------------------------------
+# FOOTER
+# ---------------------------------------------------------
+st.caption("Chumcred Job Engine — Admin Analytics © 2025")
+
