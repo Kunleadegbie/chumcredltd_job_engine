@@ -1,23 +1,22 @@
+
 # ============================================================
-# 11_Submit_Payment.py — Payment Confirmation Page (Updated)
+# 11_Submit_Payment.py — Submit Payment (FINAL, FIXED)
 # ============================================================
 
 import streamlit as st
 import os, sys
-from datetime import datetime
+from datetime import datetime, timezone
 
-# Fix import paths for Streamlit Cloud / Render
+# Fix import paths
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from config.supabase_client import supabase
-from services.utils import PLANS, get_subscription, activate_subscription
-
+from services.utils import PLANS, get_subscription
 
 # ---------------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------------
 st.set_page_config(page_title="Submit Payment", page_icon="💰")
-
 
 # ---------------------------------------------------------
 # AUTH CHECK
@@ -32,101 +31,109 @@ if not user:
     st.stop()
 
 user_id = user.get("id")
-role = user.get("role", "user")
-
 
 # ---------------------------------------------------------
 # PAGE HEADER
 # ---------------------------------------------------------
 st.title("💰 Submit Payment")
-st.write("Upload your proof of payment to activate your subscription.")
-
+st.write("Submit your payment details. An admin will review and approve your payment.")
 
 # ---------------------------------------------------------
-# CHECK IF USER SELECTED A PLAN
+# PLAN SELECTION CHECK
 # ---------------------------------------------------------
 selected_plan = st.session_state.get("selected_plan")
 
-if not selected_plan:
-    st.warning("You must select a subscription plan first.")
+if not selected_plan or selected_plan not in PLANS:
+    st.warning("You must select a valid subscription plan first.")
     st.stop()
 
-plan_details = PLANS[selected_plan]
-amount = plan_details["price"]
-credits = plan_details["credits"]
+plan = PLANS[selected_plan]
+amount = plan["price"]
+credits = plan["credits"]
 
 st.info(
-    f"**Plan Selected:** {selected_plan}\n\n"
-    f"**Amount:** ₦{amount:,}\n"
-    f"**Credits:** {credits} credits\n"
+    f"""
+**Plan:** {selected_plan}  
+**Amount:** ₦{amount:,}  
+**Credits:** {credits}
+"""
 )
 
-
 # ---------------------------------------------------------
-# DUPLICATE PAYMENT CHECK
+# PREVENT DUPLICATE PENDING PAYMENTS
 # ---------------------------------------------------------
-# Prevents double-crediting, even if admin accidentally clicks twice
 existing = (
     supabase.table("subscription_payments")
-    .select("*")
+    .select("id")
     .eq("user_id", user_id)
     .eq("plan", selected_plan)
-    .eq("approved", True)
+    .eq("status", "pending")
     .execute()
 ).data
 
 if existing:
-    st.warning("💡 You already have an approved payment for this plan. No need to resubmit.")
+    st.warning("⏳ You already have a pending payment for this plan. Please wait for admin approval.")
     st.stop()
 
+# ---------------------------------------------------------
+# PAYMENT INPUT
+# ---------------------------------------------------------
+txn_ref = st.text_input(
+    "Transaction Reference (Required)",
+    placeholder="e.g. PAYSTACK-98345GHJ"
+)
+
+uploaded_file = st.file_uploader(
+    "Upload Payment Proof (Screenshot or Receipt)",
+    type=["jpg", "jpeg", "png", "pdf"]
+)
 
 # ---------------------------------------------------------
-# PAYMENT PROOF UPLOAD
+# SUBMIT PAYMENT
 # ---------------------------------------------------------
-uploaded_file = st.file_uploader("Upload Screenshot / Receipt", type=["jpg", "jpeg", "png", "pdf"])
-
-txn_ref = st.text_input("Transaction Reference (Required)", placeholder="e.g., 98345GHJ")
-
 if st.button("Submit Payment"):
 
-    if not uploaded_file or not txn_ref.strip():
-        st.error("Please upload your payment receipt and enter transaction reference.")
+    if not txn_ref.strip():
+        st.error("Transaction reference is required.")
         st.stop()
 
-    # Record payment (pending approval)
+    if not uploaded_file:
+        st.error("Please upload your payment proof.")
+        st.stop()
+
     try:
         supabase.table("subscription_payments").insert({
             "user_id": user_id,
             "plan": selected_plan,
             "amount": amount,
             "credits": credits,
-            "payment_reference": txn_ref,
-            "approved": False,
-            "paid_on": datetime.utcnow().isoformat(),
+            "payment_reference": txn_ref.strip(),
+            "status": "pending",
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }).execute()
 
-        st.success("✅ Payment submitted successfully! Admin will review and approve shortly.")
+        st.success("✅ Payment submitted successfully. Admin will review and approve shortly.")
 
-        # After submission, clear selected plan
+        # Clear plan selection after successful submission
         st.session_state.selected_plan = None
 
     except Exception as e:
         st.error(f"❌ Failed to submit payment: {e}")
 
-
 # ---------------------------------------------------------
-# USER NOTICE
+# INFO SECTION
 # ---------------------------------------------------------
-st.write("---")
+st.divider()
 st.info("""
-### ℹ️ What Happens Next?
+### ℹ️ What happens next?
 
-1. Admin reviews your payment.  
-2. Once approved, your subscription is activated.  
-3. Credits become available immediately.  
-4. Credits expire when your subscription expires — unused credits **do not roll over**.
+1. An **admin reviews** your payment.
+2. Once approved, your **subscription is activated**.
+3. Your **credits become available immediately**.
+4. You can view your credits on the **Dashboard**.
 
-You will see your updated subscription and credits on your **Dashboard** after approval.
+⚠️ Credits are only applied **after admin approval**.
 """)
 
 st.caption("Chumcred Job Engine © 2025")
+
