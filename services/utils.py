@@ -4,22 +4,23 @@ from config.supabase_client import supabase
 # ==========================================================
 #   SUBSCRIPTION PLANS CONFIG
 # ==========================================================
+
 PLANS = {
-    "basic": {
+    "Basic": {
         "name": "Basic",
         "credits": 100,
         "price": 5000,
         "duration_days": 30,
     },
-    "pro": {
+    "Pro": {
         "name": "Pro",
-        "credits": 500,
-        "price": 20000,
+        "credits": 300,
+        "price": 12500,
         "duration_days": 30,
     },
-    "enterprise": {
-        "name": "Enterprise",
-        "credits": 2000,
+    "Premium": {
+        "name": "Premium",
+        "credits": 1500,
         "price": 50000,
         "duration_days": 30,
     },
