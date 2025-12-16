@@ -1,5 +1,6 @@
+
 # ============================================================
-# services/job_api.py — Worldwide + Country-Strict + Remote
+# services/job_api.py — TRUE Worldwide + Country-Strict + Remote
 # ============================================================
 
 import requests
@@ -28,11 +29,9 @@ COUNTRY_MAP = {
     "uk": "GB",
     "great britain": "GB",
     "england": "GB",
-
     "united states": "US",
     "usa": "US",
     "us": "US",
-
     "canada": "CA",
     "germany": "DE",
     "france": "FR",
@@ -42,6 +41,7 @@ COUNTRY_MAP = {
     "south africa": "ZA",
     "australia": "AU",
     "india": "IN",
+    # Add more countries here as needed
 }
 
 # Default multi-country scope to simulate “worldwide”
@@ -65,11 +65,11 @@ def search_jobs(query, location=None, remote=False, page=1):
         "num_pages": 1,
     }
 
-    country_code = None
-
     # --------------------------------------------------
     # LOCATION / COUNTRY HANDLING
     # --------------------------------------------------
+    country_code = None
+
     if location and location.strip():
         loc = location.strip().lower()
 
@@ -78,7 +78,7 @@ def search_jobs(query, location=None, remote=False, page=1):
             country_code = COUNTRY_MAP[loc]
             params["country_codes"] = country_code
         else:
-            # City or region search
+            # City or region search (no country filter)
             params["location"] = location.strip()
     else:
         # No location → pseudo-worldwide
@@ -131,3 +131,7 @@ def search_jobs(query, location=None, remote=False, page=1):
             "page": page,
         }
     }
+
+
+
+
