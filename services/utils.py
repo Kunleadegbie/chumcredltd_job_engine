@@ -1,5 +1,29 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from config.supabase_client import supabase
+
+# ==========================================================
+#   SUBSCRIPTION PLANS CONFIG
+# ==========================================================
+PLANS = {
+    "basic": {
+        "name": "Basic",
+        "credits": 100,
+        "price": 5000,
+        "duration_days": 30,
+    },
+    "pro": {
+        "name": "Pro",
+        "credits": 500,
+        "price": 20000,
+        "duration_days": 30,
+    },
+    "enterprise": {
+        "name": "Enterprise",
+        "credits": 2000,
+        "price": 50000,
+        "duration_days": 30,
+    },
+}
 
 # ==========================================================
 #   AUTO-EXPIRE SUBSCRIPTION (USED BY PAGES)
@@ -151,6 +175,54 @@ def is_admin(user_id: str):
     return get_user_role(user_id) == "admin"
 
 
+# ==========================================================
+#   ACTIVATE / UPGRADE SUBSCRIPTION (ADMIN & PAYMENT USE)
+# ==========================================================
+def activate_subscription(user_id: str, plan_key: str):
+    """
+    Activates or upgrades a user's subscription.
+    Used by admin revenue & payment approval pages.
+    """
 
+    if plan_key not in PLANS:
+        return False, "Invalid subscription plan."
 
+    plan = PLANS[plan_key]
+    now = datetime.now(timezone.utc)
+    end_date = now + timedelta(days=plan["duration_days"])
 
+    try:
+        existing = (
+            supabase
+            .table("subscriptions")
+            .select("id")
+            .eq("user_id", user_id)
+            .maybe_single()
+            .execute()
+        )
+
+        payload = {
+            "user_id": user_id,
+            "plan": plan_key,
+            "credits": plan["credits"],
+            "subscription_status": "active",
+            "start_date": now.isoformat(),
+            "end_date": end_date.isoformat(),
+        }
+
+        if existing.data:
+            # Update existing subscription
+            supabase.table("subscriptions") \
+                .update(payload) \
+                .eq("user_id", user_id) \
+                .execute()
+        else:
+            # Create new subscription
+            supabase.table("subscriptions") \
+                .insert(payload) \
+                .execute()
+
+        return True, "Subscription activated successfully."
+
+    except Exception as e:
+        return False, f"Activation failed: {e}"
