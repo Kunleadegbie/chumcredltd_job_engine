@@ -43,7 +43,7 @@ def render_sidebar():
         st.page_link("pages/3e_Resume_Writer.py", label="📄 Resume Writer")
         st.page_link("pages/3f_Job_Recommendations.py", label="🎯 Job Recommendations")
 
-        st.page_link("pages/10_Subscription.py", label="💳 Subscription")
+        st.page_link("pages/10_subscription.py", label="💳 Subscription")
         st.page_link("pages/11_Submit_Payment.py", label="📤 Submit Payment")
 
         # -------------------------------------------------
