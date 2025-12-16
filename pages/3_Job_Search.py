@@ -209,4 +209,3 @@ for job in jobs:
 # FOOTER
 # ---------------------------------------------------------
 st.caption("Chumcred Job Engine © 2025")
-
