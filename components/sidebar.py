@@ -1,21 +1,19 @@
+
 # ============================================================
-# components/sidebar.py — Role-Aware Sidebar (User + Admin)
+# components/sidebar.py — Role-Aware Sidebar (FIXED)
 # ============================================================
 
 import streamlit as st
-from services.utils import is_admin
 
 
 def render_sidebar():
     """
-    Renders a role-aware sidebar.
-    - Users see ONLY user pages
-    - Admins see user pages + admin pages
+    Renders a role-aware sidebar using SESSION STATE ONLY.
     """
 
-    user = st.session_state.get("user")
-    user_id = user.get("id") if user else None
-    admin = is_admin(user_id) if user_id else False
+    user = st.session_state.get("user", {})
+    role = user.get("role", "user")  # default to user
+    is_admin = role == "admin"
 
     with st.sidebar:
 
@@ -27,7 +25,7 @@ def render_sidebar():
         st.divider()
 
         # -------------------------------------------------
-        # USER MENU (EVERYONE SEES THIS)
+        # USER MENU (EVERYONE)
         # -------------------------------------------------
         st.markdown("### 👤 User Menu")
 
@@ -49,7 +47,7 @@ def render_sidebar():
         # -------------------------------------------------
         # ADMIN MENU (ADMINS ONLY)
         # -------------------------------------------------
-        if admin:
+        if is_admin:
             st.divider()
             st.markdown("### 🛡️ Admin Panel")
 
