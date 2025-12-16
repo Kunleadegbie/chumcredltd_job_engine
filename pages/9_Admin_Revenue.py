@@ -1,180 +1,175 @@
-# ==========================================================
-#  Admin Revenue Dashboard — Full Option C Implementation
-# ==========================================================
+
+# ==============================================================
+# 9_Admin_Revenue.py — ADMIN PAYMENT APPROVAL + REVENUE DASHBOARD
+# ==============================================================
 
 import streamlit as st
+import sys, os
 from datetime import datetime
+
+# Enable imports
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from components.sidebar import render_sidebar
 from config.supabase_client import supabase
+from services.utils import activate_subscription, is_admin
 
-# ====================================================
+
+# ---------------------------------------------------------
 # PAGE CONFIG
-# ====================================================
-st.set_page_config(page_title="Admin – Payments & Revenue", page_icon="💰", layout="wide")
+# ---------------------------------------------------------
+st.set_page_config(page_title="Admin Revenue", page_icon="💰", layout="wide")
 
-# ====================================================
-# AUTH CHECK (ADMIN ONLY)
-# ====================================================
+
+# ---------------------------------------------------------
+# AUTHENTICATION + ADMIN CHECK
+# ---------------------------------------------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
 user = st.session_state.get("user")
-
 if not user:
     st.error("Session expired. Please log in again.")
     st.switch_page("app.py")
     st.stop()
 
-# Only admin should view this page
-if user.get("role") != "admin":
-    st.error("Access denied. Admins only.")
+if not is_admin(user):
+    st.error("Access denied — Admins only.")
     st.stop()
 
-admin_name = user.get("full_name", "Admin")
+render_sidebar()
 
 
-# ====================================================
-# HELPER FUNCTIONS
-# ====================================================
-def get_payments():
-    try:
-        res = supabase.table("subscription_payments").select("*").order("paid_on", desc=True).execute()
-        return res.data or []
-    except Exception as e:
-        st.error(f"Error fetching payments: {e}")
-        return []
+# ---------------------------------------------------------
+# PAGE HEADER
+# ---------------------------------------------------------
+st.title("💰 Admin Revenue Dashboard")
+st.caption("Manage payments, approve subscriptions, and track revenue.")
 
 
-def approve_payment(payment_id, approved_by):
+# ==========================================================
+# LOAD PAYMENTS FROM DATABASE
+# ==========================================================
+try:
+    res = supabase.table("subscription_payments").select("*").order("paid_on", desc=True).execute()
+    all_payments = res.data or []
+except Exception as e:
+    st.error(f"Error loading payments: {e}")
+    st.stop()
+
+
+# Separate pending + approved
+pending = [p for p in all_payments if not p.get("approved", False)]
+approved = [p for p in all_payments if p.get("approved", False)]
+
+
+# ==========================================================
+# SUMMARY STATISTICS
+# ==========================================================
+total_revenue = sum([p.get("amount", 0) for p in approved])
+pending_count = len(pending)
+approved_count = len(approved)
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric("Total Revenue", f"₦{total_revenue:,}")
+
+with col2:
+    st.metric("Pending Payments", pending_count)
+
+with col3:
+    st.metric("Approved Payments", approved_count)
+
+st.write("---")
+
+
+# ==========================================================
+# FUNCTION TO DISPLAY PAYMENT TABLE
+# ==========================================================
+def payment_table(payments, show_approve=False):
+
+    if not payments:
+        st.info("No records available.")
+        return
+
+    for p in payments:
+
+        st.markdown(f"""
+        ### 💳 Payment ID: **{p['id']}**
+        **User ID:** {p['user_id']}  
+        **Plan:** {p['plan']}  
+        **Amount:** ₦{p.get('amount', 0):,}  
+        **Paid On:** {p.get('paid_on', '-')}  
+        **Approved:** {"✅ Yes" if p.get('approved') else "❌ No"}  
+        """)
+
+        # Approval button
+        if show_approve:
+
+            if p.get("approved"):
+                st.success("Already approved")
+            else:
+                if st.button("Approve Payment", key=f"approve_{p['id']}"):
+                    process_payment_approval(p)
+
+        st.write("---")
+
+
+# ==========================================================
+# PAYMENT APPROVAL LOGIC (Prevents double-crediting)
+# ==========================================================
+def process_payment_approval(payment):
+
+    payment_id = payment["id"]
+    user_id = payment["user_id"]
+    plan = payment["plan"]
+    amount = payment["amount"]
+
+    # Prevent double approval at DB level
+    if payment.get("approved"):
+        st.warning("This payment is already approved.")
+        st.stop()
+
+    # 1️⃣ Update payment record
     try:
         supabase.table("subscription_payments").update({
             "approved": True,
-            "approved_by": approved_by,
+            "approved_by": user_id,
             "approval_date": datetime.utcnow().isoformat()
         }).eq("id", payment_id).execute()
-        return True
     except Exception as e:
-        st.error(f"Approval failed: {e}")
-        return False
+        st.error(f"Failed to approve payment: {e}")
+        return
+
+    # 2️⃣ Determine credits & duration
+    PLAN_DETAILS = {
+        "Basic":  {"price": 5000,  "credits": 100},
+        "Pro":    {"price": 12500, "credits": 300},
+        "Premium":{"price": 50000, "credits": 1500}
+    }
+
+    credits = PLAN_DETAILS.get(plan, {}).get("credits", 0)
+    duration_days = 30  # Monthly subscription
+
+    # 3️⃣ Activate subscription
+    success, msg = activate_subscription(user_id, plan, duration_days, credits)
+
+    if not success:
+        st.error(f"Subscription activation failed: {msg}")
+        return
+
+    st.success(f"Payment approved and subscription activated for user {user_id}!")
 
 
-# ====================================================
-# DISPLAY A PAYMENT BLOCK
-# ====================================================
-def display_payment_block(payment, show_approve=False, prefix=""):
-    st.markdown(f"""
-    ### 🧾 Payment ID: `{payment.get('id')}`
-    **User ID:** {payment.get('user_id')}  
-    **Plan:** {payment.get('plan')}  
-    **Amount:** ₦{payment.get('amount'):,.0f}  
-    **Credits:** {payment.get('credits')}  
-    **Paid On:** {payment.get('paid_on')}  
-    **Approved:** {"✅ Yes" if payment.get("approved") else "❌ No"}  
-    """)
+# ==========================================================
+# DISPLAY TABLES
+# ==========================================================
+st.subheader("⏳ Pending Payments")
+payment_table(pending, show_approve=True)
 
-    # If already approved, show metadata
-    if payment.get("approved"):
-        st.markdown(f"""
-        **Approved By:** {payment.get('approved_by')}  
-        **Approval Date:** {payment.get('approval_date')}
-        """)
-    else:
-        # Approve button with unique key
-        if show_approve:
-            key = f"{prefix}_approve_{payment['id']}"
-            if st.button("Approve Payment", key=key):
-                if approve_payment(payment["id"], admin_name):
-                    st.success("Payment approved successfully!")
-                    st.rerun()
-
-    st.write("---")
-
-
-# ====================================================
-# PAGE TITLE + DESCRIPTION
-# ====================================================
-st.title("💰 Admin Dashboard — Revenue & Payments")
-st.write("Manage user subscription payments, approve pending transactions, and monitor revenue growth.")
-
-payments = get_payments()
-
-pending = [p for p in payments if not p.get("approved")]
-approved = [p for p in payments if p.get("approved")]
-
-# ====================================================
-# TABS LAYOUT
-# ====================================================
-tab_all, tab_pending, tab_approved, tab_stats = st.tabs([
-    "📦 All Payments",
-    "⏳ Pending Approval",
-    "✅ Approved Payments",
-    "📈 Revenue Stats"
-])
-
-# ====================================================
-# TAB 1 — ALL PAYMENTS
-# ====================================================
-with tab_all:
-    st.subheader("📦 All Payments")
-    if not payments:
-        st.info("No payment records found.")
-    else:
-        for p in payments:
-            display_payment_block(p, show_approve=not p.get("approved"), prefix="all")
-
-
-# ====================================================
-# TAB 2 — PENDING APPROVAL
-# ====================================================
-with tab_pending:
-    st.subheader("⏳ Pending Payments")
-    if not pending:
-        st.success("No pending approvals.")
-    else:
-        for p in pending:
-            display_payment_block(p, show_approve=True, prefix="pending")
-
-
-# ====================================================
-# TAB 3 — APPROVED PAYMENTS
-# ====================================================
-with tab_approved:
-    st.subheader("✅ Approved Payments")
-    if not approved:
-        st.info("No approved transactions yet.")
-    else:
-        for p in approved:
-            display_payment_block(p, show_approve=False, prefix="approved")
-
-
-# ====================================================
-# TAB 4 — REVENUE STATS
-# ====================================================
-with tab_stats:
-
-    st.subheader("📈 Revenue Summary")
-
-    if not approved:
-        st.info("No approved transactions yet — revenue stats unavailable.")
-    else:
-        total_revenue = sum(p["amount"] for p in approved)
-        total_credits = sum(p["credits"] for p in approved)
-
-        st.metric("💰 Total Revenue (₦)", f"{total_revenue:,.0f}")
-        st.metric("🎟️ Total Credits Issued", total_credits)
-
-        # Monthly breakdown
-        st.write("---")
-        st.write("### 📅 Monthly Revenue Breakdown")
-
-        monthly = {}
-        for p in approved:
-            month = p["paid_on"][:7]  # e.g. "2025-12"
-            monthly.setdefault(month, 0)
-            monthly[month] += p["amount"]
-
-        for month, revenue in monthly.items():
-            st.write(f"**{month}:** ₦{revenue:,.0f}")
-
+st.subheader("✅ Approved Payments")
+payment_table(approved, show_approve=False)
 
 # ------------------------------------------------------------
 # END

@@ -1,23 +1,26 @@
-# ==============================================================
-# 3_Job_Search.py — Fully Rewritten + Credit System
-# ==============================================================
-import streamlit as st
-import os
-import sys
 
+# ==============================================================
+# 3_Job_Search.py — Global Job Search (AI Credit-Aware)
+# ==============================================================
+
+import streamlit as st
+import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
 from config.supabase_client import supabase
 from services.job_api import search_jobs
-from services.utils import get_subscription, deduct_credits
-
+from services.utils import (
+    get_subscription,
+    auto_expire_subscription,
+    deduct_credits,
+    is_low_credit,
+)
 
 # ---------------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------------
 st.set_page_config(page_title="Job Search", page_icon="🔍")
-
 
 # ---------------------------------------------------------
 # AUTH CHECK
@@ -29,146 +32,142 @@ render_sidebar()
 
 user = st.session_state.get("user")
 if not user:
-    st.error("Session expired. Please log in again.")
     st.switch_page("app.py")
     st.stop()
 
-user_id = user["id"]
-
+user_id = user.get("id")
+role = user.get("role", "user")
 
 # ---------------------------------------------------------
 # SUBSCRIPTION CHECK
 # ---------------------------------------------------------
 subscription = get_subscription(user_id)
+auto_expire_subscription(user_id)
+
 if not subscription or subscription.get("subscription_status") != "active":
-    st.error("🚫 You need an active subscription to use Job Search.")
+    st.error("❌ You need an active subscription to use Job Search.")
     st.stop()
-
-credits = subscription.get("credits", 0)
-if credits < 3:
-    st.error("⚠️ You do not have enough credits to perform a search.")
-    st.stop()
-
 
 # ---------------------------------------------------------
-# USER INPUTS
+# PAGE TITLE
 # ---------------------------------------------------------
 st.title("🔍 Global Job Search")
+st.caption("Search worldwide job listings from multiple sources.")
 
-query = st.text_input("Job Title (Required)", placeholder="e.g., Data Analyst, Product Manager")
-location = st.text_input("Location (Optional)", placeholder="e.g., Remote, Lagos, Canada, Europe")
+# ---------------------------------------------------------
+# SEARCH INPUTS
+# ---------------------------------------------------------
+query = st.text_input("Job Title (Required)", placeholder="e.g., Data Analyst")
+location = st.text_input("Location (Optional)", placeholder="e.g., Lagos, Remote, London")
+remote_only = st.checkbox("🌍 Remote Jobs Only (Optional)")
 
-st.write("---")
+# Pagination
+if "job_search_page" not in st.session_state:
+    st.session_state.job_search_page = 1
 
-# Pagination setup
-if "job_page" not in st.session_state:
-    st.session_state.job_page = 1
+col_prev, col_next = st.columns([1, 1])
 
-col1, col2 = st.columns([1, 1])
-with col1:
-    if st.button("⬅ Previous", disabled=st.session_state.job_page <= 1):
-        st.session_state.job_page -= 1
+with col_prev:
+    if st.button("⬅ Previous Page") and st.session_state.job_search_page > 1:
+        st.session_state.job_search_page -= 1
 
-with col2:
-    if st.button("Next ➡"):
-        st.session_state.job_page += 1
+with col_next:
+    if st.button("Next Page ➡"):
+        st.session_state.job_search_page += 1
 
-page = st.session_state.job_page
-
+page = st.session_state.job_search_page
 
 # ---------------------------------------------------------
 # SEARCH EXECUTION
 # ---------------------------------------------------------
-if st.button("Search Jobs"):
+run_search = st.button("🔎 Search Jobs")
+
+if run_search:
 
     if not query.strip():
         st.warning("Please enter a job title before searching.")
         st.stop()
 
-    # Deduct credits
+    # -----------------------------------------
+    # CREDIT CHECK (3 credits per search)
+    # -----------------------------------------
+    if is_low_credit(subscription, minimum_required=3):
+        st.error("❌ You do not have enough credits to run a job search. Please top up.")
+        st.stop()
+
     ok, msg = deduct_credits(user_id, 3)
     if not ok:
         st.error(msg)
         st.stop()
 
-    st.info("🔎 Searching for jobs globally... (3 credits deducted)")
+    st.info("🔄 Searching jobs…")
 
-    # Build global search query
-    full_query = query
-    if location:
-        full_query += f" in {location}"
+    # -----------------------------------------
+    # EXECUTE API SEARCH
+    # -----------------------------------------
+    results = search_jobs(
+        query=query,
+        location=location,
+        page=page,
+        remote=remote_only
+    )
 
-    results = search_jobs(query=full_query, page=page)
-
-    # API format handling
-    if isinstance(results, dict) and results.get("error"):
-        st.error(results["error"])
+    if not isinstance(results, dict):
+        st.error("❌ Unexpected API response.")
         st.stop()
 
-    if isinstance(results, dict) and "data" in results:
-        jobs = results["data"]
-    elif isinstance(results, list):
-        jobs = results
-    else:
-        st.error("Unexpected API response format.")
+    if "error" in results:
+        st.error("API Error: " + results["error"])
         st.stop()
+
+    jobs = results.get("data", [])
+
+    st.subheader(f"📄 Results — Page {page}")
 
     if not jobs:
-        st.warning("No job results found.")
+        st.warning("No jobs found. Try different keywords.")
         st.stop()
 
-    # Store jobs for rerun safety
-    st.session_state["job_results"] = jobs
-
-
-# ---------------------------------------------------------
-# DISPLAY RESULTS (Persisted)
-# ---------------------------------------------------------
-jobs = st.session_state.get("job_results", [])
-
-if jobs:
-    st.write(f"### Results — Page {page}")
-    st.write("---")
-
+    # -----------------------------------------------------
+    # DISPLAY JOB RESULTS
+    # -----------------------------------------------------
     for job in jobs:
-
-        title = job.get("job_title", "Untitled Job")
-        company = job.get("employer_name", "Unknown Company")
+        job_title = job.get("job_title", "Untitled Role")
+        company = job.get("employer_name", "Unknown")
         job_id = job.get("job_id")
-        apply_link = job.get("job_apply_link", "#")
-        location_text = f"{job.get('job_city', '')}, {job.get('job_country', '')}"
         description = job.get("job_description", "")[:350] + "..."
+        url = job.get("job_apply_link", "#")
+
+        city = job.get("job_city", "")
+        country = job.get("job_country", "")
+        location_str = f"{city}, {country}".strip(", ")
 
         st.markdown(f"""
-        ### **{title}**
+        ### **{job_title}**
         **Company:** {company}  
-        **Location:** {location_text}  
+        **Location:** {location_str}  
 
         {description}
+
         """)
 
-        # CLICKABLE APPLY BUTTON
-        st.markdown(
-            f"<a href='{apply_link}' target='_blank' style='padding:10px 18px; background:#0056D2; color:white; border-radius:6px; text-decoration:none;'>Apply Now</a>",
-            unsafe_allow_html=True
-        )
+        # Apply Now Button
+        if url and url != "#":
+            st.markdown(f"<a href='{url}' target='_blank'><button style='padding:8px 18px;'>Apply Now</button></a>", unsafe_allow_html=True)
 
-        # SAVE JOB BUTTON
+        # Save Job Button
         if st.button(f"💾 Save Job", key=f"save_{job_id}"):
-
             try:
                 supabase.table("saved_jobs").insert({
                     "user_id": user_id,
                     "job_id": job_id,
-                    "job_title": title,
+                    "job_title": job_title,
                     "company": company,
-                    "location": location_text,
-                    "url": apply_link,
+                    "location": location_str,
+                    "url": url,
                     "description": description
                 }).execute()
-
-                st.success("Job saved successfully!")
-
+                st.success("✅ Job saved successfully!")
             except Exception as e:
                 st.error(f"Failed to save job: {e}")
 

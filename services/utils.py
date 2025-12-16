@@ -1,23 +1,12 @@
+from datetime import datetime, timezone
 from config.supabase_client import supabase
-from datetime import datetime, timedelta
-
-# ============================================================
-#  PLAN DEFINITIONS (Used across subscription + admin)
-# ============================================================
-PLANS = {
-    "Basic":   {"price": 5000,  "credits": 100},
-    "Pro":     {"price": 12500, "credits": 300},
-    "Premium": {"price": 50000, "credits": 1500},
-}
 
 
-# ============================================================
-#  GET USER SUBSCRIPTION
-# ============================================================
-def get_subscription(user_id):
-    """Fetch the user’s subscription as a dict, or None."""
-    if not supabase:
-        return None
+# ==========================================================
+#   FETCH USER SUBSCRIPTION
+# ==========================================================
+def get_subscription(user_id: str):
+    """Return the user's subscription dict or None."""
     try:
         res = (
             supabase.table("subscriptions")
@@ -31,156 +20,122 @@ def get_subscription(user_id):
         return None
 
 
-# ============================================================
-#  DEDUCT USER CREDITS
-# ============================================================
-def deduct_credits(user_id, amount):
+# ==========================================================
+#   NORMALIZE SUBSCRIPTION (HANDLE EXPIRATION)
+# ==========================================================
+def normalize_subscription(sub):
     """
-    Deduct credits using Supabase RPC.
-    Always returns (success: bool, message: str)
+    Ensures expired subscriptions show 0 credits and status=inactive.
+    Returns a clean subscription dictionary.
     """
-    if not supabase:
-        return False, "Supabase not initialized"
+    if not sub:
+        return {"plan": None, "credits": 0, "subscription_status": "inactive"}
+
+    end_date = sub.get("end_date")
+    now = datetime.now(timezone.utc)
+
+    if end_date:
+        try:
+            expiry = datetime.fromisoformat(end_date)
+            if expiry < now:
+                # Subscription expired — zero out credits
+                return {
+                    "plan": sub.get("plan"),
+                    "credits": 0,
+                    "subscription_status": "expired",
+                }
+        except Exception:
+            pass
+
+    # Active subscription
+    return {
+        "plan": sub.get("plan"),
+        "credits": sub.get("credits", 0),
+        "subscription_status": sub.get("subscription_status", "inactive"),
+        "start_date": sub.get("start_date"),
+        "end_date": sub.get("end_date"),
+    }
+
+
+# ==========================================================
+#   DEDUCT CREDITS SAFELY (USED IN ALL AI PAGES)
+# ==========================================================
+def deduct_credits(user_id: str, amount: int):
+    """Subtract credits. Returns (success, message)."""
+
+    sub = get_subscription(user_id)
+    sub = normalize_subscription(sub)
+
+    current_credits = sub.get("credits", 0)
+
+    if current_credits < amount:
+        return False, "Insufficient credits."
+
+    new_balance = current_credits - amount
 
     try:
-        supabase.rpc("deduct_user_credits", {
-            "uid": user_id,
-            "amt": amount
-        }).execute()
+        supabase.table("subscriptions").update(
+            {"credits": new_balance}
+        ).eq("user_id", user_id).execute()
 
-        return True, "Credits deducted successfully"
-
+        return True, f"{amount} credits deducted successfully."
     except Exception as e:
-        err = str(e)
-        if "insufficient" in err.lower():
-            return False, "Insufficient credits"
-        return False, f"Credit deduction error: {err}"
+        return False, f"Error deducting credits: {e}"
 
 
-# ============================================================
-#  CHECK LOW CREDIT
-# ============================================================
+# ==========================================================
+#   LOW CREDIT CHECKER
+# ==========================================================
 def is_low_credit(subscription: dict, minimum_required: int = 20):
-    """Returns True if the user's credits fall below the minimum_required."""
+    """Returns True if credits < minimum_required."""
     if not subscription:
         return True
-    return subscription.get("credits", 0) < minimum_required
+    credits = subscription.get("credits", 0)
+    return credits < minimum_required
 
 
-# ============================================================
-#  AUTO-EXPIRE SUBSCRIPTIONS
-# ============================================================
-def auto_expire_subscription(user_id):
-    """Calls RPC to mark expired subscriptions."""
-    if not supabase:
-        return
+# ==========================================================
+#   BLOCK DOUBLE-CREDITING DURING PAYMENT APPROVAL
+# ==========================================================
+def payment_already_approved(payment_row):
+    """
+    Returns True if the payment is already approved
+    to prevent duplicate crediting.
+    """
+    if not payment_row:
+        return False
+    return payment_row.get("approved") is True
+
+
+# ==========================================================
+#   GET USER ROLE
+# ==========================================================
+def get_user_role(user_id: str):
+    """Return the role of a user: user / admin."""
     try:
-        supabase.rpc("expire_user_subscription", {"uid": user_id}).execute()
-    except Exception as e:
-        print("AUTO EXPIRE ERROR:", e)
+        res = (
+            supabase.table("users")
+            .select("role")
+            .eq("id", user_id)
+            .single()
+            .execute()
+        )
+        data = res.data
+        if not data:
+            return "user"
+        return data.get("role", "user")
+    except Exception:
+        return "user"
 
 
-# ============================================================
-#  ACTIVATE / RENEW SUBSCRIPTION (NO CREDIT ROLLOVER)
-# ============================================================
-def activate_subscription(user_id, plan_name, amount, credits, duration_days):
-    """
-    Handles:
-    • First subscription
-    • Renewal while active (extend + add credits)
-    • Renewal after expiry (reset credits — NO ROLLOVER)
-
-    Returns (success: bool, message: str)
-    """
-
-    if not supabase:
-        return False, "Supabase not initialized"
-
-    now = datetime.utcnow()
-    new_end_date = (now + timedelta(days=duration_days)).isoformat()
-
-    subscription = get_subscription(user_id)
-
-    try:
-        # -------------------------------------------------------
-        # CASE 1: No subscription → create fresh
-        # -------------------------------------------------------
-        if not subscription:
-            payload = {
-                "user_id": user_id,
-                "plan": plan_name,
-                "amount": amount,
-                "credits": credits,
-                "subscription_status": "active",
-                "start_date": now.isoformat(),
-                "end_date": new_end_date,
-            }
-            supabase.table("subscriptions").insert(payload).execute()
-            return True, "Subscription activated successfully."
-
-        # Extract existing properties
-        existing_end = subscription.get("end_date")
-        existing_credits = subscription.get("credits", 0)
-
-        # -------------------------------------------------------
-        # CASE 2: Subscription still active → extend & add credits
-        # -------------------------------------------------------
-        if existing_end and existing_end > now.isoformat():
-            updated_end = (
-                datetime.fromisoformat(existing_end) + timedelta(days=duration_days)
-            ).isoformat()
-
-            updated_credits = existing_credits + credits  # add-on credits
-
-            supabase.table("subscriptions").update({
-                "plan": plan_name,
-                "amount": amount,
-                "credits": updated_credits,
-                "end_date": updated_end,
-                "subscription_status": "active"
-            }).eq("user_id", user_id).execute()
-
-            return True, "Subscription extended successfully."
-
-        # -------------------------------------------------------
-        # CASE 3: Subscription expired → START FRESH (NO ROLLOVER)
-        # -------------------------------------------------------
-        supabase.table("subscriptions").update({
-            "plan": plan_name,
-            "amount": amount,
-            "credits": credits,      # RESET credits (no rollover)
-            "start_date": now.isoformat(),
-            "end_date": new_end_date,
-            "subscription_status": "active"
-        }).eq("user_id", user_id).execute()
-
-        return True, "Subscription restarted successfully."
-
-    except Exception as e:
-        print("SUBSCRIPTION ACTIVATION ERROR:", e)
-        return False, str(e)
+# ==========================================================
+#   CHECK IF ADMIN
+# ==========================================================
+def is_admin(user_id: str):
+    """Returns True for admin accounts."""
+    return get_user_role(user_id) == "admin"
 
 
-# ============================================================
-#  APPROVE PAYMENT
-# ============================================================
-def mark_payment_as_approved(payment_id, admin_name):
-    """
-    Admin Approval:
-    Marks payment as approved.
-    """
-    if not supabase:
-        return False, "Supabase not initialized"
 
-    try:
-        supabase.table("subscription_payments").update({
-            "approved": True,
-            "approved_by": admin_name,
-            "approval_date": datetime.utcnow().isoformat()
-        }).eq("id", payment_id).execute()
 
-        return True, "Payment approved."
 
-    except Exception as e:
-        print("PAYMENT APPROVAL ERROR:", e)
-        return False, str(e)

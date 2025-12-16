@@ -1,71 +1,95 @@
 import streamlit as st
+import os, sys
+
+# Ensure imports resolve correctly
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+from config.supabase_client import supabase
+
 
 def render_sidebar():
+
+    # ---------------------------------------------------------
+    # AUTH CHECK
+    # ---------------------------------------------------------
     if "authenticated" not in st.session_state or not st.session_state.authenticated:
+        return  # Sidebar should not render when user is not logged in
+
+    user = st.session_state.get("user")
+
+    if not user:
         return
 
-    user = st.session_state.get("user", {})
+    full_name = user.get("full_name", "User")
+    role = user.get("role", "user")   # "admin" OR "user"
 
-    with st.sidebar:
-        st.markdown(f"### 👤 {user.get('full_name', '')}")
-        st.markdown("---")
 
-        # Navigation
-        if st.button("🏠 Dashboard"):
-            st.switch_page("pages/2_Dashboard.py")
+    # ---------------------------------------------------------
+    # SIDEBAR HEADER
+    # ---------------------------------------------------------
+    st.sidebar.markdown(
+        f"""
+        <div style="padding:10px; text-align:center;">
+            <h3 style="margin-bottom:0;">👤 {full_name}</h3>
+            <p style="font-size:12px; margin-top:2px; opacity:0.7;">Role: {role.title()}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        if st.button("🔍 Job Search"):
-            st.switch_page("pages/3_Job_Search.py")
+    st.sidebar.markdown("---")
 
-        if st.button("📊 Match Score"):
-            st.switch_page("pages/3a_Match_Score.py")
 
-        if st.button("🧠 Skills Extractor"):
-            st.switch_page("pages/3b_Skills.py")
+    # ---------------------------------------------------------
+    # USER MENU ITEMS (both Admin & User will see these)
+    # ---------------------------------------------------------
+    st.sidebar.subheader("📌 Main Menu")
 
-        if st.button("✍️ Cover Letter"):
-            st.switch_page("pages/3c_Cover_Letter.py")
+    st.sidebar.page_link("app.py", label="🏠 Home")
 
-        if st.button("📑 Eligibility Check"):
-            st.switch_page("pages/3d_Eligibility.py")
+    st.sidebar.page_link("pages/2_Dashboard.py", label="📊 Dashboard")
+    st.sidebar.page_link("pages/3_Job_Search.py", label="🔍 Job Search")
+    st.sidebar.page_link("pages/4_Saved_Jobs.py", label="💾 Saved Jobs")
 
-        if st.button("📄 Resume Writer"):
-            st.switch_page("pages/3e_Resume_Writer.py")
+    st.sidebar.markdown("---")
 
-        if st.button("⭐ Job Recommendations"):
-            st.switch_page("pages/3f_Job_Recommendations.py")
+    st.sidebar.subheader("🤖 AI Tools")
 
-        if st.button("💾 Saved Jobs"):
-            st.switch_page("pages/4_Saved_Jobs.py")
+    st.sidebar.page_link("pages/3a_Match_Score.py", label="📈 Match Score Analyzer")
+    st.sidebar.page_link("pages/3b_Skills.py", label="🧠 Skills Extraction")
+    st.sidebar.page_link("pages/3c_Cover_Letter.py", label="✍️ Cover Letter Writer")
+    st.sidebar.page_link("pages/3d_Eligibility.py", label="📋 Eligibility Checker")
+    st.sidebar.page_link("pages/3e_Resume_Writer.py", label="📝 Resume Rewrite")
+    st.sidebar.page_link("pages/3f_Job_Recommendations.py", label="🎯 Job Recommendations")
 
-        if st.button("👤 Profile"):
-            st.switch_page("pages/7_Profile.py")
+    st.sidebar.markdown("---")
 
-        if st.button("⚙ Settings"):
-            st.switch_page("pages/6_Settings.py")
+    # ---------------------------------------------------------
+    # SUBSCRIPTION MENU
+    # ---------------------------------------------------------
+    st.sidebar.subheader("💳 Subscription")
 
-        if st.button("💳 Subscription"):
-            st.switch_page("pages/10_Subscription.py")
+    st.sidebar.page_link("pages/10_subscription.py", label="📦 Plans & Pricing")
+    st.sidebar.page_link("pages/11_Submit_Payment.py", label="💰 Submit Payment")
 
-        # Admin section
-        if user.get("role") == "admin":
-            st.markdown("---")
-            st.markdown("### 🛠 Admin Tools")
 
-            if st.button("Admin Panel"):
-                st.switch_page("pages/5_Admin_Panel.py")
+    # ---------------------------------------------------------
+    # ADMIN-ONLY SECTION
+    # ---------------------------------------------------------
+    if role == "admin":
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🛠️ Admin Controls")
 
-            if st.button("Analytics"):
-                st.switch_page("pages/8_Admin_Analytics.py")
+        st.sidebar.page_link("pages/9_Admin_Revenue.py", label="📑 Payment Approvals")
 
-            if st.button("Revenue"):
-                st.switch_page("pages/9_Admin_Revenue.py")
+        # FUTURE ADMIN PAGES CAN BE ADDED HERE
+        # st.sidebar.page_link(...)
 
-            if st.button("Payments"):
-                st.switch_page("pages/12_Admin_Payments.py")
 
-        st.markdown("---")
-        if st.button("🚪 Logout"):
-            st.session_state.authenticated = False
-            st.session_state.user = None
-            st.rerun()
+    # ---------------------------------------------------------
+    # LOGOUT BUTTON
+    # ---------------------------------------------------------
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🚪 Logout"):
+        st.session_state.clear()
+        st.switch_page("app.py")

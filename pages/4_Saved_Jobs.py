@@ -1,82 +1,93 @@
-import streamlit as st
-import os
-import sys
+# ==============================================================
+# 4_Saved_Jobs.py — Saved Jobs Library
+# ==============================================================
 
-# Fix import path
+import streamlit as st
+import sys, os
+
+# Allow imports
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
 from config.supabase_client import supabase
 
+# ---------------------------------------------------------
+# PAGE CONFIG
+# ---------------------------------------------------------
 st.set_page_config(page_title="Saved Jobs", page_icon="💾")
 
-# ---------------------------
+# ---------------------------------------------------------
 # AUTH CHECK
-# ---------------------------
+# ---------------------------------------------------------
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
 render_sidebar()
 
 user = st.session_state.get("user")
+if not user:
+    st.error("Session expired. Please log in again.")
+    st.switch_page("app.py")
+    st.stop()
+
 user_id = user.get("id")
 
+# ---------------------------------------------------------
+# PAGE HEADER
+# ---------------------------------------------------------
 st.title("💾 Saved Jobs")
-st.write("---")
+st.caption("Jobs you saved from the search results appear here.")
 
-# ---------------------------
-# FETCH SAVED JOBS
-# ---------------------------
+# ---------------------------------------------------------
+# FETCH SAVED JOBS FROM DATABASE
+# ---------------------------------------------------------
 try:
-    jobs = (
-        supabase.table("saved_jobs")
-        .select("*")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .execute()
-        .data
-        or []
-    )
+    data = supabase.table("saved_jobs").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
+    jobs = data.data or []
 except Exception as e:
     st.error(f"Failed to load saved jobs: {e}")
     st.stop()
 
-# ---------------------------
-# SHOW MESSAGE IF EMPTY
-# ---------------------------
+# ---------------------------------------------------------
+# IF NO SAVED JOBS
+# ---------------------------------------------------------
 if not jobs:
     st.info("You have not saved any jobs yet.")
     st.stop()
 
-# ---------------------------
+# ---------------------------------------------------------
 # DISPLAY SAVED JOBS
-# ---------------------------
+# ---------------------------------------------------------
 for job in jobs:
+    title = job.get("job_title", "Untitled Job")
+    company = job.get("company", "Unknown Company")
+    location = job.get("location", "Unknown Location")
+    description = job.get("description", "")[:350] + "..."
+    url = job.get("url") or job.get("apply_link") or "#"
+    record_id = job.get("id")
 
-    # Ensure all fields have safe fallbacks
-    title = job.get("job_title") or "Untitled Job"
-    company = job.get("company") or "Unknown Company"
-    location = job.get("location") or "Not specified"
-    description = job.get("description") or "No description available."
-    url = job.get("url") or "#"
+    st.markdown(f"""
+    ### **{title}**
+    **Company:** {company}  
+    **Location:** {location}  
 
-    st.markdown(f"### **{title}**")
-    st.write(f"**Company:** {company}")
-    st.write(f"**Location:** {location}")
-    st.write(description[:300] + "...")
+    {description}
+    """)
 
+    # Apply Button
     if url and url != "#":
-        st.markdown(f"[🔗 Apply Here]({url})")
+        st.markdown(
+            f"<a href='{url}' target='_blank'><button style='padding:8px 18px;'>Apply Now</button></a>",
+            unsafe_allow_html=True
+        )
 
-    # ---------------------------
-    # DELETE BUTTON
-    # ---------------------------
-    if st.button(f"❌ Remove Job", key=f"remove_{job['id']}"):
+    # Delete Button
+    if st.button(f"❌ Remove Job", key=f"remove_{record_id}"):
         try:
-            supabase.table("saved_jobs").delete().eq("id", job["id"]).execute()
+            supabase.table("saved_jobs").delete().eq("id", record_id).execute()
             st.success("Job removed successfully!")
             st.rerun()
         except Exception as e:
-            st.error(f"Failed to remove job: {e}")
+            st.error(f"Failed to delete job: {e}")
 
     st.write("---")
