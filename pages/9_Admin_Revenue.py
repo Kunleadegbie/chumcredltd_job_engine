@@ -1,21 +1,24 @@
 # ==============================================================
-# 9_Admin_Revenue.py — ADMIN PAYMENT APPROVAL + REVENUE DASHBOARD
+# 9_Admin_Revenue.py — ADMIN REVENUE DASHBOARD (READ-ONLY)
 # ==============================================================
 
 import streamlit as st
 import sys, os
-from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
 from config.supabase_client import supabase
-from services.utils import activate_subscription, is_admin, PLANS
+from services.utils import is_admin, PLANS
 
 # ---------------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------------
-st.set_page_config(page_title="Admin Revenue", page_icon="💰", layout="wide")
+st.set_page_config(
+    page_title="Admin Revenue",
+    page_icon="💰",
+    layout="wide"
+)
 
 # ---------------------------------------------------------
 # AUTH + ADMIN CHECK
@@ -34,66 +37,84 @@ render_sidebar()
 # PAGE HEADER
 # ---------------------------------------------------------
 st.title("💰 Admin Revenue Dashboard")
-st.caption("Manage payments, approve subscriptions, and track revenue.")
+st.caption("Read-only overview of payments and subscription revenue.")
+st.divider()
 
 # ---------------------------------------------------------
-# LOAD PAYMENTS
+# LOAD PAYMENTS (SAFE COLUMNS ONLY)
 # ---------------------------------------------------------
 payments = (
     supabase.table("subscription_payments")
-    .select("*")
-    .order("paid_on", desc=True)
+    .select("id, user_id, plan, amount, credits, status, created_at, approved_at")
+    .order("created_at", desc=True)
     .execute()
     .data
     or []
 )
 
-pending = [p for p in payments if not p.get("approved")]
-approved = [p for p in payments if p.get("approved")]
+if not payments:
+    st.info("No payment records found.")
+    st.stop()
+
+# ---------------------------------------------------------
+# SEGMENT PAYMENTS
+# ---------------------------------------------------------
+approved = [p for p in payments if p.get("status") == "approved"]
+pending = [p for p in payments if p.get("status") == "pending"]
+rejected = [p for p in payments if p.get("status") == "rejected"]
 
 # ---------------------------------------------------------
 # METRICS
 # ---------------------------------------------------------
-st.metric("Total Revenue", f"₦{sum(p['amount'] for p in approved):,}")
-st.metric("Pending Payments", len(pending))
-st.metric("Approved Payments", len(approved))
+total_revenue = sum(p.get("amount", 0) for p in approved)
+total_credits = sum(p.get("credits", 0) for p in approved)
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric("Total Revenue", f"₦{total_revenue:,}")
+col2.metric("Approved Payments", len(approved))
+col3.metric("Pending Payments", len(pending))
+col4.metric("Total Credits Sold", total_credits)
 
 st.divider()
 
 # ---------------------------------------------------------
-# APPROVAL LOGIC
+# REVENUE BY PLAN
 # ---------------------------------------------------------
-def approve_payment(payment):
-    user_id = payment["user_id"]
-    plan_key = payment["plan"]
+st.subheader("📊 Revenue by Plan")
 
-    if plan_key not in PLANS:
-        st.error("Invalid plan.")
-        return
-
-    supabase.table("subscription_payments").update({
-        "approved": True,
-        "approved_by": user.get("email"),
-        "approval_date": datetime.utcnow().isoformat()
-    }).eq("id", payment["id"]).execute()
-
-    activate_subscription(user_id, plan_key)
-    st.success("Payment approved and subscription activated.")
-    st.rerun()
-
-# ---------------------------------------------------------
-# DISPLAY PAYMENTS
-# ---------------------------------------------------------
-st.subheader("⏳ Pending Payments")
-
-for p in pending:
-    st.write(p)
-    if st.button("Approve", key=f"approve_{p['id']}"):
-        approve_payment(p)
-
-st.subheader("✅ Approved Payments")
+plan_summary = {}
 
 for p in approved:
-    st.write(p)
+    plan = p.get("plan", "Unknown")
+    plan_summary.setdefault(plan, {"amount": 0, "count": 0})
+    plan_summary[plan]["amount"] += p.get("amount", 0)
+    plan_summary[plan]["count"] += 1
+
+for plan, data in plan_summary.items():
+    st.write(
+        f"**{plan}** — ₦{data['amount']:,} "
+        f"({data['count']} subscriptions)"
+    )
+
+st.divider()
+
+# ---------------------------------------------------------
+# PAYMENT TABLE (READ-ONLY)
+# ---------------------------------------------------------
+st.subheader("📄 Payment Records")
+
+for p in payments:
+    st.markdown(f"""
+**Payment ID:** `{p['id']}`  
+**User ID:** `{p['user_id']}`  
+**Plan:** {p.get('plan')}  
+**Amount:** ₦{p.get('amount', 0):,}  
+**Credits:** {p.get('credits', 0)}  
+**Status:** `{p.get('status')}`  
+**Submitted:** {p.get('created_at', 'N/A')}  
+**Approved At:** {p.get('approved_at', '—')}
+""")
+    st.write("---")
 
 st.caption("Chumcred Job Engine — Admin Revenue © 2025")
