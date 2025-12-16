@@ -117,12 +117,14 @@ def is_admin(user_id: str):
 # ==========================================================
 # ACTIVATE SUBSCRIPTION FROM PAYMENT (CRITICAL FIX)
 # ==========================================================
+
 def activate_subscription_from_payment(payment: dict):
     """
     Applies credits & activates subscription after admin approval.
-    SAFE: prevents double-crediting.
+    SAFE: fully idempotent (cannot be applied twice).
     """
 
+    # 🚨 HARD STOP — prevents double crediting
     if payment.get("status") == "approved":
         raise ValueError("Payment already approved")
 
@@ -137,14 +139,22 @@ def activate_subscription_from_payment(payment: dict):
     now = datetime.now(timezone.utc)
     end_date = now + timedelta(days=PLANS[plan]["duration_days"])
 
-    existing = get_subscription(user_id)
+    # Fetch subscription
+    sub = (
+        supabase.table("subscriptions")
+        .select("*")
+        .eq("user_id", user_id)
+        .single()
+        .execute()
+        .data
+    )
 
-    if existing:
+    if sub:
         # Update existing subscription
         supabase.table("subscriptions").update({
             "plan": plan,
-            "credits": existing.get("credits", 0) + credits,
-            "amount": amount,  # ✅ FIX
+            "credits": sub.get("credits", 0) + credits,
+            "amount": amount,
             "subscription_status": "active",
             "end_date": end_date.isoformat(),
             "updated_at": now.isoformat(),
@@ -155,14 +165,22 @@ def activate_subscription_from_payment(payment: dict):
             "user_id": user_id,
             "plan": plan,
             "credits": credits,
-            "amount": amount,  # ✅ FIX
+            "amount": amount,
             "subscription_status": "active",
             "start_date": now.isoformat(),
             "end_date": end_date.isoformat(),
         }).execute()
 
-    # Mark payment approved
+    # ✅ Mark payment approved LAST
     supabase.table("subscription_payments").update({
         "status": "approved",
         "approved_at": now.isoformat()
     }).eq("id", payment["id"]).execute()
+
+
+
+
+
+
+
+

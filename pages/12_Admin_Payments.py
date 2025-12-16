@@ -1,5 +1,5 @@
 # ============================================================
-# 12_Admin_Payments.py — Admin Payment Approvals (FINAL)
+# 12_Admin_Payments.py — Admin Payment Approvals (SAFE & FINAL)
 # ============================================================
 
 import streamlit as st
@@ -14,7 +14,14 @@ from services.utils import (
     PLANS
 )
 
-st.set_page_config(page_title="Admin Payments", page_icon="💼", layout="wide")
+# ---------------------------------------------------------
+# PAGE CONFIG
+# ---------------------------------------------------------
+st.set_page_config(
+    page_title="Admin Payments",
+    page_icon="💼",
+    layout="wide"
+)
 
 # ---------------------------------------------------------
 # AUTH + ADMIN CHECK
@@ -28,16 +35,15 @@ if not user or not is_admin(user.get("id")):
     st.stop()
 
 st.title("💼 Admin — Payment Approvals")
-st.caption("Approve user payments and apply credits.")
+st.caption("Approve user payments and safely apply credits.")
 st.divider()
 
 # ---------------------------------------------------------
-# FETCH PENDING PAYMENTS
+# FETCH PAYMENTS (PENDING + APPROVED FOR VISIBILITY)
 # ---------------------------------------------------------
 payments = (
     supabase.table("subscription_payments")
     .select("*")
-    .eq("status", "pending")
     .order("created_at", desc=True)
     .execute()
     .data
@@ -45,7 +51,7 @@ payments = (
 )
 
 if not payments:
-    st.info("No pending payments.")
+    st.info("No payment records found.")
     st.stop()
 
 # ---------------------------------------------------------
@@ -54,6 +60,8 @@ if not payments:
 for p in payments:
 
     plan = p.get("plan")
+    status = p.get("status")
+
     if plan not in PLANS:
         st.error(f"Invalid plan for payment {p['id']}")
         continue
@@ -64,15 +72,34 @@ for p in payments:
     **Plan:** **{plan}**  
     **Credits:** {p.get("credits", 0)}  
     **Amount:** ₦{p.get("amount", 0):,}  
-    **Reference:** {p.get("payment_reference", "N/A")}
+    **Reference:** {p.get("payment_reference", "N/A")}  
+    **Status:** `{status}`
     """)
 
+    # -----------------------------------------------------
+    # UI GUARD — ALREADY APPROVED
+    # -----------------------------------------------------
+    if status == "approved":
+        st.success("✅ Payment already approved.")
+        st.write("---")
+        continue
+
+    # -----------------------------------------------------
+    # APPROVE BUTTON
+    # -----------------------------------------------------
     if st.button("✅ Approve Payment", key=f"approve_{p['id']}"):
         try:
             activate_subscription_from_payment(p)
             st.success("Payment approved and credits applied.")
             st.rerun()
+
+        except ValueError as e:
+            # This catches "Payment already approved"
+            st.warning(str(e))
+
         except Exception as e:
             st.error(f"Approval failed: {e}")
+
+    st.write("---")
 
 st.caption("Chumcred Job Engine — Admin Panel © 2025")
