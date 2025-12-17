@@ -55,13 +55,18 @@ with tab1:
     if st.button("Sign In"):
         user = login_user(email, password)
 
-        if user:
-            st.session_state.authenticated = True
-            st.session_state.user = user
-            st.success("Login successful!")
-            st.rerun()
-        else:
-            st.error("Invalid email or password")
+	if user:
+    # 🔐 NORMALIZE USER SESSION (CRITICAL FIX)
+    	   st.session_state.authenticated = True
+    	   st.session_state.user = {
+           "id": user.get("id"),
+           "email": user.get("email"),
+           "full_name": user.get("full_name"),
+           "role": user.get("role", "user"),  # ✅ ENFORCED HERE
+    }
+
+    	   st.success("Login successful!")
+           st.rerun()
 
 
 # ==========================================================
