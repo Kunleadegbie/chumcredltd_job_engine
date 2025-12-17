@@ -45,40 +45,21 @@ def login_user(email, password):
 # REGISTER USER (default role = user)
 # ==========================================================
 def register_user(full_name, email, password):
-    """
-    Creates a new user. Default role = 'user'.
-    """
-
-    if not supabase:
-        return False, "Supabase client not initialized."
+    hashed_password = hash_password(password)
 
     try:
-        # Check if email already exists
-        exists = (
-            supabase.table("users")
-            .select("id")
-            .eq("email", email)
-            .execute()
-        )
-
-        if exists.data:
-            return False, "A user with this email already exists."
-
-        # Create user
-        new_user = {
+        supabase.table("users").insert({
             "full_name": full_name,
             "email": email,
-            "password": password,
-            "role": "user",       # default role
-            "status": "active",
-        }
+            "password": hashed_password,
+            "role": "user"   # ✅ EXPLICITLY USER
+        }).execute()
 
-        supabase.table("users").insert(new_user).execute()
-        return True, "Registration successful!"
+        return True, "Registration successful."
 
     except Exception as e:
-        print("REGISTER ERROR:", e)
         return False, str(e)
+
 
 
 # ==========================================================
