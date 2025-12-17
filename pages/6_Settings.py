@@ -33,6 +33,11 @@ if not user_data:
     st.info("No settings or stats found for this user.")
     st.stop()
 
+# ======================================================
+# HIDE STREAMLIT SIDEBAR
+# ======================================================
+from components.ui import hide_streamlit_sidebar
+hide_streamlit_sidebar()
 
 # -------------------------------
 # DISPLAY SETTINGS / STATS

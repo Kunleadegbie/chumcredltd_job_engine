@@ -12,6 +12,13 @@ from components.sidebar import render_sidebar
 from config.supabase_client import supabase
 from services.utils import is_admin, PLANS
 
+# ======================================================
+# HIDE STREAMLIT SIDEBAR
+# ======================================================
+from components.ui import hide_streamlit_sidebar
+hide_streamlit_sidebar()
+
+
 # ---------------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------------

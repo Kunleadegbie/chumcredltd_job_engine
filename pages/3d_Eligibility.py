@@ -12,6 +12,13 @@ from services.ai_engine import ai_check_eligibility
 from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from config.supabase_client import supabase
 
+# ======================================================
+# HIDE STREAMLIT SIDEBAR
+# ======================================================
+from components.ui import hide_streamlit_sidebar
+hide_streamlit_sidebar()
+
+
 st.set_page_config(page_title="Eligibility Checker", page_icon="✔️")
 
 # ---------------- AUTH ----------------

@@ -12,6 +12,13 @@ from services.ai_engine import ai_generate_job_recommendations
 from services.utils import get_subscription, deduct_credits
 from config.supabase_client import supabase
 
+# ======================================================
+# HIDE STREAMLIT SIDEBAR
+# ======================================================
+from components.ui import hide_streamlit_sidebar
+hide_streamlit_sidebar()
+
+
 st.set_page_config(page_title="AI Job Recommendations", page_icon="🧠")
 
 # ---------------- AUTH ----------------

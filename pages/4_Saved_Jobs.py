@@ -12,6 +12,13 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from components.sidebar import render_sidebar
 from config.supabase_client import supabase
 
+# ======================================================
+# HIDE STREAMLIT SIDEBAR
+# ======================================================
+from components.ui import hide_streamlit_sidebar
+hide_streamlit_sidebar()
+
+
 # ---------------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------------

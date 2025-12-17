@@ -13,6 +13,12 @@ from services.utils import get_subscription, auto_expire_subscription, deduct_cr
 from services.ai_engine import ai_extract_skills
 from services.resume_parser import extract_text_from_resume
 
+# ======================================================
+# HIDE STREAMLIT SIDEBAR
+# ======================================================
+from components.ui import hide_streamlit_sidebar
+hide_streamlit_sidebar()
+
 # ---------------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------------

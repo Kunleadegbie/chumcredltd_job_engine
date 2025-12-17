@@ -17,6 +17,12 @@ from services.utils import (
     is_low_credit,
 )
 
+# ======================================================
+# HIDE STREAMLIT SIDEBAR
+# ======================================================
+from components.ui import hide_streamlit_sidebar
+hide_streamlit_sidebar()
+
 # ---------------------------------------------------------
 # PAGE CONFIG
 # ---------------------------------------------------------

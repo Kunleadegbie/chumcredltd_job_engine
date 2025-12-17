@@ -9,6 +9,13 @@ from services.utils import get_subscription, is_low_credit
 
 
 # ======================================================
+# HIDE STREAMLIT SIDEBAR
+# ======================================================
+from components.ui import hide_streamlit_sidebar
+hide_streamlit_sidebar()
+
+
+# ======================================================
 # PAGE CONFIG
 # ======================================================
 st.set_page_config(

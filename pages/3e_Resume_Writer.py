@@ -11,6 +11,13 @@ from services.ai_engine import ai_generate_resume_rewrite
 from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from config.supabase_client import supabase
 
+# ======================================================
+# HIDE STREAMLIT SIDEBAR
+# ======================================================
+from components.ui import hide_streamlit_sidebar
+hide_streamlit_sidebar()
+
+
 st.set_page_config(page_title="AI Resume Writer", page_icon="📝")
 
 # ---------------- AUTH ----------------
