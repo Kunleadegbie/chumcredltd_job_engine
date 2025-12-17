@@ -17,7 +17,18 @@ from services.resume_parser import extract_text_from_resume
 # HIDE STREAMLIT SIDEBAR
 # ======================================================
 from components.ui import hide_streamlit_sidebar
+from components.sidebar import render_sidebar
+
+# Hide Streamlit default navigation
 hide_streamlit_sidebar()
+
+# Auth check
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
+    st.stop()
+
+# Render custom sidebar
+render_sidebar()
 
 # ---------------------------------------------------------
 # PAGE CONFIG
