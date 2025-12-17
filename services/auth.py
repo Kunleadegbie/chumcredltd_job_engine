@@ -1,58 +1,40 @@
+# ============================================================
+# services/auth.py — Authentication & Registration (SAFE)
+# ============================================================
+
+import bcrypt
 from config.supabase_client import supabase
-import streamlit as st
 
 
-# ==========================================================
-# LOGIN USER (supports roles)
-# ==========================================================
-def login_user(email, password):
-    """
-    Logs a user in by validating email + password.
-    Returns user data dict OR None.
-    """
+# ------------------------------------------------------------
+# PASSWORD HELPERS
+# ------------------------------------------------------------
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(
+        password.encode("utf-8"),
+        bcrypt.gensalt()
+    ).decode("utf-8")
 
-    if not supabase:
-        print("Supabase not initialized")
-        return None
 
+def verify_password(password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(
+        password.encode("utf-8"),
+        hashed_password.encode("utf-8")
+    )
+
+
+# ------------------------------------------------------------
+# REGISTER USER
+# ------------------------------------------------------------
+def register_user(full_name: str, email: str, password: str):
     try:
-        response = (
-            supabase.table("users")
-            .select("*")
-            .eq("email", email)
-            .eq("password", password)
-            .maybe_single()
-            .execute()
-        )
+        hashed_password = hash_password(password)
 
-        user = response.data
-
-        if not user:
-            return None
-
-        # Ensure role exists
-        if "role" not in user or not user["role"]:
-            user["role"] = "user"
-
-        return user
-
-    except Exception as e:
-        print("LOGIN ERROR:", e)
-        return None
-
-
-# ==========================================================
-# REGISTER USER (default role = user)
-# ==========================================================
-def register_user(full_name, email, password):
-    hashed_password = hash_password(password)
-
-    try:
         supabase.table("users").insert({
             "full_name": full_name,
             "email": email,
             "password": hashed_password,
-            "role": "user"   # ✅ EXPLICITLY USER
+            "role": "user"  # 🔐 EXPLICIT
         }).execute()
 
         return True, "Registration successful."
@@ -61,42 +43,27 @@ def register_user(full_name, email, password):
         return False, str(e)
 
 
+# ------------------------------------------------------------
+# LOGIN USER
+# ------------------------------------------------------------
+def login_user(email: str, password: str):
+    try:
+        res = (
+            supabase.table("users")
+            .select("*")
+            .eq("email", email)
+            .single()
+            .execute()
+        )
 
-# ==========================================================
-# REQUIRE LOGIN (protects pages)
-# ==========================================================
-def require_login():
-    """
-    Restricts access unless the user is authenticated.
-    Returns user object on success.
-    """
+        user = res.data
+        if not user:
+            return None
 
-    if not st.session_state.get("authenticated"):
-        st.warning("You must log in to continue.")
-        st.stop()
+        if not verify_password(password, user.get("password", "")):
+            return None
 
-    user = st.session_state.get("user")
+        return user
 
-    if not user:
-        st.warning("Session expired. Please log in again.")
-        st.switch_page("app.py")
-        st.stop()
-
-    return user
-
-
-# ==========================================================
-# REQUIRE ADMIN (protects admin pages)
-# ==========================================================
-def require_admin():
-    """
-    Restricts access to admin-only pages.
-    """
-
-    user = require_login()
-
-    if user.get("role") != "admin":
-        st.error("You do not have permission to access this page.")
-        st.stop()
-
-    return user
+    except Exception:
+        return None
