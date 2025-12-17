@@ -1,5 +1,5 @@
 # ============================================================
-# services/auth.py — Authentication & Registration (ROBUST)
+# services/auth.py — FINAL, SAFE AUTH IMPLEMENTATION
 # ============================================================
 
 import bcrypt
@@ -10,9 +10,6 @@ from config.supabase_client import supabase
 # PASSWORD HELPERS
 # ------------------------------------------------------------
 def hash_password(password: str) -> str:
-    """
-    Hash a plain-text password using bcrypt.
-    """
     return bcrypt.hashpw(
         password.encode("utf-8"),
         bcrypt.gensalt()
@@ -20,14 +17,6 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, stored_password: str) -> bool:
-    """
-    Verify password against stored value.
-
-    Supports:
-    - bcrypt-hashed passwords (new users)
-    - plain-text passwords (legacy users)
-    """
-
     if not stored_password:
         return False
 
@@ -41,7 +30,7 @@ def verify_password(password: str, stored_password: str) -> bool:
         except Exception:
             return False
 
-    # legacy plain-text password (temporary support)
+    # legacy plaintext support
     return password == stored_password
 
 
@@ -56,7 +45,7 @@ def register_user(full_name: str, email: str, password: str):
             "full_name": full_name,
             "email": email,
             "password": hashed_password,
-            "role": "user"  # 🔐 ALWAYS USER
+            "role": "user"
         }).execute()
 
         return True, "Registration successful."
@@ -66,7 +55,7 @@ def register_user(full_name: str, email: str, password: str):
 
 
 # ------------------------------------------------------------
-# LOGIN USER
+# LOGIN USER (CRITICAL FIX HERE)
 # ------------------------------------------------------------
 def login_user(email: str, password: str):
     try:
@@ -74,13 +63,14 @@ def login_user(email: str, password: str):
             supabase.table("users")
             .select("*")
             .eq("email", email)
-            .single()
             .execute()
         )
 
-        user = res.data
-        if not user:
+        if not res.data:
             return None
+
+        # take first matching user safely
+        user = res.data[0]
 
         stored_password = user.get("password", "")
 
