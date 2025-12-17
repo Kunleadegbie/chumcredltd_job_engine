@@ -1,7 +1,8 @@
 import streamlit as st
-import sys, os
+import sys
+import os
 
-# Ensure imports work on Render/Railway
+# Ensure imports work on Render / Railway
 sys.path.append(os.path.dirname(__file__))
 
 from services.auth import login_user, register_user
@@ -12,7 +13,11 @@ from config.supabase_client import supabase
 # ==========================================================
 # PAGE CONFIG
 # ==========================================================
-st.set_page_config(page_title="Chumcred Job Engine", page_icon="🚀", layout="wide")
+st.set_page_config(
+    page_title="Chumcred Job Engine",
+    page_icon="🚀",
+    layout="wide"
+)
 
 
 # ==========================================================
@@ -26,7 +31,7 @@ if "user" not in st.session_state:
 
 
 # ==========================================================
-# IF LOGGED IN → SHOW SIDEBAR + REDIRECT TO DASHBOARD
+# IF LOGGED IN → SHOW SIDEBAR + REDIRECT
 # ==========================================================
 if st.session_state.authenticated and st.session_state.user:
     render_sidebar()
@@ -55,18 +60,20 @@ with tab1:
     if st.button("Sign In"):
         user = login_user(email, password)
 
-	if user:
-    # 🔐 NORMALIZE USER SESSION (CRITICAL FIX)
-    	   st.session_state.authenticated = True
-    	   st.session_state.user = {
-           "id": user.get("id"),
-           "email": user.get("email"),
-           "full_name": user.get("full_name"),
-           "role": user.get("role", "user"),  # ✅ ENFORCED HERE
-    }
+        if user:
+            # 🔐 NORMALIZE USER SESSION (CRITICAL FIX)
+            st.session_state.authenticated = True
+            st.session_state.user = {
+                "id": user.get("id"),
+                "email": user.get("email"),
+                "full_name": user.get("full_name"),
+                "role": user.get("role", "user"),  # ✅ ENFORCED HERE
+            }
 
-    	   st.success("Login successful!")
-           st.rerun()
+            st.success("Login successful!")
+            st.rerun()
+        else:
+            st.error("Invalid email or password.")
 
 
 # ==========================================================
@@ -93,8 +100,8 @@ with tab2:
                 st.error(msg)
 
 
-# ---------------------------------------
+# ==========================================================
 # FOOTER
-# ---------------------------------------
+# ==========================================================
 st.write("---")
 st.caption("Powered by Chumcred Limited © 2025")
