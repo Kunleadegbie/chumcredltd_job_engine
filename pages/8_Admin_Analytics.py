@@ -15,6 +15,9 @@ from components.sidebar import render_sidebar
 # Hide Streamlit default navigation
 hide_streamlit_sidebar()
 
+st.session_state["_sidebar_rendered"] = False
+
+
 # Auth check
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")

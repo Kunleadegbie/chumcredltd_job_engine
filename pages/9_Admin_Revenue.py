@@ -29,6 +29,7 @@ st.set_page_config(
 # ======================================================
 hide_streamlit_sidebar()
 
+st.session_state["_sidebar_rendered"] = False
 
 # ======================================================
 # AUTH CHECK
