@@ -1,34 +1,32 @@
+# ======================================================
+# pages/10_subscription.py — FIXED & STABLE
+# ======================================================
+
 import streamlit as st
-import sys, os
+import sys
+import os
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
+from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 from services.utils import PLANS
 
-# ======================================================
-# HIDE STREAMLIT SIDEBAR
-# ======================================================
-from components.ui import hide_streamlit_sidebar
-from components.sidebar import render_sidebar
 
-# Hide Streamlit default navigation
+# ======================================================
+# PAGE CONFIG (MUST BE FIRST)
+# ======================================================
+st.set_page_config(
+    page_title="Subscription Plans",
+    page_icon="💳",
+    layout="wide"
+)
+
+
+# ======================================================
+# HIDE STREAMLIT DEFAULT SIDEBAR
+# ======================================================
 hide_streamlit_sidebar()
-
-# Auth check
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.switch_page("app.py")
-    st.stop()
-
-# Render custom sidebar
-render_sidebar()
-
-
-
-# ======================================================
-# PAGE CONFIG
-# ======================================================
-st.set_page_config(page_title="Subscription Plans", page_icon="💳")
 
 
 # ======================================================
@@ -36,13 +34,26 @@ st.set_page_config(page_title="Subscription Plans", page_icon="💳")
 # ======================================================
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
+    st.stop()
 
+
+# ======================================================
+# RENDER CUSTOM SIDEBAR (ONCE — VERY IMPORTANT)
+# ======================================================
 render_sidebar()
 
-user = st.session_state.get("user")
+
+# ======================================================
+# USER CONTEXT
+# ======================================================
+user = st.session_state.get("user", {})
 user_id = user.get("id")
 role = user.get("role", "user")
 
+
+# ======================================================
+# PAGE CONTENT
+# ======================================================
 st.title("💳 Subscription Plans")
 st.write("---")
 
@@ -56,8 +67,8 @@ Credits allow you to use AI tools such as Match Score, Skills Extraction, Resume
 # PLAN DISPLAY
 # ======================================================
 for plan_name, info in PLANS.items():
-    price = info["price"]
-    credits = info["credits"]
+    price = info.get("price", 0)
+    credits = info.get("credits", 0)
 
     st.markdown(f"""
     ### 🔹 {plan_name} Plan
@@ -65,7 +76,7 @@ for plan_name, info in PLANS.items():
     **Credits:** {credits}  
     """)
 
-    if st.button(f"Select {plan_name}", key=f"select_{plan_name}"):
+    if st.button(f"Select {plan_name}", key=f"select_plan_{plan_name}"):
         st.session_state.selected_plan = plan_name
         st.switch_page("pages/11_Submit_Payment.py")
 
@@ -73,7 +84,7 @@ for plan_name, info in PLANS.items():
 
 
 # ======================================================
-#  ADMIN NOTE
+# ADMIN NOTE
 # ======================================================
 if role == "admin":
     st.info("""
@@ -85,6 +96,6 @@ if role == "admin":
 
 
 # ======================================================
-# END OF PAGE
+# FOOTER
 # ======================================================
 st.caption("Chumcred Job Engine © 2025")
