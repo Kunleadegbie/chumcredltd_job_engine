@@ -4,16 +4,15 @@ def hide_streamlit_sidebar():
     st.markdown(
         """
         <style>
-            /* Hide Streamlit default sidebar navigation */
+            /* Hide ONLY Streamlit's default Pages navigation */
             [data-testid="stSidebarNav"] {
-                display: none;
-            }
-
-            /* Optional: clean padding */
-            section[data-testid="stSidebar"] > div:first-child {
-                padding-top: 0rem;
+                display: none !important;
             }
         </style>
         """,
         unsafe_allow_html=True
     )
+
+
+
+
