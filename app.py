@@ -2,12 +2,13 @@ import streamlit as st
 import sys
 import os
 
-# Ensure imports work on Render / Railway
+# ==========================================================
+# ENSURE IMPORTS WORK (Render / Railway / Streamlit Cloud)
+# ==========================================================
 sys.path.append(os.path.dirname(__file__))
 
 from services.auth import login_user, register_user
 from components.sidebar import render_sidebar
-from config.supabase_client import supabase
 
 
 # ==========================================================
@@ -16,7 +17,29 @@ from config.supabase_client import supabase
 st.set_page_config(
     page_title="Chumcred Job Engine",
     page_icon="🚀",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"  # Collapse default sidebar
+)
+
+
+# ==========================================================
+# HIDE STREAMLIT DEFAULT SIDEBAR / PAGE NAVIGATION (STEP 2)
+# ==========================================================
+st.markdown(
+    """
+    <style>
+        /* Hide Streamlit default sidebar navigation */
+        [data-testid="stSidebarNav"] {
+            display: none;
+        }
+
+        /* Optional: reduce top padding caused by hidden nav */
+        section[data-testid="stSidebar"] > div:first-child {
+            padding-top: 0rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
 
@@ -31,7 +54,7 @@ if "user" not in st.session_state:
 
 
 # ==========================================================
-# IF LOGGED IN → SHOW SIDEBAR + REDIRECT
+# IF LOGGED IN → SHOW CUSTOM SIDEBAR + REDIRECT
 # ==========================================================
 if st.session_state.authenticated and st.session_state.user:
     render_sidebar()
@@ -61,13 +84,13 @@ with tab1:
         user = login_user(email, password)
 
         if user:
-            # 🔐 NORMALIZE USER SESSION (CRITICAL FIX)
+            # 🔐 NORMALIZE USER SESSION
             st.session_state.authenticated = True
             st.session_state.user = {
                 "id": user.get("id"),
                 "email": user.get("email"),
                 "full_name": user.get("full_name"),
-                "role": user.get("role", "user"),  # ✅ ENFORCED HERE
+                "role": user.get("role", "user"),
             }
 
             st.success("Login successful!")
