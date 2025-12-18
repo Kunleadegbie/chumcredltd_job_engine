@@ -11,19 +11,19 @@ from config.supabase_client import supabase
 # ==========================================================
 PLANS = {
     "Basic": {
-        "credits": 100,
-        "price": 5000,
-        "duration_days": 30,
+        "credits": 500,
+        "price": 25000,
+        "duration_days": 90,
     },
     "Pro": {
-        "credits": 300,
-        "price": 12500,
-        "duration_days": 30,
+        "credits": 1150,
+        "price": 50000,
+        "duration_days": 180,
     },
     "Premium": {
-        "credits": 1500,
-        "price": 50000,
-        "duration_days": 30,
+        "credits": 2500,
+        "price": 100000,
+        "duration_days": 365,
     },
 }
 

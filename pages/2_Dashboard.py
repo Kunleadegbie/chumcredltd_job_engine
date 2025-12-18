@@ -203,7 +203,7 @@ Your dashboard keeps all your info and subscription details.
 
 ### **2️⃣ Subscribe to a plan**  
 AI actions require credits.  
-Pricing starts from **₦5,000 for 100 credits**.
+Pricing starts from **₦25,000 for 500 credits**.
 
 ### **3️⃣ Navigate to any AI tool**  
 Upload resume → paste job description → click generate.
