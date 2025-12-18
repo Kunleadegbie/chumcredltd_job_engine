@@ -123,37 +123,74 @@ st.write("---")
 
 
 # ======================================================
-# ABOUT THIS APP — Enhanced Marketing Version
+# ABOUT TALENTIQ — HOMEPAGE DESCRIPTION
 # ======================================================
 st.markdown("""
-## 🌟 About This App — Your Complete AI Career Toolkit
+## 🌟 Welcome to **Chumcred TalentIQ**
 
-Chumcred TalentIQ is a **full-suite AI career platform** built to help job seekers stand out instantly.
+**Chumcred TalentIQ** is an **AI-powered Career & Talent Intelligence Platform** designed to help job seekers **understand their true job fit, improve their competitiveness, and secure better roles faster**.
 
-This platform integrates **six intelligent engines**:
+TalentIQ goes beyond job search. It combines **ATS-grade analytics**, **resume intelligence**, and **career automation tools** into one unified platform — so you no longer need multiple apps, websites, or guesswork.
 
-### 🔹 1. Match Score Analyzer  
-Compares your CV to any job description and returns a quantified match percentage + insights.
+---
 
-### 🔹 2. AI Skills Extraction  
-Reveals required skills, missing skills, and strengths.
+### 🚀 What Makes TalentIQ Different?
 
-### 🔹 3. AI Cover Letter Generator  
-Creates tailored, professional cover letters in seconds.
+Most platforms only show jobs.  
+TalentIQ tells you **how well you fit**, **why you fit**, and **what to improve**.
 
-### 🔹 4. Eligibility Checker  
-Assesses whether you qualify for a role and explains why.
+With TalentIQ, you don’t just apply — you apply **strategically**.
 
-### 🔹 5. Resume Rewrite Engine  
-Transforms your CV into a professional, ATS-optimized document.
+---
 
-### 🔹 6. Job Recommendations  
-Find jobs that fit your career profile and skills.
+### 🧠 Core Intelligence Engines Inside TalentIQ
 
-**Everything in one app — no switching between LinkedIn, Jobberman, ChatGPT, or multiple tools.**
+#### 🔹 ATS SmartMatch™ *(Premium Intelligence)*  
+Upload your resume and a job description to receive:
+- An **overall ATS match score**
+- Detailed **sub-scores** (skills, experience, role fit)
+- Clear explanations of **what recruiters and ATS systems see**
+- Actionable recommendations to **improve your chances**
+
+#### 🔹 Match Score Analyzer  
+Instantly measures how closely your CV aligns with a specific role.
+
+#### 🔹 AI Skills Extraction  
+Identifies required skills, missing competencies, and strengths from any job description.
+
+#### 🔹 Resume Rewrite Engine  
+Transforms your CV into a **professional, ATS-optimized resume**.
+
+#### 🔹 AI Cover Letter Generator  
+Creates tailored, role-specific cover letters in seconds.
+
+#### 🔹 Eligibility Checker  
+Determines whether you qualify for a role and explains the reasoning.
+
+#### 🔹 Job Search & Recommendations  
+Discover, review, and save opportunities that match your career profile.
+
+---
+
+### 🎯 Who TalentIQ Is Built For
+
+- Job seekers who want **clarity**, not guesswork  
+- Professionals targeting **competitive roles**  
+- Graduates preparing for their first major opportunity  
+- Anyone tired of applying blindly without feedback  
+
+---
+
+### 🏆 The Result
+
+TalentIQ helps you:
+- Apply with confidence  
+- Improve your employability  
+- Understand recruiter expectations  
+- Maximize every job application  
+
+**One platform. One dashboard. Total career intelligence.**
 """)
-
-st.write("---")
 
 
 # ======================================================
