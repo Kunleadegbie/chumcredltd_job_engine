@@ -121,9 +121,9 @@ def is_admin(user_id: str):
 def activate_subscription_from_payment(payment: dict):
     """
     SAFE, IDEMPOTENT subscription activation.
-    - Updates subscription table (dashboard reads from here)
-    - Does NOT double-credit
-    - Uses ONLY confirmed columns
+    - Updates subscriptions table (dashboard reads from here)
+    - Includes REQUIRED 'amount' column
+    - Prevents double crediting
     """
 
     payment_id = payment.get("id")
@@ -134,13 +134,40 @@ def activate_subscription_from_payment(payment: dict):
     if not payment_id or not user_id or plan not in PLANS:
         raise ValueError("Invalid payment data.")
 
-    # Prevent double approval
     if status == "approved":
         raise ValueError("Payment already approved.")
 
     plan_cfg = PLANS[plan]
     now = datetime.now(timezone.utc)
     end_date = now + timedelta(days=plan_cfg["duration_days"])
+
+    # Check existing subscription
+    existing = (
+        supabase.table("subscriptions")
+        .select("id")
+        .eq("user_id", user_id)
+        .execute()
+        .data
+    )
+
+    subscription_payload = {
+        "plan": plan,
+        "credits": plan_cfg["credits"],
+        "amount": plan_cfg["price"],              # ✅ REQUIRED FIX
+        "subscription_status": "active",
+        "start_date": now.isoformat(),
+        "end_date": end_date.isoformat(),
+    }
+
+    if existing:
+        supabase.table("subscriptions").update(
+            subscription_payload
+        ).eq("user_id", user_id).execute()
+    else:
+        supabase.table("subscriptions").insert({
+            "user_id": user_id,
+            **subscription_payload
+        }).execute()
 
     # --------------------------------------------------
     # UPSERT SUBSCRIPTION (THIS FIXES DASHBOARD ISSUE)
