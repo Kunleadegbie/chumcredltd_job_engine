@@ -1,3 +1,4 @@
+
 # ==============================================================
 # pages/3g_ATS_SmartMatch.py — ATS SmartMatch™ (Premium AI)
 # ==============================================================
@@ -80,11 +81,22 @@ st.divider()
 
 
 # ==============================================================
+# SANITIZER (CRITICAL FIX)
+# ==============================================================
+def sanitize_text(text: str) -> str:
+    if not text:
+        return ""
+    text = text.replace("\x00", "")  # remove null bytes
+    text = text.encode("utf-8", "ignore").decode("utf-8")
+    return text
+
+
+# ==============================================================
 # LOAD PREVIOUS RESULT (PERSISTENCE)
 # ==============================================================
 previous = (
     supabase.table("ai_outputs")
-    .select("*")
+    .select("output")
     .eq("user_id", user_id)
     .eq("tool", "ATS_SMARTMATCH")
     .order("created_at", desc=True)
@@ -122,12 +134,9 @@ job_description = st.text_area(
 
 
 # ==============================================================
-# HELPER — SIMPLE TEXT EXTRACTION (SAFE)
+# FILE TEXT EXTRACTION (SAFE)
 # ==============================================================
 def extract_text_from_file(uploaded_file):
-    if not uploaded_file:
-        return ""
-
     try:
         content = uploaded_file.read()
         return content.decode("utf-8", errors="ignore")
@@ -136,33 +145,26 @@ def extract_text_from_file(uploaded_file):
 
 
 # ==============================================================
-# ATS SCORING ENGINE (REFINED & EXPLAINABLE)
+# ATS SCORING ENGINE (EXPLAINABLE)
 # ==============================================================
 def run_ats_smartmatch(resume, jd):
-    resume_lower = resume.lower()
-    jd_lower = jd.lower()
+    resume = resume.lower()
+    jd = jd.lower()
 
-    def keyword_score():
-        keywords = [
-            w for w in jd_lower.split()
-            if len(w) > 4
-        ]
-        if not keywords:
-            return 0
-        matches = sum(1 for k in keywords if k in resume_lower)
-        return min(100, int((matches / len(keywords)) * 100))
+    keywords = [w for w in jd.split() if len(w) > 4]
+    matches = sum(1 for k in keywords if k in resume)
 
-    skills_score = keyword_score()
+    skills_score = min(100, int((matches / max(len(keywords), 1)) * 100))
     experience_score = min(100, skills_score + 10)
     role_fit_score = min(100, int((skills_score + experience_score) / 2))
 
     overall = int(
-        (skills_score * 0.4) +
-        (experience_score * 0.3) +
-        (role_fit_score * 0.3)
+        (skills_score * 0.4)
+        + (experience_score * 0.3)
+        + (role_fit_score * 0.3)
     )
 
-    explanation = f"""
+    return f"""
 ### 📊 ATS SmartMatch™ Results
 
 **Overall Match Score:** **{overall}%**
@@ -170,31 +172,29 @@ def run_ats_smartmatch(resume, jd):
 ---
 
 #### 🧠 Skills Match — {skills_score}%
-Measures how well your skills align with those required in the job description.
+Alignment of resume skills with job requirements.
 
 #### 🏗 Experience Alignment — {experience_score}%
-Evaluates whether your experience level reflects the expectations of the role.
+Depth and relevance of experience.
 
 #### 🎯 Role Fit — {role_fit_score}%
-Assesses how well your background fits the job’s overall scope and intent.
+Overall suitability for the role.
 
 ---
 
 ### 🔎 Interpretation
-- **80–100%** → Excellent match (Highly competitive)
-- **60–79%** → Strong match (Minor improvements needed)
-- **40–59%** → Moderate match (Optimize resume for ATS)
-- **Below 40%** → Low match (Significant alignment gaps)
+- **80–100%** → Excellent match  
+- **60–79%** → Strong match  
+- **40–59%** → Moderate match  
+- **Below 40%** → Low match  
 
 ---
 
 ### 🚀 Improvement Tips
-- Use more job-specific keywords
-- Align experience descriptions to role requirements
-- Highlight relevant achievements clearly
+- Add missing job-specific keywords
+- Align experience descriptions
+- Highlight relevant achievements
 """
-
-    return explanation
 
 
 # ==============================================================
@@ -203,20 +203,20 @@ Assesses how well your background fits the job’s overall scope and intent.
 if st.button("🧬 Run ATS SmartMatch™ (10 Credits)"):
 
     if is_low_credit(subscription, minimum_required=10):
-        st.error("❌ You do not have enough credits to run ATS SmartMatch™.")
+        st.error("❌ You do not have enough credits.")
         st.stop()
 
     if not job_description.strip():
         st.warning("Please provide a job description.")
         st.stop()
 
-    final_resume_text = resume_text.strip()
+    final_resume = resume_text.strip()
 
-    if resume_file and not final_resume_text:
-        final_resume_text = extract_text_from_file(resume_file)
+    if resume_file and not final_resume:
+        final_resume = extract_text_from_file(resume_file)
 
-    if not final_resume_text:
-        st.warning("Please provide your resume (paste text or upload file).")
+    if not final_resume:
+        st.warning("Please provide your resume.")
         st.stop()
 
     # Deduct credits ONCE
@@ -225,27 +225,31 @@ if st.button("🧬 Run ATS SmartMatch™ (10 Credits)"):
         st.error(msg)
         st.stop()
 
-    st.info("🔍 Analyzing resume against job description…")
+    st.info("🔍 Running ATS SmartMatch™ analysis…")
 
-    result = run_ats_smartmatch(final_resume_text, job_description)
+    result = run_ats_smartmatch(final_resume, job_description)
 
-    # Save output
+    # Sanitize before DB save (CRITICAL)
+    clean_resume = sanitize_text(final_resume)[:5000]
+    clean_jd = sanitize_text(job_description)[:5000]
+    clean_output = sanitize_text(result)
+
     supabase.table("ai_outputs").insert({
         "user_id": user_id,
         "tool": "ATS_SMARTMATCH",
         "input": {
-            "resume": final_resume_text[:5000],
-            "job_description": job_description[:5000],
+            "resume": clean_resume,
+            "job_description": clean_jd,
         },
-        "output": result,
+        "output": clean_output,
         "created_at": datetime.utcnow().isoformat()
     }).execute()
 
     st.success("✅ ATS SmartMatch™ completed!")
-    st.markdown(result)
+    st.markdown(clean_output)
 
 
 # ==============================================================
 # FOOTER
 # ==============================================================
-st.caption("Chumcred Job Engine — ATS SmartMatch™ © 2025")
+st.caption("Chumcred TalentIQ — ATS SmartMatch™ © 2025")
