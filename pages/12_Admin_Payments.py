@@ -1,5 +1,6 @@
+
 # ============================================================
-# pages/12_Admin_Payments.py — Admin Payment Approvals (STABLE)
+# pages/12_Admin_Payments.py — Admin Payment Approvals (FINAL)
 # ============================================================
 
 import streamlit as st
@@ -85,7 +86,7 @@ for p in payments:
     status = p.get("status", "pending")
 
     if plan not in PLANS:
-        st.error(f"Invalid plan for payment {payment_id}")
+        st.error(f"❌ Invalid plan for payment {payment_id}")
         st.write("---")
         continue
 
@@ -98,18 +99,24 @@ for p in payments:
 **Status:** `{status}`
 """)
 
+    # --------------------------------------------------
+    # ALREADY APPROVED — EXPLICIT HANDLING (RESTORED)
+    # --------------------------------------------------
     if status == "approved":
         st.success("✅ Payment already approved.")
         st.write("---")
         continue
 
+    # --------------------------------------------------
+    # APPROVE PAYMENT (ONLY IF PENDING)
+    # --------------------------------------------------
     if st.button("✅ Approve Payment", key=f"approve_{payment_id}"):
 
         try:
-            # 1️⃣ Activate subscription (writes to subscriptions table)
+            # 1️⃣ Activate subscription (credits already proven working)
             activate_subscription_from_payment(p)
 
-            # 2️⃣ Update payment status (UI + audit)
+            # 2️⃣ Update payment status (THIS FIXES STATUS DISPLAY)
             supabase.table("subscription_payments").update({
                 "status": "approved"
             }).eq("id", payment_id).execute()
@@ -118,11 +125,16 @@ for p in payments:
             st.rerun()
 
         except ValueError as e:
+            # Explicit feedback restored
             st.warning(str(e))
+
         except Exception as e:
-            st.error(f"Approval failed: {e}")
+            st.error(f"❌ Approval failed: {e}")
 
     st.write("---")
 
 
+# ======================================================
+# FOOTER
+# ======================================================
 st.caption("Chumcred TalentIQ — Admin Panel © 2025")
