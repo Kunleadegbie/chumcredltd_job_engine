@@ -1,13 +1,13 @@
 
 # ==========================================================
-# services/utils.py — Core Business Logic (FINAL)
+# services/utils.py — Core Business Logic (STABLE & SAFE)
 # ==========================================================
 
 from datetime import datetime, timezone, timedelta
 from config.supabase_client import supabase
 
 # ==========================================================
-# SUBSCRIPTION PLANS CONFIG
+# SUBSCRIPTION PLANS CONFIG (SOURCE OF TRUTH)
 # ==========================================================
 PLANS = {
     "Basic": {
@@ -26,6 +26,7 @@ PLANS = {
         "duration_days": 365,
     },
 }
+
 
 # ==========================================================
 # FETCH USER SUBSCRIPTION
@@ -60,7 +61,7 @@ def auto_expire_subscription(user_id: str):
         if datetime.fromisoformat(end_date) < datetime.now(timezone.utc):
             supabase.table("subscriptions").update({
                 "credits": 0,
-                "subscription_status": "expired"
+                "subscription_status": "expired",
             }).eq("user_id", user_id).execute()
     except Exception:
         pass
@@ -115,78 +116,57 @@ def is_admin(user_id: str):
 
 
 # ==========================================================
-# ACTIVATE SUBSCRIPTION FROM PAYMENT (CRITICAL FIX)
+# ACTIVATE SUBSCRIPTION FROM PAYMENT (FINAL FIX)
 # ==========================================================
-
 def activate_subscription_from_payment(payment: dict):
     """
-    Atomically approves payment and applies credits.
-    IMPOSSIBLE to double-credit.
+    SAFE, IDEMPOTENT subscription activation.
+    - Updates subscription table (dashboard reads from here)
+    - Does NOT double-credit
+    - Uses ONLY confirmed columns
     """
 
-    payment_id = payment["id"]
-    user_id = payment["user_id"]
-    plan = payment["plan"]
-    credits = payment.get("credits", 0)
-    amount = payment.get("amount", 0)
+    payment_id = payment.get("id")
+    user_id = payment.get("user_id")
+    plan = payment.get("plan")
+    status = payment.get("status")
 
-    if credits <= 0 or amount <= 0:
-        raise ValueError("Invalid payment data")
+    if not payment_id or not user_id or plan not in PLANS:
+        raise ValueError("Invalid payment data.")
 
+    # Prevent double approval
+    if status == "approved":
+        raise ValueError("Payment already approved.")
+
+    plan_cfg = PLANS[plan]
     now = datetime.now(timezone.utc)
-    end_date = now + timedelta(days=PLANS[plan]["duration_days"])
+    end_date = now + timedelta(days=plan_cfg["duration_days"])
 
     # --------------------------------------------------
-    # 🔐 ATOMIC STEP: APPROVE PAYMENT ONLY IF PENDING
+    # UPSERT SUBSCRIPTION (THIS FIXES DASHBOARD ISSUE)
     # --------------------------------------------------
-    update = (
-        supabase.table("subscription_payments")
-        .update({
-            "status": "approved",
-            "approved_at": now.isoformat(),
-        })
-        .eq("id", payment_id)
-        .eq("status", "pending")   # 👈 THIS IS THE KEY
-        .execute()
-    )
-
-    # If no row was updated, payment was already approved
-    if not update.data:
-        raise ValueError("Payment already approved")
-
-    # --------------------------------------------------
-    # APPLY CREDITS (NOW SAFE)
-    # --------------------------------------------------
-    sub = (
+    existing = (
         supabase.table("subscriptions")
-        .select("*")
+        .select("id")
         .eq("user_id", user_id)
-        .single()
         .execute()
         .data
     )
 
-    if sub:
+    if existing:
         supabase.table("subscriptions").update({
             "plan": plan,
-            "credits": sub.get("credits", 0) + credits,
-            "amount": amount,
+            "credits": plan_cfg["credits"],
             "subscription_status": "active",
+            "start_date": now.isoformat(),
             "end_date": end_date.isoformat(),
-            "updated_at": now.isoformat(),
         }).eq("user_id", user_id).execute()
     else:
         supabase.table("subscriptions").insert({
             "user_id": user_id,
             "plan": plan,
-            "credits": credits,
-            "amount": amount,
+            "credits": plan_cfg["credits"],
             "subscription_status": "active",
             "start_date": now.isoformat(),
             "end_date": end_date.isoformat(),
         }).execute()
-
-
-
-
-
