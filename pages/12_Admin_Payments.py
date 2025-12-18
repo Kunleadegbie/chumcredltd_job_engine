@@ -50,6 +50,19 @@ if not user or not is_admin(user.get("id")):
     st.error("Access denied — Admins only.")
     st.stop()
 
+# ======================================================
+# PAYMENT CONFIRMATION STATUS
+# ======================================================
+def is_payment_approved(payment_id: str) -> bool:
+    res = (
+        supabase.table("subscription_payments")
+        .select("status")
+        .eq("id", payment_id)
+        .single()
+        .execute()
+        .data
+    )
+    return res and res.get("status") == "approved"
 
 # ======================================================
 # HEADER
@@ -83,7 +96,7 @@ for p in payments:
     payment_id = p.get("id")
     user_id = p.get("user_id")
     plan = p.get("plan")
-    status = p.get("status", "pending")
+    status = "approved" if is_payment_approved(payment_id) else "pending"
 
     if plan not in PLANS:
         st.error(f"❌ Invalid plan for payment {payment_id}")
