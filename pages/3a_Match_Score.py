@@ -99,4 +99,4 @@ if st.button("Generate Match Score"):
     st.success("Match Score generated!")
     st.write(output)
 
-st.caption("Chumcred Job Engine © 2025")
+st.caption("Chumcred TalentIQ © 2025")

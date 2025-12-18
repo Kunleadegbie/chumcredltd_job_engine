@@ -146,4 +146,4 @@ for p in payments:
 # ======================================================
 # FOOTER
 # ======================================================
-st.caption("Chumcred Job Engine — Admin Revenue © 2025")
+st.caption("Chumcred TalentIQ — Admin Revenue © 2025")

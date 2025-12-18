@@ -98,4 +98,4 @@ if st.button("Generate Recommendations"):
     st.success("Recommendations generated!")
     st.markdown(output)
 
-st.caption("Chumcred Job Engine © 2025")
+st.caption("Chumcred TalentIQ © 2025")

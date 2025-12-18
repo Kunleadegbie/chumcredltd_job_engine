@@ -100,4 +100,4 @@ if st.button("Check Eligibility"):
     st.success("Eligibility check complete!")
     st.write(output)
 
-st.caption("Chumcred Job Engine © 2025")
+st.caption("Chumcred TalentIQ © 2025")

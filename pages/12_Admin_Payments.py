@@ -123,4 +123,4 @@ for p in payments:
 
     st.write("---")
 
-st.caption("Chumcred Job Engine — Admin Panel © 2025")
+st.caption("Chumcred TalentIQ — Admin Panel © 2025")

@@ -97,4 +97,4 @@ if st.button("Rewrite Resume"):
         st.success("Resume generated!")
         st.write(output)
 
-st.caption("Chumcred Job Engine © 2025")
+st.caption("Chumcred TalentIQ © 2025")

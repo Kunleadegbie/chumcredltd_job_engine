@@ -15,7 +15,7 @@ from components.sidebar import render_sidebar
 # PAGE CONFIG
 # ==========================================================
 st.set_page_config(
-    page_title="Chumcred Job Engine",
+    page_title="Chumcred TalentIQ",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="collapsed"  # Collapse default sidebar
@@ -65,7 +65,7 @@ if st.session_state.authenticated and st.session_state.user:
 # ==========================================================
 # LOGIN / REGISTER UI
 # ==========================================================
-st.title("🔐 Welcome to Chumcred Job Engine")
+st.title("🔐 Welcome to Chumcred TalentIQ")
 st.caption("AI-powered tools for job seekers, career growth, and talent acceleration.")
 
 tab1, tab2 = st.tabs(["🔓 Sign In", "📝 Register"])

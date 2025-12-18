@@ -31,7 +31,7 @@ render_sidebar()
 # PAGE CONFIG
 # ======================================================
 st.set_page_config(
-    page_title="Dashboard – Job Engine",
+    page_title="Dashboard – TalentIQ",
     page_icon="📊",
     layout="wide"
 )
@@ -128,7 +128,7 @@ st.write("---")
 st.markdown("""
 ## 🌟 About This App — Your Complete AI Career Toolkit
 
-Chumcred Job Engine is a **full-suite AI career platform** built to help job seekers stand out instantly.
+Chumcred TalentIQ is a **full-suite AI career platform** built to help job seekers stand out instantly.
 
 This platform integrates **six intelligent engines**:
 
@@ -231,4 +231,4 @@ if is_low_credit(subscription, 20):
 # FOOTER
 # ======================================================
 st.write("---")
-st.caption("Chumcred Job Engine © 2025")
+st.caption("Chumcred TalentIQ © 2025")

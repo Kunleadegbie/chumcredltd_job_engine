@@ -94,4 +94,4 @@ if st.button("Generate Cover Letter"):
     st.success("Cover letter generated!")
     st.write(output)
 
-st.caption("Chumcred Job Engine © 2025")
+st.caption("Chumcred TalentIQ © 2025")

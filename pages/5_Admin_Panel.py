@@ -73,5 +73,5 @@ if st.button("Update Role"):
 # ---------------------------------------------------------
 # FOOTER
 # ---------------------------------------------------------
-st.caption("Chumcred Job Engine — Admin Analytics © 2025")
+st.caption("Chumcred TalentIQ — Admin Analytics © 2025")
 
