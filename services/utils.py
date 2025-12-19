@@ -1,129 +1,52 @@
 
-# ==========================================================
-# services/utils.py — Core Business Logic (STABLE & SAFE)
-# ==========================================================
-
 from datetime import datetime, timezone, timedelta
 from config.supabase_client import supabase
 
+
 # ==========================================================
-# SUBSCRIPTION PLANS CONFIG (SOURCE OF TRUTH)
+# PLANS CONFIG (SOURCE OF TRUTH)
 # ==========================================================
 PLANS = {
     "Basic": {
-        "credits": 500,
         "price": 25000,
+        "credits": 500,
         "duration_days": 90,
     },
     "Pro": {
-        "credits": 1150,
         "price": 50000,
+        "credits": 1150,
         "duration_days": 180,
     },
     "Premium": {
-        "credits": 2500,
         "price": 100000,
+        "credits": 2500,
         "duration_days": 365,
     },
 }
 
 
 # ==========================================================
-# FETCH USER SUBSCRIPTION
+# ROLE CHECK
 # ==========================================================
-def get_subscription(user_id: str):
-    try:
-        return (
-            supabase.table("subscriptions")
-            .select("*")
-            .eq("user_id", user_id)
-            .single()
-            .execute()
-            .data
-        )
-    except Exception:
-        return None
+def is_admin(user_id: str) -> bool:
+    res = (
+        supabase.table("users")
+        .select("role")
+        .eq("id", user_id)
+        .single()
+        .execute()
+        .data
+    )
+    return res and res.get("role") == "admin"
 
 
 # ==========================================================
-# AUTO-EXPIRE SUBSCRIPTION
-# ==========================================================
-def auto_expire_subscription(user_id: str):
-    sub = get_subscription(user_id)
-    if not sub:
-        return
-
-    end_date = sub.get("end_date")
-    if not end_date:
-        return
-
-    try:
-        if datetime.fromisoformat(end_date) < datetime.now(timezone.utc):
-            supabase.table("subscriptions").update({
-                "credits": 0,
-                "subscription_status": "expired",
-            }).eq("user_id", user_id).execute()
-    except Exception:
-        pass
-
-
-# ==========================================================
-# DEDUCT CREDITS
-# ==========================================================
-def deduct_credits(user_id: str, amount: int):
-    sub = get_subscription(user_id)
-    if not sub or sub.get("credits", 0) < amount:
-        return False, "Insufficient credits."
-
-    new_balance = sub["credits"] - amount
-
-    supabase.table("subscriptions").update({
-        "credits": new_balance
-    }).eq("user_id", user_id).execute()
-
-    return True, "Credits deducted."
-
-
-# ==========================================================
-# LOW CREDIT CHECK
-# ==========================================================
-def is_low_credit(subscription: dict, minimum_required: int = 20):
-    if not subscription:
-        return True
-    return subscription.get("credits", 0) < minimum_required
-
-
-# ==========================================================
-# USER ROLE HELPERS
-# ==========================================================
-def get_user_role(user_id: str):
-    try:
-        res = (
-            supabase.table("users")
-            .select("role")
-            .eq("id", user_id)
-            .single()
-            .execute()
-            .data
-        )
-        return res.get("role", "user") if res else "user"
-    except Exception:
-        return "user"
-
-
-def is_admin(user_id: str):
-    return get_user_role(user_id) == "admin"
-
-
-# ==========================================================
-# ACTIVATE SUBSCRIPTION FROM PAYMENT (FINAL FIX)
+# ACTIVATE SUBSCRIPTION FROM PAYMENT (SAFE)
 # ==========================================================
 def activate_subscription_from_payment(payment: dict):
     """
-    SAFE, IDEMPOTENT subscription activation.
-    - Updates subscriptions table (dashboard reads from here)
-    - Includes REQUIRED 'amount' column
-    - Prevents double crediting
+    Activates subscription safely from an approved payment.
+    Prevents double crediting.
     """
 
     payment_id = payment.get("id")
@@ -141,7 +64,6 @@ def activate_subscription_from_payment(payment: dict):
     now = datetime.now(timezone.utc)
     end_date = now + timedelta(days=plan_cfg["duration_days"])
 
-    # Check existing subscription
     existing = (
         supabase.table("subscriptions")
         .select("id")
@@ -150,10 +72,10 @@ def activate_subscription_from_payment(payment: dict):
         .data
     )
 
-    subscription_payload = {
+    payload = {
         "plan": plan,
         "credits": plan_cfg["credits"],
-        "amount": plan_cfg["price"],              # ✅ REQUIRED FIX
+        "amount": plan_cfg["price"],
         "subscription_status": "active",
         "start_date": now.isoformat(),
         "end_date": end_date.isoformat(),
@@ -161,39 +83,53 @@ def activate_subscription_from_payment(payment: dict):
 
     if existing:
         supabase.table("subscriptions").update(
-            subscription_payload
+            payload
         ).eq("user_id", user_id).execute()
     else:
         supabase.table("subscriptions").insert({
             "user_id": user_id,
-            **subscription_payload
+            **payload
         }).execute()
 
-    # --------------------------------------------------
-    # UPSERT SUBSCRIPTION (THIS FIXES DASHBOARD ISSUE)
-    # --------------------------------------------------
-    existing = (
+
+# ==========================================================
+# ADMIN CREDIT ADJUSTMENT (REVERSAL / CORRECTION)
+# ==========================================================
+def adjust_user_credits(user_id: str, delta: int, reason: str, admin_id: str):
+    if delta == 0:
+        raise ValueError("Adjustment value cannot be zero.")
+
+    sub = (
         supabase.table("subscriptions")
-        .select("id")
+        .select("credits")
         .eq("user_id", user_id)
+        .single()
         .execute()
         .data
     )
 
-    if existing:
-        supabase.table("subscriptions").update({
-            "plan": plan,
-            "credits": plan_cfg["credits"],
-            "subscription_status": "active",
-            "start_date": now.isoformat(),
-            "end_date": end_date.isoformat(),
-        }).eq("user_id", user_id).execute()
-    else:
-        supabase.table("subscriptions").insert({
+    if not sub:
+        raise ValueError("User has no active subscription.")
+
+    current = sub.get("credits", 0)
+    new_balance = current + delta
+
+    if new_balance < 0:
+        raise ValueError("Credit adjustment would result in negative balance.")
+
+    supabase.table("subscriptions").update({
+        "credits": new_balance
+    }).eq("user_id", user_id).execute()
+
+    # Optional audit log (safe)
+    try:
+        supabase.table("credit_adjustments").insert({
             "user_id": user_id,
-            "plan": plan,
-            "credits": plan_cfg["credits"],
-            "subscription_status": "active",
-            "start_date": now.isoformat(),
-            "end_date": end_date.isoformat(),
+            "admin_id": admin_id,
+            "delta": delta,
+            "reason": reason,
         }).execute()
+    except Exception:
+        pass
+
+    return new_balance

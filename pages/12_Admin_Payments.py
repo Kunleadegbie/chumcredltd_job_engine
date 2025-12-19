@@ -13,6 +13,7 @@ from config.supabase_client import supabase
 from services.utils import (
     is_admin,
     activate_subscription_from_payment,
+    adjust_user_credits,
     PLANS
 )
 from components.ui import hide_streamlit_sidebar
@@ -41,17 +42,14 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
 
 render_sidebar()
 
-
-# ======================================================
-# ADMIN CHECK
-# ======================================================
 user = st.session_state.get("user")
 if not user or not is_admin(user.get("id")):
     st.error("Access denied — Admins only.")
     st.stop()
 
+
 # ======================================================
-# PAYMENT CONFIRMATION STATUS
+# HELPERS
 # ======================================================
 def is_payment_approved(payment_id: str) -> bool:
     res = (
@@ -64,11 +62,11 @@ def is_payment_approved(payment_id: str) -> bool:
     )
     return res and res.get("status") == "approved"
 
+
 # ======================================================
 # HEADER
 # ======================================================
 st.title("💼 Admin — Payment Approvals")
-st.caption("Approve payments and activate subscriptions.")
 st.divider()
 
 
@@ -96,12 +94,14 @@ for p in payments:
     payment_id = p.get("id")
     user_id = p.get("user_id")
     plan = p.get("plan")
-    status = "approved" if is_payment_approved(payment_id) else "pending"
 
     if plan not in PLANS:
         st.error(f"❌ Invalid plan for payment {payment_id}")
         st.write("---")
         continue
+
+    approved = is_payment_approved(payment_id)
+    status = "approved" if approved else "pending"
 
     st.markdown(f"""
 **Payment ID:** `{payment_id}`  
@@ -112,37 +112,72 @@ for p in payments:
 **Status:** `{status}`
 """)
 
-    # --------------------------------------------------
-    # ALREADY APPROVED — EXPLICIT HANDLING (RESTORED)
-    # --------------------------------------------------
-    if status == "approved":
+    # ==========================
+    # ALREADY APPROVED
+    # ==========================
+    if approved:
         st.success("✅ Payment already approved.")
-        st.write("---")
-        continue
 
-    # --------------------------------------------------
-    # APPROVE PAYMENT (ONLY IF PENDING)
-    # --------------------------------------------------
-    if st.button("✅ Approve Payment", key=f"approve_{payment_id}"):
+    # ==========================
+    # APPROVE PAYMENT
+    # ==========================
+    if not approved:
+        if st.button("✅ Approve Payment", key=f"approve_{payment_id}"):
 
-        try:
-            # 1️⃣ Activate subscription (credits already proven working)
-            activate_subscription_from_payment(p)
+            try:
+                # 1️⃣ Update payment status FIRST
+                supabase.table("subscription_payments").update({
+                    "status": "approved"
+                }).eq("id", payment_id).execute()
 
-            # 2️⃣ Update payment status (THIS FIXES STATUS DISPLAY)
-            supabase.table("subscription_payments").update({
-                "status": "approved"
-            }).eq("id", payment_id).execute()
+                # 2️⃣ Activate subscription (credits)
+                activate_subscription_from_payment({
+                    **p,
+                    "status": "pending"
+                })
 
-            st.success("✅ Payment approved successfully.")
-            st.rerun()
+                st.success("✅ Payment approved successfully.")
+                st.rerun()
 
-        except ValueError as e:
-            # Explicit feedback restored
-            st.warning(str(e))
+            except Exception as e:
+                st.error(f"❌ Approval failed: {e}")
 
-        except Exception as e:
-            st.error(f"❌ Approval failed: {e}")
+    # ==========================
+    # CREDIT ADJUSTMENT
+    # ==========================
+    with st.expander("⚠️ Adjust User Credits (Admin Only)"):
+        st.warning("Use only to correct mistakes. Negative values deduct credits.")
+
+        delta = st.number_input(
+            "Credit Adjustment",
+            min_value=-5000,
+            max_value=5000,
+            step=50,
+            value=0,
+            key=f"delta_{payment_id}"
+        )
+
+        reason = st.text_input(
+            "Reason for adjustment",
+            placeholder="e.g. Wrong plan approved",
+            key=f"reason_{payment_id}"
+        )
+
+        if st.button("Apply Adjustment", key=f"adjust_{payment_id}"):
+
+            try:
+                new_balance = adjust_user_credits(
+                    user_id=user_id,
+                    delta=delta,
+                    reason=reason,
+                    admin_id=user.get("id")
+                )
+
+                st.success(f"✅ Credits adjusted. New balance: {new_balance}")
+                st.rerun()
+
+            except Exception as e:
+                st.error(str(e))
 
     st.write("---")
 
