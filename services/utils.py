@@ -133,3 +133,37 @@ def adjust_user_credits(user_id: str, delta: int, reason: str, admin_id: str):
         pass
 
     return new_balance
+
+
+
+# ==========================================================
+# FETCH USER SUBSCRIPTION (USED BY DASHBOARD & AI PAGES)
+# ==========================================================
+def get_subscription(user_id: str):
+    """
+    Returns the user's subscription row or None
+    """
+    try:
+        res = (
+            supabase.table("subscriptions")
+            .select("*")
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+        return res.data
+    except Exception:
+        return None
+
+
+# ==========================================================
+# LOW CREDIT CHECK
+# ==========================================================
+def is_low_credit(subscription: dict, minimum_required: int = 20) -> bool:
+    """
+    Returns True if user credits are below required minimum
+    """
+    if not subscription:
+        return True
+    return subscription.get("credits", 0) < minimum_required
+
