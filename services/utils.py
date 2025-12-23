@@ -206,3 +206,49 @@ def is_low_credit(subscription: dict, minimum_required: int = 20) -> bool:
         return True
     return subscription.get("credits", 0) < minimum_required
 
+
+# ==========================================================
+# DEDUCT CREDITS (USED BY JOB SEARCH & AI TOOLS)
+# ==========================================================
+def deduct_credits(user_id: str, amount: int):
+    """
+    Safely deduct credits from a user's active subscription.
+    Returns (success: bool, message: str)
+    """
+
+    if amount <= 0:
+        return False, "Invalid credit deduction amount."
+
+    try:
+        sub = (
+            supabase.table("subscriptions")
+            .select("credits, subscription_status")
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+            .data
+        )
+
+        if not sub:
+            return False, "No active subscription found."
+
+        if sub.get("subscription_status") != "active":
+            return False, "Subscription is not active."
+
+        current_credits = sub.get("credits", 0)
+
+        if current_credits < amount:
+            return False, "Insufficient credits."
+
+        new_balance = current_credits - amount
+
+        supabase.table("subscriptions").update({
+            "credits": new_balance
+        }).eq("user_id", user_id).execute()
+
+        return True, f"{amount} credits deducted successfully."
+
+    except Exception as e:
+        return False, f"Error deducting credits: {e}"
+
+
