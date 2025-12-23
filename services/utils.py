@@ -2,6 +2,45 @@
 from datetime import datetime, timezone, timedelta
 from config.supabase_client import supabase
 
+# ==========================================================
+# AUTO-EXPIRE SUBSCRIPTION (SAFE, READ-ONLY NORMALIZER)
+# ==========================================================
+def auto_expire_subscription(user_id: str):
+    """
+    Ensures expired subscriptions are marked inactive
+    and credits are zeroed if end_date has passed.
+    Safe to call on page load.
+    """
+
+    try:
+        sub = (
+            supabase.table("subscriptions")
+            .select("id, end_date, credits, subscription_status")
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+            .data
+        )
+
+        if not sub:
+            return
+
+        end_date = sub.get("end_date")
+        if not end_date:
+            return
+
+        now = datetime.now(timezone.utc)
+        expiry = datetime.fromisoformat(end_date)
+
+        if expiry < now and sub.get("subscription_status") != "expired":
+            supabase.table("subscriptions").update({
+                "subscription_status": "expired",
+                "credits": 0
+            }).eq("id", sub["id"]).execute()
+
+    except Exception:
+        # Silent fail by design — never block UI
+        return
 
 # ==========================================================
 # PLANS CONFIG (SOURCE OF TRUTH)
