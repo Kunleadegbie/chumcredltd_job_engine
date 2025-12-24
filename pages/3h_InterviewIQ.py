@@ -177,7 +177,7 @@ Provide a rewritten example answer demonstrating best interview practice.
     # RUN AI INTERVIEW
     # -----------------------------------------------------
     with st.spinner("Interview in progress…"):
-        interview_output = generate_ai_response(prompt)
+        interview_output = ai_run_interview(prompt)
 
     # -----------------------------------------------------
     # SAVE OUTPUT (PERSIST PAID WORK)
