@@ -15,7 +15,7 @@ from services.utils import (
     is_low_credit,
 )
 from config.supabase_client import supabase
-from services.ai_engine import generate_ai_response
+from services.ai_engine import ai_run_interview
 
 
 # ---------------------------------------------------------

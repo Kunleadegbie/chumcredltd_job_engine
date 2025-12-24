@@ -157,3 +157,13 @@ FORMAT:
 - Additional skills to acquire
 """
     return run_ai(prompt)
+
+# ==========================================================
+# INTERVIEWIQ — INTERVIEW PREPARATION AI
+# ==========================================================
+def ai_run_interview(prompt: str) -> str:
+    """
+    Runs InterviewIQ AI prompt and returns structured interview feedback.
+    """
+    return ai_generate_cover_letter(prompt)
+
