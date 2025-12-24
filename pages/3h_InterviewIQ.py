@@ -1,5 +1,6 @@
+
 # ==============================================================
-# 3h_InterviewIQ.py — Interview Intelligence (TalentIQ)
+# 3h_InterviewIQ.py — Interactive Interview Intelligence
 # ==============================================================
 
 import streamlit as st
@@ -60,86 +61,101 @@ if not subscription or subscription.get("subscription_status") != "active":
 
 
 # ---------------------------------------------------------
+# SESSION STATE INIT
+# ---------------------------------------------------------
+if "interview_started" not in st.session_state:
+    st.session_state.interview_started = False
+
+if "questions" not in st.session_state:
+    st.session_state.questions = []
+
+if "answers" not in st.session_state:
+    st.session_state.answers = {}
+
+if "interview_completed" not in st.session_state:
+    st.session_state.interview_completed = False
+
+
+# ---------------------------------------------------------
 # PAGE HEADER
 # ---------------------------------------------------------
 st.title("🧠 InterviewIQ™")
-st.caption(
-    "AI-powered interview intelligence that evaluates, scores, "
-    "and improves your interview performance before the real interview."
-)
-
+st.caption("Practice interviews, get scored, and improve before the real interview.")
 st.divider()
 
 
 # ---------------------------------------------------------
-# INTERVIEW SETUP
+# INTERVIEW SETUP (BEFORE START)
 # ---------------------------------------------------------
-col1, col2, col3 = st.columns(3)
+if not st.session_state.interview_started:
 
-with col1:
-    role = st.text_input(
-        "Target Job Role",
-        placeholder="e.g. Data Analyst, Software Engineer"
-    )
+    role = st.text_input("Target Job Role", placeholder="e.g. Data Analyst")
+    experience = st.selectbox("Experience Level", ["Entry Level", "Mid Level", "Senior Level"])
+    interview_type = st.selectbox("Interview Type", ["Behavioral", "Technical", "General"])
 
-with col2:
-    experience_level = st.selectbox(
-        "Experience Level",
-        ["Entry Level", "Mid Level", "Senior Level"]
-    )
+    st.markdown("**Cost:** 10 credits per interview session")
 
-with col3:
-    interview_type = st.selectbox(
-        "Interview Type",
-        ["Behavioral", "Technical", "General"]
-    )
+    if st.button("🎤 Start Interview"):
 
+        if not role.strip():
+            st.warning("Please enter a job role.")
+            st.stop()
 
-st.markdown("**Cost:** 10 credits per interview session")
-st.divider()
+        if is_low_credit(subscription, minimum_required=10):
+            st.error("❌ Insufficient credits.")
+            st.stop()
+
+        ok, msg = deduct_credits(user_id, 10)
+        if not ok:
+            st.error(msg)
+            st.stop()
+
+        # Generate interview questions
+        question_prompt = f"""
+Generate exactly 5 {interview_type.lower()} interview questions
+for a {experience.lower()} candidate applying for the role of {role}.
+Return only the numbered questions.
+"""
+
+        questions_text = ai_run(question_prompt)
+
+        questions = [
+            q.strip("- ").strip()
+            for q in questions_text.split("\n")
+            if q.strip()
+        ][:5]
+
+        st.session_state.questions = questions
+        st.session_state.interview_started = True
+        st.rerun()
 
 
 # ---------------------------------------------------------
-# START INTERVIEW
+# INTERVIEW QUESTIONS (USER ANSWERS)
 # ---------------------------------------------------------
-if st.button("🎤 Start Interview (10 Credits)"):
+if st.session_state.interview_started and not st.session_state.interview_completed:
 
-    if not role.strip():
-        st.warning("Please enter a target job role.")
-        st.stop()
+    st.subheader("📝 Interview Questions")
 
-    if is_low_credit(subscription, minimum_required=10):
-        st.error("❌ Insufficient credits to start InterviewIQ.")
-        st.stop()
+    for idx, question in enumerate(st.session_state.questions, start=1):
+        st.markdown(f"**Q{idx}. {question}**")
+        st.session_state.answers[idx] = st.text_area(
+            f"Your Answer to Question {idx}",
+            value=st.session_state.answers.get(idx, ""),
+            height=120
+        )
 
-    ok, msg = deduct_credits(user_id, 10)
-    if not ok:
-        st.error(msg)
-        st.stop()
+    if st.button("📊 Submit Answers for Evaluation"):
 
-    st.info("Interview session started. Please answer honestly and thoughtfully.")
+        # Build evaluation prompt
+        evaluation_prompt = f"""
+You are InterviewIQ™, an expert interview evaluator.
 
-    # -----------------------------------------------------
-    # INTERVIEWIQ — FINAL PROMPT (STRICT & STRUCTURED)
-    # -----------------------------------------------------
-    prompt = f"""
-You are InterviewIQ™, an expert AI interview coach and evaluator.
+Evaluate the following interview answers strictly.
 
-Conduct a structured interview for a {experience_level.lower()} candidate applying for the role of {role}.
-Interview type: {interview_type.lower()}.
-
-STEP 1:
-Ask exactly 5 interview questions, one at a time.
-Pause after each question to allow the candidate to respond.
-
-STEP 2:
-After all responses are provided, evaluate the candidate strictly using the scoring rubric below.
-
-SCORING RULES (MANDATORY):
-- Score each dimension from 0 to 20.
-- Total score must be out of 100.
-- Be objective, professional, and consistent.
-- Do not inflate scores.
+SCORING RULES:
+- Score each dimension from 0–20
+- Total score must be out of 100
 
 DIMENSIONS:
 1. Role Understanding
@@ -148,8 +164,14 @@ DIMENSIONS:
 4. Professional Confidence
 5. Practical Competence
 
-STEP 3:
-Return the evaluation strictly in the following format:
+INTERVIEW QUESTIONS & ANSWERS:
+"""
+
+        for idx, question in enumerate(st.session_state.questions, start=1):
+            evaluation_prompt += f"\nQ{idx}: {question}\nA{idx}: {st.session_state.answers[idx]}\n"
+
+        evaluation_prompt += """
+Return results strictly in this format:
 
 OVERALL_SCORE: X/100
 
@@ -170,37 +192,45 @@ RECOMMENDATIONS:
 - Bullet points
 
 SAMPLE_IMPROVED_ANSWER:
-Provide a rewritten example answer demonstrating best interview practice.
+Provide a rewritten example answer.
 """
 
-    # -----------------------------------------------------
-    # RUN AI INTERVIEW
-    # -----------------------------------------------------
-    with st.spinner("Interview in progress…"):
-        interview_output = ai_run(prompt)
+        with st.spinner("Evaluating interview responses…"):
+            result = ai_run(evaluation_prompt)
 
-    # -----------------------------------------------------
-    # SAVE OUTPUT (PERSIST PAID WORK)
-    # -----------------------------------------------------
-    try:
-        supabase.table("ai_outputs").insert({
-            "user_id": user_id,
-            "tool": "InterviewIQ",
-            "input_data": {
-                "role": role,
-                "experience_level": experience_level,
-                "interview_type": interview_type,
-            },
-            "output_data": interview_output
-        }).execute()
-    except Exception:
-        pass
+        # Save output
+        try:
+            supabase.table("ai_outputs").insert({
+                "user_id": user_id,
+                "tool": "InterviewIQ",
+                "input_data": {
+                    "questions": st.session_state.questions,
+                    "answers": st.session_state.answers,
+                },
+                "output_data": result
+            }).execute()
+        except Exception:
+            pass
+
+        st.session_state.interview_completed = True
+        st.session_state.result = result
+        st.rerun()
+
+
+# ---------------------------------------------------------
+# INTERVIEW RESULTS
+# ---------------------------------------------------------
+if st.session_state.interview_completed:
 
     st.success("✅ Interview completed successfully.")
     st.divider()
-
     st.markdown("## 📊 InterviewIQ Results")
-    st.write(interview_output)
+    st.write(st.session_state.result)
+
+    if st.button("🔄 Start New Interview"):
+        for key in ["interview_started", "questions", "answers", "interview_completed", "result"]:
+            st.session_state.pop(key, None)
+        st.rerun()
 
 
 # ---------------------------------------------------------
