@@ -52,7 +52,7 @@ def render_sidebar():
         st.page_link("pages/3e_Resume_Writer.py", label="📄 Resume Writer")
         st.page_link("pages/3f_Job_Recommendations.py", label="🎯 Job Recommendations")
         st.page_link("pages/3g_ATS_SmartMatch.py", label="🧬 ATS SmartMatch")
-	st.page_link("pages/3h_InterviewIQ.py", label="🧠 InterviewIQ™")
+        st.page_link("pages/3h_InterviewIQ.py", label="🧠 InterviewIQ™")
 
         st.divider()
 
