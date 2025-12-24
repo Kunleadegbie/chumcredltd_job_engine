@@ -1,3 +1,4 @@
+
 # ==============================================================
 # Dashboard.py — Fully Redesigned Professional Dashboard
 # ==============================================================
@@ -66,7 +67,6 @@ if subscription:
     start_date = subscription.get("start_date")
     end_date = subscription.get("end_date")
 else:
-    # No subscription found
     plan = "None"
     credits = 0
     status = "inactive"
@@ -152,6 +152,16 @@ Upload your resume and a job description to receive:
 - Clear explanations of **what recruiters and ATS systems see**
 - Actionable recommendations to **improve your chances**
 
+#### 🔹 InterviewIQ™ *(AI Interview Preparation Engine)*  
+Practice real interview scenarios before the actual interview:
+- AI-generated **role-specific interview questions**
+- Real-time **answer evaluation and scoring**
+- Breakdown of **strengths, weaknesses, and gaps**
+- Clear recommendations to **improve interview performance**
+- Confidence-building through structured feedback
+
+InterviewIQ helps you walk into interviews **prepared, confident, and informed**.
+
 #### 🔹 Match Score Analyzer  
 Instantly measures how closely your CV aligns with a specific role.
 
@@ -227,15 +237,15 @@ This platform is designed to **simplify your job search experience**.
 with st.expander("💡 Why This Platform is Better Than LinkedIn / Indeed / Jobberman"):
     st.markdown("""
 ### 🚀 **Unique Advantages**
-- Automated **Match Score** (LinkedIn & Indeed cannot do this)
+- Automated **Match Score**
 - AI-powered **resume rewrites**
 - AI-generated **cover letters**
+- AI-driven **interview preparation**
 - Personalized **job recommendations**
 - Real-time **credit tracking**
 - Saves job postings inside the app  
-- Built-in **subscription management**
 
-This is the **only Nigerian-built platform** combining AI + job search + resume engineering in one place.
+This is the **only Nigerian-built platform** combining AI + job search + career intelligence in one place.
 """)
 
 
