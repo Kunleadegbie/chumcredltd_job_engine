@@ -167,3 +167,29 @@ def ai_run_interview(prompt: str) -> str:
     """
     return ai_generate_cover_letter(prompt)
 
+
+# ==========================================================
+# GENERIC AI RUNNER (USED BY MULTIPLE AI TOOLS)
+# ==========================================================
+def ai_run(prompt: str) -> str:
+    """
+    Generic AI execution function for non-task-specific prompts
+    (e.g. InterviewIQ, Career Coaching, Q&A).
+    """
+
+    from openai import OpenAI
+    import os
+
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a professional career intelligence AI."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.4
+    )
+
+    return response.choices[0].message.content.strip()
+
