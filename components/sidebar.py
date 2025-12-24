@@ -23,11 +23,12 @@ def render_sidebar():
     # ------------------------------------------------------
     # Sidebar UI
     # ------------------------------------------------------
+    
     with st.sidebar:
         # Logo
         st.image(
             "assets/talentiq_logo.png",
-            use_column_width=True
+            width=220
         )
 
         st.markdown("## Chumcred TalentIQ")
