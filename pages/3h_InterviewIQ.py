@@ -15,7 +15,7 @@ from services.utils import (
     is_low_credit,
 )
 from config.supabase_client import supabase
-from services.openai_client import run_ai   # ensure this matches your AI client
+from services.ai_engine import generate_ai_response
 
 
 # ---------------------------------------------------------
@@ -177,7 +177,7 @@ Provide a rewritten example answer demonstrating best interview practice.
     # RUN AI INTERVIEW
     # -----------------------------------------------------
     with st.spinner("Interview in progress…"):
-        interview_output = run_ai(prompt)
+        interview_output = generate_ai_response(prompt)
 
     # -----------------------------------------------------
     # SAVE OUTPUT (PERSIST PAID WORK)
