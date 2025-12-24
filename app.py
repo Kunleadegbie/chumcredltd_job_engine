@@ -16,15 +16,14 @@ from components.sidebar import render_sidebar
 # ==========================================================
 st.set_page_config(
     page_title="Chumcred TalentIQ",
-    page_icon="🚀",
-    layout="wide",
-    initial_sidebar_state="collapsed"  # Collapse default sidebar
+    page_icon="assets/talentiq_logo.png",
+    layout="wide"
 )
-
 
 # ==========================================================
 # HIDE STREAMLIT DEFAULT SIDEBAR / PAGE NAVIGATION (STEP 2)
 # ==========================================================
+st.image("assets/talentiq_logo.png", width=280)
 st.markdown(
     """
     <style>

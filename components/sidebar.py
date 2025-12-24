@@ -24,6 +24,7 @@ def render_sidebar():
     # Sidebar UI
     # ------------------------------------------------------
     with st.sidebar:
+	st.image("assets/talentiq_logo.png", use_column_width=True)
         st.markdown("## 🚀 Chumcred TalentIQ")
         st.caption("AI-Powered Career & Talent Intelligence")
         st.divider()
