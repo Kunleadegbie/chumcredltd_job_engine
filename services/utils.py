@@ -1,3 +1,7 @@
+# ==========================================================
+# services/utils.py — STABLE + SAFE SUBSCRIPTION / PAYMENTS
+# ==========================================================
+
 from datetime import datetime, timezone, timedelta
 from config.supabase_client import supabase
 
@@ -12,12 +16,44 @@ PLANS = {
 
 
 # ==========================================================
-# AUTO-EXPIRE SUBSCRIPTION
+# USER ROLE
 # ==========================================================
+def is_admin(user_id: str) -> bool:
+    try:
+        res = (
+            supabase.table("users")
+            .select("role")
+            .eq("id", user_id)
+            .single()
+            .execute()
+        )
+        data = res.data or {}
+        return (data.get("role") or "user") == "admin"
+    except Exception:
+        return False
+
+
+# ==========================================================
+# SUBSCRIPTIONS
+# ==========================================================
+def get_subscription(user_id: str):
+    """Return the user's subscription dict or None."""
+    try:
+        res = (
+            supabase.table("subscriptions")
+            .select("*")
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+        return res.data
+    except Exception:
+        return None
+
+
 def auto_expire_subscription(user_id: str):
     """
-    Ensures expired subscriptions are marked expired
-    and credits are zeroed if end_date has passed.
+    If subscription end_date passed, mark expired and set credits to 0.
     Safe to call on page load.
     """
     try:
@@ -29,6 +65,7 @@ def auto_expire_subscription(user_id: str):
             .execute()
             .data
         )
+
         if not sub:
             return
 
@@ -46,7 +83,7 @@ def auto_expire_subscription(user_id: str):
         if expiry < now:
             supabase.table("subscriptions").update({
                 "subscription_status": "expired",
-                "credits": 0
+                "credits": 0,
             }).eq("user_id", user_id).execute()
 
     except Exception:
@@ -54,42 +91,7 @@ def auto_expire_subscription(user_id: str):
 
 
 # ==========================================================
-# ADMIN CHECK
-# ==========================================================
-def is_admin(user_id: str) -> bool:
-    try:
-        res = (
-            supabase.table("users")
-            .select("role")
-            .eq("id", user_id)
-            .single()
-            .execute()
-            .data
-        )
-        return bool(res) and (res.get("role") == "admin")
-    except Exception:
-        return False
-
-
-# ==========================================================
-# FETCH USER SUBSCRIPTION (USED BY DASHBOARD & AI PAGES)
-# ==========================================================
-def get_subscription(user_id: str):
-    try:
-        return (
-            supabase.table("subscriptions")
-            .select("*")
-            .eq("user_id", user_id)
-            .single()
-            .execute()
-            .data
-        )
-    except Exception:
-        return None
-
-
-# ==========================================================
-# LOW CREDIT CHECK
+# CREDIT HELPERS (USED BY AI PAGES)
 # ==========================================================
 def is_low_credit(subscription: dict, minimum_required: int = 20) -> bool:
     if not subscription:
@@ -101,26 +103,30 @@ def is_low_credit(subscription: dict, minimum_required: int = 20) -> bool:
     return credits < minimum_required
 
 
-# ==========================================================
-# DEDUCT CREDITS
-# ==========================================================
 def deduct_credits(user_id: str, amount: int):
-    sub = get_subscription(user_id)
-    if not sub:
-        return False, "No subscription found."
-
-    credits = int(sub.get("credits", 0) or 0)
-    if credits < amount:
-        return False, "Insufficient credits."
-
-    new_balance = credits - amount
+    """Subtract credits. Returns (success, message)."""
     try:
+        sub = get_subscription(user_id)
+        if not sub:
+            return False, "No subscription found."
+
+        credits = int(sub.get("credits", 0) or 0)
+        if credits < amount:
+            return False, "Insufficient credits."
+
+        new_balance = credits - amount
         supabase.table("subscriptions").update({
             "credits": new_balance
         }).eq("user_id", user_id).execute()
+
         return True, f"{amount} credits deducted."
     except Exception as e:
-        return False, f"Failed to deduct credits: {e}"
+        return False, f"Error deducting credits: {e}"
+
+
+# Backward-compat (some pages import deduct_credit by mistake)
+def deduct_credit(user_id: str, amount: int):
+    return deduct_credits(user_id, amount)
 
 
 # ==========================================================
@@ -128,7 +134,8 @@ def deduct_credits(user_id: str, amount: int):
 # ==========================================================
 def adjust_user_credits(user_id: str, delta: int, reason: str, admin_id: str):
     """
-    Adds/removes credits. If user has no subscription row yet, create one safely.
+    Adds/removes credits. Creates subscription row if missing.
+    Never overwrites existing credits.
     """
     if delta == 0:
         raise ValueError("Adjustment value cannot be zero.")
@@ -140,7 +147,6 @@ def adjust_user_credits(user_id: str, delta: int, reason: str, admin_id: str):
             raise ValueError("Cannot deduct credits: user has no subscription record.")
 
         now = datetime.now(timezone.utc)
-        # Create minimal subscription row
         supabase.table("subscriptions").insert({
             "user_id": user_id,
             "plan": None,
@@ -152,10 +158,10 @@ def adjust_user_credits(user_id: str, delta: int, reason: str, admin_id: str):
         }).execute()
 
         new_balance = int(delta)
-
     else:
         current = int(sub.get("credits", 0) or 0)
         new_balance = current + int(delta)
+
         if new_balance < 0:
             raise ValueError("Credit adjustment would result in negative balance.")
 
@@ -163,7 +169,7 @@ def adjust_user_credits(user_id: str, delta: int, reason: str, admin_id: str):
             "credits": new_balance
         }).eq("user_id", user_id).execute()
 
-    # Optional audit log (safe)
+    # Optional audit (won't crash if table missing)
     try:
         supabase.table("credit_adjustments").insert({
             "user_id": user_id,
@@ -178,12 +184,13 @@ def adjust_user_credits(user_id: str, delta: int, reason: str, admin_id: str):
 
 
 # ==========================================================
-# APPLY PLAN CREDITS SAFELY (ADDITIVE + EXTEND DATES)
+# APPLY PLAN (ADD CREDITS + EXTEND DATES, NEVER OVERWRITE)
 # ==========================================================
 def apply_plan_to_subscription(user_id: str, plan: str):
     """
-    Adds plan credits to existing balance (never overwrites),
-    and extends end_date from the later of now or current end_date.
+    Adds plan credits to current credits.
+    Extends end_date from later of now or existing end_date.
+    Ensures amount is set (prevents not-null constraint errors).
     """
     if plan not in PLANS:
         raise ValueError("Invalid plan.")
@@ -192,15 +199,15 @@ def apply_plan_to_subscription(user_id: str, plan: str):
     now = datetime.now(timezone.utc)
 
     sub = get_subscription(user_id)
+
     credits_to_add = int(cfg["credits"])
     amount = int(cfg["price"])
     days = int(cfg["duration_days"])
 
     if sub:
-        existing_credits = int(sub.get("credits", 0) or 0)
-        new_credits = existing_credits + credits_to_add
+        current_credits = int(sub.get("credits", 0) or 0)
+        new_credits = current_credits + credits_to_add
 
-        # extend from later of now or existing end_date
         base = now
         try:
             end_date = sub.get("end_date")
@@ -233,3 +240,20 @@ def apply_plan_to_subscription(user_id: str, plan: str):
             "start_date": now.isoformat(),
             "end_date": new_end.isoformat(),
         }).execute()
+
+
+# Backward compat aliases (older pages may import these)
+def activate_subscription(user_id: str, plan: str):
+    apply_plan_to_subscription(user_id, plan)
+
+
+def activate_subscription_from_payment(payment: dict):
+    """
+    Older interface: expects payment dict with user_id & plan.
+    Adds credits (does NOT overwrite).
+    """
+    user_id = payment.get("user_id")
+    plan = payment.get("plan")
+    if not user_id or not plan:
+        raise ValueError("Invalid payment data.")
+    apply_plan_to_subscription(user_id, plan)

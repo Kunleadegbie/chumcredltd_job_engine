@@ -1,6 +1,6 @@
 
 # ==========================================================
-# pages/12_Admin_Payments.py — Admin Payment Approvals (TRUE ATOMIC)
+# pages/12_Admin_Payments.py — Admin Payment Approvals (ATOMIC, NO PROCESSING)
 # ==========================================================
 
 import streamlit as st
@@ -15,6 +15,9 @@ from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
 
+# ----------------------------------------------------------
+# PAGE CONFIG
+# ----------------------------------------------------------
 st.set_page_config(page_title="Payment Approvals", page_icon="💼", layout="wide")
 hide_streamlit_sidebar()
 st.session_state["_sidebar_rendered"] = False
@@ -42,7 +45,8 @@ st.divider()
 
 
 # ----------------------------------------------------------
-# LOAD PAYMENTS (avoid created_at ordering)
+# LOAD PAYMENTS
+# (Do NOT order by created_at if your table doesn't have it)
 # ----------------------------------------------------------
 payments = (
     supabase.table("subscription_payments")
@@ -58,24 +62,47 @@ if not payments:
     st.stop()
 
 
-def safe_update_payment_status(payment_id: str, new_status: str, extra: dict = None):
+def update_payment_status_atomic(payment_id: str) -> bool:
     """
-    Update payment status safely even if some columns don't exist.
+    ATOMIC lock: set status='approved' ONLY IF status is still 'pending'.
+    Returns True if we were the one that flipped it.
     """
-    payload = {"status": new_status}
-    if extra:
-        payload.update(extra)
+    res = (
+        supabase.table("subscription_payments")
+        .update({"status": "approved"})
+        .eq("id", payment_id)
+        .eq("status", "pending")
+        .execute()
+    )
 
+    # Some configs return empty data even on success, so verify.
+    verify = (
+        supabase.table("subscription_payments")
+        .select("status")
+        .eq("id", payment_id)
+        .single()
+        .execute()
+        .data
+    )
+    if not verify:
+        return False
+
+    # If now approved, we consider it locked.
+    return (verify.get("status") or "").lower() == "approved"
+
+
+def rollback_to_pending(payment_id: str):
     try:
-        supabase.table("subscription_payments").update(payload).eq("id", payment_id).execute()
+        supabase.table("subscription_payments").update({
+            "status": "pending"
+        }).eq("id", payment_id).eq("status", "approved").execute()
     except Exception:
-        # fallback: only status
-        supabase.table("subscription_payments").update({"status": new_status}).eq("id", payment_id).execute()
+        pass
 
 
 for p in payments:
     payment_id = p.get("id")
-    user_id = p.get("user_id")
+    pay_user_id = p.get("user_id")
     plan = p.get("plan")
     amount = p.get("amount", 0)
     reference = p.get("payment_reference", "")
@@ -83,39 +110,40 @@ for p in payments:
 
     st.markdown(f"""
 **Payment ID:** `{payment_id}`  
-**User ID:** `{user_id}`  
+**User ID:** `{pay_user_id}`  
 **Plan:** **{plan}**  
 **Amount:** ₦{amount:,}  
 **Reference:** `{reference}`  
 **Status:** `{p.get("status", "")}`
 """)
 
-    # Validate plan
     if plan not in PLANS:
         st.error(f"❌ Invalid plan for payment {payment_id}")
         st.write("---")
         continue
 
-    # Already approved
     if status == "approved":
         st.success("✅ Payment already approved.")
         st.write("---")
         continue
 
-    # Approve Button
+    if status != "pending":
+        st.warning(f"⚠️ Cannot approve because status is '{status}'.")
+        st.write("---")
+        continue
+
     if st.button("✅ Approve Payment", key=f"approve_{payment_id}"):
 
         try:
-            # Re-read current status from DB
+            # Re-read payment live (avoid stale UI)
             current = (
                 supabase.table("subscription_payments")
-                .select("status, user_id, plan")
+                .select("id,status,user_id,plan")
                 .eq("id", payment_id)
                 .single()
                 .execute()
                 .data
             )
-
             if not current:
                 st.error("Payment not found.")
                 st.stop()
@@ -132,47 +160,30 @@ for p in payments:
                 st.error(f"Cannot approve. Payment status is '{cur_status}'.")
                 st.stop()
 
-            # 1) LOCK: pending -> processing (do not trust update() return data)
-            safe_update_payment_status(payment_id, "processing")
+            # 1) ATOMIC LOCK (pending -> approved)
+            locked = update_payment_status_atomic(payment_id)
 
-            # Verify lock by reading again
-            verify = (
-                supabase.table("subscription_payments")
-                .select("status")
-                .eq("id", payment_id)
-                .single()
-                .execute()
-                .data
-            )
-            v_status = (verify.get("status") or "").lower() if verify else ""
-
-            if v_status != "processing":
-                # Could not lock (RLS or race)
-                st.error(f"Could not lock payment for approval (status is '{v_status or 'unknown'}').")
+            if not locked:
+                # If we couldn't flip it to approved, we should not credit.
+                st.error(
+                    "Could not approve payment (status did not change). "
+                    "This usually means the update is blocked (permissions/RLS) "
+                    "or your 'status' column rejects updates."
+                )
                 st.stop()
 
-            # 2) APPLY CREDITS (THIS MUST HAPPEN BEFORE APPROVED)
-            apply_plan_to_subscription(cur_user, cur_plan)
-
-            # 3) MARK APPROVED (final step)
-            safe_update_payment_status(
-                payment_id,
-                "approved",
-                extra={
-                    "approved_by": admin_id,
-                    "approved_at": st.session_state.get("_now_iso") or ""
-                }
-            )
+            # 2) CREDIT USER (ADD, DO NOT OVERWRITE)
+            try:
+                apply_plan_to_subscription(cur_user, cur_plan)
+            except Exception as e:
+                # Rollback approval so admin can retry
+                rollback_to_pending(payment_id)
+                raise e
 
             st.success("✅ Payment approved and user credited.")
             st.rerun()
 
         except Exception as e:
-            # Best effort rollback if stuck in processing
-            try:
-                safe_update_payment_status(payment_id, "pending")
-            except Exception:
-                pass
             st.error(f"❌ Approval failed: {e}")
 
     st.write("---")
