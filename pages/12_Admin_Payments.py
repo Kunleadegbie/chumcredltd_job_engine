@@ -1,6 +1,6 @@
 
 # ============================================================
-# pages/12_Admin_Payments.py — Admin Payment Approvals (FINAL)
+# pages/12_Admin_Payments.py — Admin Payment Approvals (ATOMIC)
 # ============================================================
 
 import streamlit as st
@@ -10,11 +10,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from config.supabase_client import supabase
-from services.utils import (
-    is_admin,
-    adjust_user_credits,
-    PLANS
-)
+from services.utils import is_admin, adjust_user_credits, PLANS
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
@@ -42,24 +38,11 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
 render_sidebar()
 
 user = st.session_state.get("user")
-if not user or not is_admin(user.get("id")):
+admin_id = user.get("id") if user else None
+
+if not user or not is_admin(admin_id):
     st.error("Access denied — Admins only.")
     st.stop()
-
-
-# ======================================================
-# HELPERS
-# ======================================================
-def is_payment_approved(payment_id: str) -> bool:
-    res = (
-        supabase.table("subscription_payments")
-        .select("status")
-        .eq("id", payment_id)
-        .single()
-        .execute()
-        .data
-    )
-    return bool(res and res.get("status") == "approved")
 
 
 # ======================================================
@@ -73,7 +56,8 @@ st.divider()
 # FETCH PAYMENTS
 # ======================================================
 payments = (
-    supabase.table("subscription_payments")
+    supabase
+    .table("subscription_payments")
     .select("*")
     .order("created_at", desc=True)
     .execute()
@@ -87,7 +71,7 @@ if not payments:
 
 
 # ======================================================
-# DISPLAY PAYMENTS (CRITICAL LOOP — FIXED)
+# DISPLAY & PROCESS PAYMENTS (ATOMIC LOOP)
 # ======================================================
 for p in payments:
 
@@ -96,14 +80,12 @@ for p in payments:
     plan = p.get("plan")
     amount = p.get("amount", 0)
     reference = p.get("payment_reference", "N/A")
+    status = p.get("status", "pending")
 
     if plan not in PLANS:
         st.error(f"❌ Invalid plan for payment {payment_id}")
         st.write("---")
         continue
-
-    approved = is_payment_approved(payment_id)
-    status = "approved" if approved else "pending"
 
     st.markdown(f"""
 **Payment ID:** `{payment_id}`  
@@ -114,44 +96,41 @@ for p in payments:
 **Status:** `{status}`
 """)
 
-    # ==========================
-    # ALREADY APPROVED
-    # ==========================
-    if approved:
+    # ==================================================
+    # APPROVED STATE
+    # ==================================================
+    if status == "approved":
         st.success("✅ Payment already approved.")
 
-    # ==========================
-    # APPROVE PAYMENT (SAFE)
-    # ==========================
-    if not approved:
+    # ==================================================
+    # ATOMIC APPROVAL (CRITICAL FIX)
+    # ==================================================
+    if status == "pending":
         if st.button("✅ Approve Payment", key=f"approve_{payment_id}"):
 
             try:
-                # Final DB guard
-                current = (
-                    supabase.table("subscription_payments")
-                    .select("status")
+                # 🔒 ATOMIC UPDATE:
+                # This will ONLY succeed if status is still 'pending'
+                update = (
+                    supabase
+                    .table("subscription_payments")
+                    .update({"status": "approved"})
                     .eq("id", payment_id)
-                    .single()
+                    .eq("status", "pending")   # 🔥 KEY LINE
                     .execute()
-                    .data
                 )
 
-                if current and current.get("status") == "approved":
+                # If no row was updated → already approved
+                if not update.data:
                     st.warning("⚠️ Payment already approved.")
                     st.stop()
 
-                # 1️⃣ Mark payment approved
-                supabase.table("subscription_payments").update({
-                    "status": "approved"
-                }).eq("id", payment_id).execute()
-
-                # 2️⃣ ADD credits (never overwrite)
+                # ✅ Credits added ONCE, ONLY after atomic approval
                 adjust_user_credits(
                     user_id=user_id,
                     delta=PLANS[plan]["credits"],
                     reason=f"Subscription approved: {plan}",
-                    admin_id=user.get("id")
+                    admin_id=admin_id
                 )
 
                 st.success("✅ Payment approved and credits added.")
@@ -160,9 +139,9 @@ for p in payments:
             except Exception as e:
                 st.error(f"❌ Approval failed: {e}")
 
-    # ==========================
-    # CREDIT ADJUSTMENT (ADMIN)
-    # ==========================
+    # ==================================================
+    # MANUAL CREDIT ADJUSTMENT (ADMIN SAFETY TOOL)
+    # ==================================================
     with st.expander("⚠️ Adjust User Credits (Admin Only)"):
         st.warning("Use only to correct mistakes. Negative values deduct credits.")
 
@@ -177,7 +156,7 @@ for p in payments:
 
         reason = st.text_input(
             "Reason for adjustment",
-            placeholder="e.g. Wrong plan approved",
+            placeholder="e.g. Mistaken approval reversal",
             key=f"reason_{payment_id}"
         )
 
@@ -188,7 +167,7 @@ for p in payments:
                     user_id=user_id,
                     delta=delta,
                     reason=reason,
-                    admin_id=user.get("id")
+                    admin_id=admin_id
                 )
 
                 st.success(f"✅ Credits adjusted. New balance: {new_balance}")
