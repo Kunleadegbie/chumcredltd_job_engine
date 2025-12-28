@@ -1,5 +1,5 @@
 # ======================================================
-# pages/10_subscription.py — CORRECT & SAFE (FINAL)
+# pages/10_subscription.py — FINAL, CORRECT & SAFE
 # ======================================================
 
 import streamlit as st
@@ -61,25 +61,30 @@ Credits are **consumable** and can be topped up anytime — you do **not** need 
 
 
 # ======================================================
-# FETCH PENDING PAYMENTS (IMPORTANT FIX)
+# FETCH ONLY RECENT PENDING PAYMENTS (CRITICAL FIX)
 # ======================================================
 pending_payments = (
     supabase
     .table("subscription_payments")
-    .select("plan")
+    .select("plan, created_at")
     .eq("user_id", user_id)
     .eq("status", "pending")
+    .order("created_at", desc=True)
     .execute()
     .data
     or []
 )
 
-# Build a set of plans that currently have pending payments
-pending_plans = {p["plan"] for p in pending_payments if p.get("plan")}
+# Build map: latest pending payment per plan
+latest_pending = {}
+for p in pending_payments:
+    plan = p.get("plan")
+    if plan and plan not in latest_pending:
+        latest_pending[plan] = p["created_at"]
 
 
 # ======================================================
-# PLAN DISPLAY (CORRECT BLOCKING LOGIC)
+# PLAN DISPLAY (FINAL LOGIC)
 # ======================================================
 for plan_name, info in PLANS.items():
     price = info.get("price", 0)
@@ -95,10 +100,10 @@ for plan_name, info in PLANS.items():
 
     # --------------------------------------------------
     # BLOCK ONLY IF:
-    # - same plan has pending payment
+    # - this plan has a *recent* pending payment
     # - AND user still has credits
     # --------------------------------------------------
-    block_purchase = (plan_name in pending_plans) and (current_credits > 0)
+    block_purchase = (plan_name in latest_pending) and (current_credits > 0)
 
     if block_purchase:
         st.button(
