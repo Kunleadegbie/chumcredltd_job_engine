@@ -1,5 +1,5 @@
 # ======================================================
-# pages/10_subscription.py — SAFE CREDIT TOP-UP ENABLED
+# pages/10_subscription.py — CORRECT & SAFE (FINAL)
 # ======================================================
 
 import streamlit as st
@@ -61,12 +61,12 @@ Credits are **consumable** and can be topped up anytime — you do **not** need 
 
 
 # ======================================================
-# CHECK FOR PENDING PAYMENTS
+# FETCH PENDING PAYMENTS (IMPORTANT FIX)
 # ======================================================
 pending_payments = (
     supabase
     .table("subscription_payments")
-    .select("id")
+    .select("plan")
     .eq("user_id", user_id)
     .eq("status", "pending")
     .execute()
@@ -74,11 +74,12 @@ pending_payments = (
     or []
 )
 
-has_pending = len(pending_payments) > 0
+# Build a set of plans that currently have pending payments
+pending_plans = {p["plan"] for p in pending_payments if p.get("plan")}
 
 
 # ======================================================
-# PLAN DISPLAY (BUTTON ALWAYS VISIBLE — FIXED)
+# PLAN DISPLAY (CORRECT BLOCKING LOGIC)
 # ======================================================
 for plan_name, info in PLANS.items():
     price = info.get("price", 0)
@@ -92,24 +93,24 @@ for plan_name, info in PLANS.items():
     **Validity:** {duration} days
     """)
 
-    # ----------------------------------------------
-    # Determine if purchase should be blocked
-    # ----------------------------------------------
-    block_purchase = has_pending and current_credits > 0
+    # --------------------------------------------------
+    # BLOCK ONLY IF:
+    # - same plan has pending payment
+    # - AND user still has credits
+    # --------------------------------------------------
+    block_purchase = (plan_name in pending_plans) and (current_credits > 0)
 
     if block_purchase:
-        # Button is shown but disabled
         st.button(
             f"Select {plan_name}",
             key=f"select_plan_{plan_name}",
             disabled=True
         )
         st.warning(
-            "You already have a pending payment. "
+            "You already have a pending payment for this plan. "
             "Please wait for admin approval before purchasing again."
         )
     else:
-        # Button is enabled
         if st.button(f"Select {plan_name}", key=f"select_plan_{plan_name}"):
             st.session_state.selected_plan = plan_name
             st.session_state.purchase_type = (
