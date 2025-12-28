@@ -93,3 +93,19 @@ def apply_payment_credits(payment: dict, admin_id: str):
         "approved_at": now.isoformat(),
         "approved_by": admin_id,
     }).eq("id", payment_id).execute()
+
+
+# ==========================================================
+# LOW CREDIT CHECK (USED BY DASHBOARD & AI PAGES)
+# ==========================================================
+def is_low_credit(subscription: dict, minimum_required: int = 20) -> bool:
+    """
+    Returns True if user credits are below minimum_required.
+    Safe helper used across dashboard and AI tools.
+    """
+    if not subscription:
+        return True
+
+    credits = subscription.get("credits", 0)
+    return credits < minimum_required
+
