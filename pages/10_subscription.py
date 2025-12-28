@@ -1,5 +1,6 @@
+
 # ======================================================
-# pages/10_subscription.py — FINAL, CORRECT & SAFE
+# pages/10_subscription.py — FINAL (NO BLOCKING)
 # ======================================================
 
 import streamlit as st
@@ -11,7 +12,6 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 from services.utils import PLANS, get_subscription
-from config.supabase_client import supabase
 
 
 # ======================================================
@@ -55,36 +55,18 @@ st.title("💳 Subscription Plans")
 st.write("---")
 
 st.markdown("""
-Choose a subscription plan below.  
-Credits are **consumable** and can be topped up anytime — you do **not** need to wait for plan expiry once credits are exhausted.
+Choose a subscription plan below.
+
+🔹 Credits are **consumable**  
+🔹 You can **top up anytime**  
+🔹 You do **NOT** need to wait for expiry or approval to buy again  
+
+Approval safety is handled **securely by the admin system**.
 """)
 
 
 # ======================================================
-# FETCH ONLY RECENT PENDING PAYMENTS (CRITICAL FIX)
-# ======================================================
-pending_payments = (
-    supabase
-    .table("subscription_payments")
-    .select("plan, created_at")
-    .eq("user_id", user_id)
-    .eq("status", "pending")
-    .order("created_at", desc=True)
-    .execute()
-    .data
-    or []
-)
-
-# Build map: latest pending payment per plan
-latest_pending = {}
-for p in pending_payments:
-    plan = p.get("plan")
-    if plan and plan not in latest_pending:
-        latest_pending[plan] = p["created_at"]
-
-
-# ======================================================
-# PLAN DISPLAY (FINAL LOGIC)
+# PLAN DISPLAY (NO BLOCKING — FINAL)
 # ======================================================
 for plan_name, info in PLANS.items():
     price = info.get("price", 0)
@@ -98,30 +80,12 @@ for plan_name, info in PLANS.items():
     **Validity:** {duration} days
     """)
 
-    # --------------------------------------------------
-    # BLOCK ONLY IF:
-    # - this plan has a *recent* pending payment
-    # - AND user still has credits
-    # --------------------------------------------------
-    block_purchase = (plan_name in latest_pending) and (current_credits > 0)
-
-    if block_purchase:
-        st.button(
-            f"Select {plan_name}",
-            key=f"select_plan_{plan_name}",
-            disabled=True
+    if st.button(f"Select {plan_name}", key=f"select_plan_{plan_name}"):
+        st.session_state.selected_plan = plan_name
+        st.session_state.purchase_type = (
+            "top_up" if current_credits == 0 else "new_purchase"
         )
-        st.warning(
-            "You already have a pending payment for this plan. "
-            "Please wait for admin approval before purchasing again."
-        )
-    else:
-        if st.button(f"Select {plan_name}", key=f"select_plan_{plan_name}"):
-            st.session_state.selected_plan = plan_name
-            st.session_state.purchase_type = (
-                "top_up" if current_credits == 0 else "new_purchase"
-            )
-            st.switch_page("pages/11_Submit_Payment.py")
+        st.switch_page("pages/11_Submit_Payment.py")
 
     st.write("---")
 
@@ -132,8 +96,8 @@ for plan_name, info in PLANS.items():
 if role == "admin":
     st.info("""
     **Admin Notice:**  
-    Admin accounts also use credits for testing and validation.  
-    You may subscribe normally to test real payment and credit flows.
+    Admin accounts may purchase plans freely for testing.  
+    Credits are applied only upon approval.
     """)
 
 
