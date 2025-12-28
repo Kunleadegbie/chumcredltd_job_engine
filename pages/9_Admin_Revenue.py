@@ -88,6 +88,22 @@ rejected = [p for p in payments if p.get("status") == "rejected"]
 
 
 # ======================================================
+# PAYMENTS AGGREGATION
+# ======================================================
+
+st.subheader("👥 Revenue by User")
+
+user_summary = {}
+
+for p in approved:
+    uid = p.get("user_id")
+    user_summary.setdefault(uid, 0)
+    user_summary[uid] += p.get("amount", 0)
+
+for uid, amt in user_summary.items():
+    st.write(f"User `{uid}` — ₦{amt:,}")
+
+# ======================================================
 # METRICS
 # ======================================================
 total_revenue = sum(p.get("amount", 0) for p in approved)

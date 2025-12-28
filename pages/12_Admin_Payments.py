@@ -12,7 +12,6 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from config.supabase_client import supabase
 from services.utils import (
     is_admin,
-    activate_subscription_from_payment,
     adjust_user_credits,
     PLANS
 )
@@ -60,7 +59,7 @@ def is_payment_approved(payment_id: str) -> bool:
         .execute()
         .data
     )
-    return res and res.get("status") == "approved"
+    return bool(res and res.get("status") == "approved")
 
 
 # ======================================================
@@ -88,12 +87,15 @@ if not payments:
 
 
 # ======================================================
-# DISPLAY PAYMENTS
+# DISPLAY PAYMENTS (CRITICAL LOOP — FIXED)
 # ======================================================
 for p in payments:
+
     payment_id = p.get("id")
     user_id = p.get("user_id")
     plan = p.get("plan")
+    amount = p.get("amount", 0)
+    reference = p.get("payment_reference", "N/A")
 
     if plan not in PLANS:
         st.error(f"❌ Invalid plan for payment {payment_id}")
@@ -107,8 +109,8 @@ for p in payments:
 **Payment ID:** `{payment_id}`  
 **User ID:** `{user_id}`  
 **Plan:** **{plan}**  
-**Amount:** ₦{p.get("amount", 0):,}  
-**Reference:** {p.get("payment_reference", "N/A")}  
+**Amount:** ₦{amount:,}  
+**Reference:** {reference}  
 **Status:** `{status}`
 """)
 
@@ -119,31 +121,47 @@ for p in payments:
         st.success("✅ Payment already approved.")
 
     # ==========================
-    # APPROVE PAYMENT
+    # APPROVE PAYMENT (SAFE)
     # ==========================
     if not approved:
         if st.button("✅ Approve Payment", key=f"approve_{payment_id}"):
 
             try:
-                # 1️⃣ Update payment status FIRST
+                # Final DB guard
+                current = (
+                    supabase.table("subscription_payments")
+                    .select("status")
+                    .eq("id", payment_id)
+                    .single()
+                    .execute()
+                    .data
+                )
+
+                if current and current.get("status") == "approved":
+                    st.warning("⚠️ Payment already approved.")
+                    st.stop()
+
+                # 1️⃣ Mark payment approved
                 supabase.table("subscription_payments").update({
                     "status": "approved"
                 }).eq("id", payment_id).execute()
 
-                # 2️⃣ Activate subscription (credits)
-                activate_subscription_from_payment({
-                    **p,
-                    "status": "pending"
-                })
+                # 2️⃣ ADD credits (never overwrite)
+                adjust_user_credits(
+                    user_id=user_id,
+                    delta=PLANS[plan]["credits"],
+                    reason=f"Subscription approved: {plan}",
+                    admin_id=user.get("id")
+                )
 
-                st.success("✅ Payment approved successfully.")
+                st.success("✅ Payment approved and credits added.")
                 st.rerun()
 
             except Exception as e:
                 st.error(f"❌ Approval failed: {e}")
 
     # ==========================
-    # CREDIT ADJUSTMENT
+    # CREDIT ADJUSTMENT (ADMIN)
     # ==========================
     with st.expander("⚠️ Adjust User Credits (Admin Only)"):
         st.warning("Use only to correct mistakes. Negative values deduct credits.")

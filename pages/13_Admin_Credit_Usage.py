@@ -62,14 +62,15 @@ st.caption("Tracks how credits are consumed across AI features.")
 # ---------------------------------------------------------
 try:
     logs = (
-        supabase
-        .table("ai_usage_logs")
-        .select("*")
-        .order("created_at", desc=True)   # ✅ FIXED
-        .execute()
-        .data
-        or []
-    )
+    supabase
+    .table("ai_outputs")
+    .select("user_id, tool, created_at")
+    .order("created_at", desc=True)
+    .execute()
+    .data
+    or []
+)
+
 except Exception as e:
     st.error(f"Failed to load usage logs: {e}")
     st.stop()
@@ -79,6 +80,12 @@ if not logs:
     st.stop()
 
 df = pd.DataFrame(logs)
+
+st.metric("Total AI Actions", len(df))
+
+st.subheader("Usage by Tool")
+st.bar_chart(df["tool"].value_counts())
+
 
 # ---------------------------------------------------------
 # DISPLAY DATA
@@ -114,7 +121,3 @@ else:
 # ---------------------------------------------------------
 st.caption("Chumcred TalentIQ — Admin Analytics © 2025")
 
-# ---------------------------------------------------------
-# FOOTER
-# ---------------------------------------------------------
-st.caption("Chumcred Job Engine — Admin Analytics © 2025")
