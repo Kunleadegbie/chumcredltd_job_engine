@@ -1,4 +1,3 @@
-
 # ======================================================
 # pages/10_subscription.py — SAFE CREDIT TOP-UP ENABLED
 # ======================================================
@@ -79,7 +78,7 @@ has_pending = len(pending_payments) > 0
 
 
 # ======================================================
-# PLAN DISPLAY
+# PLAN DISPLAY (BUTTON ALWAYS VISIBLE — FIXED)
 # ======================================================
 for plan_name, info in PLANS.items():
     price = info.get("price", 0)
@@ -93,17 +92,24 @@ for plan_name, info in PLANS.items():
     **Validity:** {duration} days
     """)
 
-    # --------------------------------------------------
-    # BLOCK ONLY IF:
-    # - User still has credits
-    # - AND has pending payment
-    # --------------------------------------------------
-    if has_pending and current_credits > 0:
+    # ----------------------------------------------
+    # Determine if purchase should be blocked
+    # ----------------------------------------------
+    block_purchase = has_pending and current_credits > 0
+
+    if block_purchase:
+        # Button is shown but disabled
+        st.button(
+            f"Select {plan_name}",
+            key=f"select_plan_{plan_name}",
+            disabled=True
+        )
         st.warning(
             "You already have a pending payment. "
             "Please wait for admin approval before purchasing again."
         )
     else:
+        # Button is enabled
         if st.button(f"Select {plan_name}", key=f"select_plan_{plan_name}"):
             st.session_state.selected_plan = plan_name
             st.session_state.purchase_type = (
