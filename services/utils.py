@@ -109,3 +109,47 @@ def is_low_credit(subscription: dict, minimum_required: int = 20) -> bool:
     credits = subscription.get("credits", 0)
     return credits < minimum_required
 
+
+# ==========================================================
+# AUTO-EXPIRE SUBSCRIPTION (BACKWARD-COMPATIBLE)
+# ==========================================================
+def auto_expire_subscription(user_id: str):
+    """
+    Legacy-safe helper.
+    Ensures expired subscriptions are marked inactive.
+    Called by Job Search and other pages.
+    """
+
+    try:
+        sub = (
+            supabase.table("subscriptions")
+            .select("*")
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+            .data
+        )
+
+        if not sub:
+            return None
+
+        end_date = sub.get("end_date")
+        status = sub.get("subscription_status")
+
+        if not end_date or status != "active":
+            return None
+
+        expiry = datetime.fromisoformat(end_date.replace("Z", ""))
+        now = datetime.now(timezone.utc)
+
+        if expiry < now:
+            supabase.table("subscriptions").update({
+                "subscription_status": "expired",
+                "credits": 0
+            }).eq("user_id", user_id).execute()
+
+    except Exception:
+        # Silent fail — must NEVER break app flow
+        return None
+
+
