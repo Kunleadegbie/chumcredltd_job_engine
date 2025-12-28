@@ -1,50 +1,39 @@
 
 # ============================================================
-# 11_Submit_Payment.py — Submit Payment (FINAL, FIXED)
+# 11_Submit_Payment.py — Submit Payment (FINAL & CORRECT)
 # ============================================================
 
 import streamlit as st
 import os, sys
 from datetime import datetime, timezone
 
-# Fix import paths
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from config.supabase_client import supabase
-from services.utils import PLANS, get_subscription
+from services.utils import PLANS
 
-
-# ======================================================
-# HIDE STREAMLIT SIDEBAR
-# ======================================================
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
+
+# ======================================================
+# PAGE CONFIG
+# ======================================================
+st.set_page_config(page_title="Submit Payment", page_icon="💰")
+
 # Hide Streamlit default navigation
 hide_streamlit_sidebar()
-
 st.session_state["_sidebar_rendered"] = False
 
 
-# Auth check
+# ======================================================
+# AUTH CHECK
+# ======================================================
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
     st.stop()
 
-# Render custom sidebar
 render_sidebar()
-
-
-# ---------------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------------
-st.set_page_config(page_title="Submit Payment", page_icon="💰")
-
-# ---------------------------------------------------------
-# AUTH CHECK
-# ---------------------------------------------------------
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.switch_page("app.py")
 
 user = st.session_state.get("user")
 if not user:
@@ -54,15 +43,17 @@ if not user:
 
 user_id = user.get("id")
 
-# ---------------------------------------------------------
+
+# ======================================================
 # PAGE HEADER
-# ---------------------------------------------------------
+# ======================================================
 st.title("💰 Submit Payment")
 st.write("Submit your payment details. An admin will review and approve your payment.")
 
-# ---------------------------------------------------------
-# PLAN SELECTION CHECK
-# ---------------------------------------------------------
+
+# ======================================================
+# PLAN VALIDATION
+# ======================================================
 selected_plan = st.session_state.get("selected_plan")
 
 if not selected_plan or selected_plan not in PLANS:
@@ -81,25 +72,10 @@ st.info(
 """
 )
 
-# ---------------------------------------------------------
-# PREVENT DUPLICATE PENDING PAYMENTS
-# ---------------------------------------------------------
-existing = (
-    supabase.table("subscription_payments")
-    .select("id")
-    .eq("user_id", user_id)
-    .eq("plan", selected_plan)
-    .eq("status", "pending")
-    .execute()
-).data
 
-if existing:
-    st.warning("⏳ You already have a pending payment for this plan. Please wait for admin approval.")
-    st.stop()
-
-# ---------------------------------------------------------
+# ======================================================
 # PAYMENT INPUT
-# ---------------------------------------------------------
+# ======================================================
 txn_ref = st.text_input(
     "Transaction Reference (Required)",
     placeholder="e.g. PAYSTACK-98345GHJ"
@@ -110,9 +86,10 @@ uploaded_file = st.file_uploader(
     type=["jpg", "jpeg", "png", "pdf"]
 )
 
-# ---------------------------------------------------------
+
+# ======================================================
 # SUBMIT PAYMENT
-# ---------------------------------------------------------
+# ======================================================
 if st.button("Submit Payment"):
 
     if not txn_ref.strip():
@@ -136,26 +113,25 @@ if st.button("Submit Payment"):
 
         st.success("✅ Payment submitted successfully. Admin will review and approve shortly.")
 
-        # Clear plan selection after successful submission
+        # Clear plan selection
         st.session_state.selected_plan = None
 
     except Exception as e:
         st.error(f"❌ Failed to submit payment: {e}")
 
-# ---------------------------------------------------------
-# INFO SECTION
-# ---------------------------------------------------------
+
+# ======================================================
+# INFO
+# ======================================================
 st.divider()
 st.info("""
 ### ℹ️ What happens next?
 
 1. An **admin reviews** your payment.
-2. Once approved, your **subscription is activated**.
-3. Your **credits become available immediately**.
-4. You can view your credits on the **Dashboard**.
+2. Once approved, your **credits are added safely**.
+3. Credits appear immediately on your **Dashboard**.
 
-⚠️ Credits are only applied **after admin approval**.
+⚠️ Credits are applied **only once**, even if admin clicks approve multiple times.
 """)
 
 st.caption("Chumcred TalentIQ © 2025")
-
