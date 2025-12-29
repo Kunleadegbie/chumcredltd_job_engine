@@ -1,4 +1,3 @@
-
 # ============================================================
 # services/job_api.py — TRUE Worldwide + Country-Strict + Remote
 # ============================================================
@@ -53,10 +52,10 @@ DEFAULT_GLOBAL_COUNTRIES = "US,GB,DE,FR,CA,AU,NG,IN,ZA"
 def search_jobs(query, location=None, remote=False, page=1):
     """
     Behaviour:
-    - Empty location → multi-country (pseudo-worldwide)
+    - Empty location → pseudo-worldwide (multi-country)
     - Country name → strict country filter
-    - City/region → location search
-    - Remote → global remote jobs
+    - City/region → query-embedded location search
+    - Remote → remote jobs only
     """
 
     params = {
@@ -74,15 +73,18 @@ def search_jobs(query, location=None, remote=False, page=1):
         loc = location.strip().lower()
 
         if loc in COUNTRY_MAP:
-            # Strict country filter
+            # Strict country filter (JSearch uses `country`, not `country_codes`)
             country_code = COUNTRY_MAP[loc]
-            params["country_codes"] = country_code
+            params["country"] = country_code.lower()
         else:
-            # City or region search (no country filter)
-            params["location"] = location.strip()
+            # City/region search is most reliable when embedded into query
+            # Example: "Data Analyst in London"
+            params["query"] = f"{query} in {location.strip()}"
     else:
         # No location → pseudo-worldwide
-        params["country_codes"] = DEFAULT_GLOBAL_COUNTRIES
+        # JSearch expects `country` for filtering; we pass a comma-separated list.
+        # If the API supports multi-country here, you get broad coverage.
+        params["country"] = DEFAULT_GLOBAL_COUNTRIES.lower()
 
     # --------------------------------------------------
     # REMOTE HANDLING
@@ -124,14 +126,10 @@ def search_jobs(query, location=None, remote=False, page=1):
     return {
         "data": jobs,
         "meta": {
-            "query": query,
+            "query": params.get("query"),
             "location": location,
             "country_code": country_code,
             "remote": remote,
             "page": page,
         }
     }
-
-
-
-
