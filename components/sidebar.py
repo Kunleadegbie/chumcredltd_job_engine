@@ -67,7 +67,7 @@ def render_sidebar():
         # Subscription
         # -------------------------
         st.page_link("pages/10_subscription.py", label="💳 Subscription")
-	st.page_link("pages/14_Support_Hub.py", label="🆘 Support Hub")
+        st.page_link("pages/14_Support_Hub.py", label="🆘 Support Hub")
 
         # -------------------------
         # Admin Section
