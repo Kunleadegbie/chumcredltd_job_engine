@@ -23,19 +23,15 @@ def render_sidebar():
     # ------------------------------------------------------
     # Sidebar UI
     # ------------------------------------------------------
-    
     with st.sidebar:
         # Logo
-        st.image(
-            "assets/talentiq_logo.png",
-            width=220
-        )
+        st.image("assets/talentiq_logo.png", width=220)
 
         st.markdown("## Chumcred TalentIQ")
         st.caption("AI-Powered Career & Talent Intelligence")
         st.divider()
 
-        user = st.session_state.get("user", {})
+        user = st.session_state.get("user", {}) or {}
         role = user.get("role", "user")
 
         # -------------------------
@@ -51,7 +47,6 @@ def render_sidebar():
         # AI Tools
         # -------------------------
         st.markdown("### 🤖 AI Tools")
-
         st.page_link("pages/3a_Match_Score.py", label="📈 Match Score")
         st.page_link("pages/3b_Skills.py", label="🧠 Skills Extraction")
         st.page_link("pages/3c_Cover_Letter.py", label="✍️ Cover Letter")
@@ -75,14 +70,11 @@ def render_sidebar():
         if role == "admin":
             st.divider()
             st.markdown("### 🛡️ Admin Panel")
-
             st.page_link("pages/12_Admin_Payments.py", label="💼 Payment Approvals")
             st.page_link("pages/9_Admin_Revenue.py", label="💰 Revenue Dashboard")
             st.page_link("pages/13_Admin_Credit_Usage.py", label="📊 Credit Usage")
-            st.page_link("pages/15_Admin_Users.py", label="👥 Users")
+            st.page_link("pages/15_Admin_Users.py", label="👥 Users Profile")
 
-
-	   
         st.divider()
 
         # -------------------------

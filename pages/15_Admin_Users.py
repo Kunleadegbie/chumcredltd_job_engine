@@ -1,3 +1,4 @@
+
 # ============================================================
 # pages/15_Admin_Users.py — Admin Users (Registrations + Status + Activity)
 # ============================================================
@@ -44,11 +45,34 @@ if not me_id or not is_admin(me_id):
 # HELPERS
 # ======================================================
 def safe_dt(v):
-    if not v:
+    """
+    Convert anything (string, datetime, pandas Timestamp) into a tz-aware UTC datetime.
+    Returns None if parsing fails.
+    """
+    if v is None or v == "":
         return None
+
     try:
-        # handles iso strings like 2026-01-03T10:20:30Z
-        return datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+        # pandas Timestamp -> python datetime
+        if hasattr(v, "to_pydatetime"):
+            v = v.to_pydatetime()
+
+        # already a datetime
+        if isinstance(v, datetime):
+            dt = v
+        else:
+            s = str(v).strip()
+            # normalize common "Z" form
+            s = s.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(s)
+
+        # force tz-aware UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        else:
+            dt = dt.astimezone(timezone.utc)
+
+        return dt
     except Exception:
         return None
 
@@ -62,7 +86,7 @@ def pick_first(cols, candidates):
 
 def chunked(lst, n=150):
     for i in range(0, len(lst), n):
-        yield lst[i:i+n]
+        yield lst[i:i + n]
 
 
 # ======================================================
@@ -119,7 +143,6 @@ try:
         )
         subs_rows.extend(res.data or [])
 except Exception:
-    # subscriptions table may not exist or may be blocked; we’ll handle gracefully
     subs_rows = []
 
 dfs = pd.DataFrame(subs_rows) if subs_rows else pd.DataFrame([])
@@ -127,11 +150,11 @@ dfs = pd.DataFrame(subs_rows) if subs_rows else pd.DataFrame([])
 # Normalize subscription per user (pick the most recent by end_date/created_at if available)
 sub_map = {}
 if not dfs.empty and "user_id" in dfs.columns:
-    # choose a “recency” column
     rec_col = pick_first(set(dfs.columns), ["end_date", "updated_at", "created_at"])
     if rec_col:
         dfs["_rec"] = dfs[rec_col].apply(safe_dt)
-        dfs = dfs.sort_values("_rec", ascending=False)
+        dfs = dfs.sort_values("_rec", ascending=False, na_position="last")
+
     for _, r in dfs.iterrows():
         uid = str(r.get("user_id"))
         if uid and uid not in sub_map:
@@ -140,8 +163,6 @@ if not dfs.empty and "user_id" in dfs.columns:
 # ======================================================
 # LOAD ACTIVITY SIGNALS (OPTIONAL, SAFE)
 # ======================================================
-# We’ll try these tables in order; whichever exists helps compute last activity:
-# ai_usage_logs OR ai_outputs OR saved_jobs OR support_feedback
 def load_activity_table(table, time_candidates=("created_at", "timestamp", "time"), user_candidates=("user_id",)):
     try:
         rows = (
@@ -155,30 +176,37 @@ def load_activity_table(table, time_candidates=("created_at", "timestamp", "time
         )
         if not rows:
             return {}
+
         dfa = pd.DataFrame(rows)
         tcol = pick_first(set(dfa.columns), list(time_candidates))
         ucol = pick_first(set(dfa.columns), list(user_candidates))
         if not tcol or not ucol:
             return {}
+
         dfa["_t"] = dfa[tcol].apply(safe_dt)
         dfa = dfa.dropna(subset=[ucol, "_t"])
-        # latest per user
+
         latest = dfa.sort_values("_t", ascending=False).drop_duplicates(subset=[ucol])
         return {str(r[ucol]): r["_t"] for _, r in latest.iterrows()}
     except Exception:
         return {}
 
-activity_maps = []
-activity_maps.append(load_activity_table("ai_usage_logs"))
-activity_maps.append(load_activity_table("ai_outputs"))
-activity_maps.append(load_activity_table("saved_jobs"))
-activity_maps.append(load_activity_table("support_feedback"))
+activity_maps = [
+    load_activity_table("ai_usage_logs"),
+    load_activity_table("ai_outputs"),
+    load_activity_table("saved_jobs"),
+    load_activity_table("support_feedback"),
+]
 
+# Merge activity timestamps safely (always tz-aware UTC)
 last_activity = {}
 for amap in activity_maps:
-    for uid, dtv in amap.items():
-        # keep the newest timestamp across sources
-        if uid not in last_activity or (dtv and last_activity[uid] and dtv > last_activity[uid]) or (dtv and not last_activity[uid]):
+    for uid, dtv in (amap or {}).items():
+        dtv = safe_dt(dtv)
+        if not dtv:
+            continue
+        prev = safe_dt(last_activity.get(uid))
+        if prev is None or dtv > prev:
             last_activity[uid] = dtv
 
 # ======================================================
@@ -194,15 +222,14 @@ def compute_status(uid: str):
     credits = sub.get("credits") or 0
     end_date = safe_dt(sub.get("end_date"))
 
-    # Expired logic
     now = datetime.now(timezone.utc)
+
     if end_date and end_date < now:
         return "inactive", plan, int(credits or 0), end_date
 
     if str(status).lower() == "active":
         return "active", plan, int(credits or 0), end_date
 
-    # if status not active but credits exist, still treat as “inactive” (safer)
     return "inactive", plan, int(credits or 0), end_date
 
 
@@ -215,20 +242,22 @@ for _, u in dfu.iterrows():
     created = safe_dt(u.get(col_created)) if col_created else None
 
     acct_status, plan, credits, expiry = compute_status(uid)
-    last_seen = last_activity.get(uid)
+    last_seen = safe_dt(last_activity.get(uid))
 
-    rows_out.append({
-        "user_id": uid,
-        "name": name,
-        "email": email,
-        "role": role,
-        "registered": created.isoformat() if created else "",
-        "subscription_status": acct_status,
-        "plan": plan or "",
-        "credits": credits,
-        "expires": expiry.isoformat() if expiry else "",
-        "last_activity": last_seen.isoformat() if last_seen else "",
-    })
+    rows_out.append(
+        {
+            "user_id": uid,
+            "name": name,
+            "email": email,
+            "role": role,
+            "registered": created.isoformat() if created else "",
+            "subscription_status": acct_status,
+            "plan": plan or "",
+            "credits": int(credits or 0),
+            "expires": expiry.isoformat() if expiry else "",
+            "last_activity": last_seen.isoformat() if last_seen else "",
+        }
+    )
 
 df = pd.DataFrame(rows_out)
 
@@ -263,6 +292,7 @@ if search:
 
 # Inactivity filter (based on last_activity)
 cutoff = datetime.now(timezone.utc) - timedelta(days=int(inactivity_days))
+
 def is_inactive_last_seen(val):
     dtv = safe_dt(val)
     return (dtv is None) or (dtv < cutoff)
@@ -288,7 +318,6 @@ st.divider()
 st.subheader("Users List")
 st.dataframe(df_view.sort_values("registered", ascending=False), use_container_width=True)
 
-# Export
 st.download_button(
     "⬇️ Download Users CSV",
     data=df_view.to_csv(index=False).encode("utf-8"),
