@@ -79,6 +79,9 @@ def render_sidebar():
             st.page_link("pages/12_Admin_Payments.py", label="💼 Payment Approvals")
             st.page_link("pages/9_Admin_Revenue.py", label="💰 Revenue Dashboard")
             st.page_link("pages/13_Admin_Credit_Usage.py", label="📊 Credit Usage")
+            st.page_link("pages/15_Admin_Users.py", label="👥 Users")
+
+
 	   
         st.divider()
 
