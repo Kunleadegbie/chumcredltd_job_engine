@@ -42,6 +42,7 @@ if not admin_id or not is_admin(admin_id):
     st.stop()
 
 st.title("💼 Admin — Payment Approvals")
+st.caption("Approve pending payments and credit users safely (one-time).")
 st.divider()
 
 
@@ -55,6 +56,7 @@ def _now_iso():
 def _safe_update_payment(payment_id: str, payload: dict):
     """
     Update payment safely even if some optional columns don't exist.
+    (Fallback to status-only update if needed.)
     """
     try:
         supabase_admin.table("subscription_payments").update(payload).eq("id", payment_id).execute()
@@ -153,15 +155,14 @@ def _apply_plan_credits_admin(user_id: str, plan: str):
 
 def _approve_payment_atomic(payment_id: str, admin_user_id: str):
     """
-    ATOMIC APPROVAL (no multi-crediting):
-    1) Re-read payment (service role)
+    TRUE ATOMIC APPROVAL:
+    1) Re-read payment
     2) If already approved -> stop
-    3) Lock: update to approved ONLY if status == pending
+    3) Conditional approve: update ONLY if status == pending
     4) Verify status is approved
     5) Credit user (additive)
-    6) If credit fails -> rollback payment to pending
+    6) If credit fails -> rollback to pending
     """
-    # Re-read live payment
     payment = (
         supabase_admin.table("subscription_payments")
         .select("*")
@@ -174,7 +175,8 @@ def _approve_payment_atomic(payment_id: str, admin_user_id: str):
     if not payment:
         raise ValueError("Payment not found.")
 
-    status = (payment.get("status") or "").lower()
+    status = (payment.get("status") or "").strip().lower()
+
     if status == "approved":
         raise ValueError("Payment already approved.")
 
@@ -187,17 +189,20 @@ def _approve_payment_atomic(payment_id: str, admin_user_id: str):
     if not user_id or plan not in PLANS:
         raise ValueError("Invalid payment record (missing user_id or plan).")
 
-    # LOCK: pending -> approved (conditional)
-    # Try include audit columns; fallback handles missing columns.
-    ok, err = _safe_update_payment(payment_id, {
-        "status": "approved",
-        "approved_by": admin_user_id,
-        "approved_at": _now_iso(),
-    })
-    if not ok:
-        raise ValueError(f"Approval update failed: {err}")
+    # ✅ Conditional approve: ONLY pending -> approved
+    try:
+        supabase_admin.table("subscription_payments").update({
+            "status": "approved",
+            "approved_by": admin_user_id,
+            "approved_at": _now_iso(),
+        }).eq("id", payment_id).eq("status", "pending").execute()
+    except Exception:
+        # If audit columns don't exist, fallback to status-only but still conditional
+        supabase_admin.table("subscription_payments").update(
+            {"status": "approved"}
+        ).eq("id", payment_id).eq("status", "pending").execute()
 
-    # Verify now approved (authoritative read)
+    # Verify
     verify = (
         supabase_admin.table("subscription_payments")
         .select("status")
@@ -206,11 +211,11 @@ def _approve_payment_atomic(payment_id: str, admin_user_id: str):
         .execute()
         .data
     )
-    v_status = (verify.get("status") or "").lower() if verify else ""
+    v_status = (verify.get("status") or "").strip().lower() if verify else ""
     if v_status != "approved":
-        raise ValueError("Could not approve payment (status did not change).")
+        raise ValueError("Payment already approved (or status changed). No credits applied.")
 
-    # CREDIT USER (additive, service role)
+    # Credit user (additive)
     try:
         _apply_plan_credits_admin(user_id, plan)
     except Exception as e:
@@ -221,19 +226,34 @@ def _approve_payment_atomic(payment_id: str, admin_user_id: str):
 
 
 # ----------------------------------------------------------
-# LOAD PAYMENTS (avoid created_at ordering if not present)
+# LOAD PAYMENTS (FIX: fetch PENDING explicitly)
 # ----------------------------------------------------------
-payments = (
-    supabase_admin.table("subscription_payments")
-    .select("*")
-    .order("id", desc=True)
-    .execute()
-    .data
-    or []
-)
+show_all = st.checkbox("Show all payments (including approved)", value=False)
+
+if show_all:
+    payments = (
+        supabase_admin.table("subscription_payments")
+        .select("*")
+        .order("id", desc=True)
+        .limit(5000)
+        .execute()
+        .data
+        or []
+    )
+else:
+    # ✅ This is the key fix — don't rely on UUID ordering for “latest”
+    payments = (
+        supabase_admin.table("subscription_payments")
+        .select("*")
+        .eq("status", "pending")
+        .limit(5000)
+        .execute()
+        .data
+        or []
+    )
 
 if not payments:
-    st.info("No payment records found.")
+    st.info("No payment records found." if show_all else "No pending payments right now.")
     st.stop()
 
 
@@ -246,13 +266,19 @@ for p in payments:
     plan = p.get("plan")
     amount = p.get("amount", 0)
     reference = p.get("payment_reference", "")
-    status = (p.get("status") or "").lower()
+    status = (p.get("status") or "").strip().lower()
+
+    # Safe amount formatting
+    try:
+        amount_display = f"₦{int(amount or 0):,}"
+    except Exception:
+        amount_display = f"{amount}"
 
     st.markdown(f"""
 **Payment ID:** `{payment_id}`  
 **User ID:** `{pay_user_id}`  
 **Plan:** **{plan}**  
-**Amount:** ₦{amount:,}  
+**Amount:** {amount_display}  
 **Reference:** `{reference}`  
 **Status:** `{p.get("status", "")}`
 """)
