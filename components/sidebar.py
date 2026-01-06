@@ -16,12 +16,13 @@ def render_sidebar():
     # ------------------------------------------------------
     # Prevent duplicate sidebar rendering
     # ------------------------------------------------------
-    if st.session_state.get("_sidebar_rendered"):
-        return
     render_analytics()
 
-    st.session_state["_sidebar_rendered"] = True
+    if st.session_state.get("_sidebar_rendered"):
+        return
 
+    st.session_state["_sidebar_rendered"] = True
+   
     # ------------------------------------------------------
     # Sidebar UI
     # ------------------------------------------------------
