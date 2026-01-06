@@ -1,35 +1,18 @@
-
 # ==============================================================
 # Dashboard.py — Fully Redesigned Professional Dashboard
 # ==============================================================
 
 import streamlit as st
 from datetime import datetime
-from config.supabase_client import supabase
+from config.supabase_client import supabase  # kept as-is (even if not used)
 from services.utils import get_subscription, is_low_credit
 
-
-# ======================================================
-# HIDE STREAMLIT SIDEBAR
-# ======================================================
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
-# Hide Streamlit default navigation
-hide_streamlit_sidebar()
-
-st.session_state["_sidebar_rendered"] = False
-
-# Auth check
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.switch_page("app.py")
-    st.stop()
-
-# Render custom sidebar
-render_sidebar()
 
 # ======================================================
-# PAGE CONFIG
+# PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
 # ======================================================
 st.set_page_config(
     page_title="Dashboard – TalentIQ",
@@ -39,10 +22,18 @@ st.set_page_config(
 
 
 # ======================================================
-# AUTHENTICATION CHECK
+# HIDE STREAMLIT SIDEBAR + RENDER CUSTOM SIDEBAR
+# ======================================================
+hide_streamlit_sidebar()
+st.session_state["_sidebar_rendered"] = False
+
+
+# ======================================================
+# AUTH CHECK (ONLY ONCE)
 # ======================================================
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
+    st.stop()
 
 user = st.session_state.get("user")
 
@@ -51,6 +42,13 @@ if not user:
     st.switch_page("app.py")
     st.stop()
 
+# Render custom sidebar (safe after auth exists)
+render_sidebar()
+
+
+# ======================================================
+# USER CONTEXT
+# ======================================================
 user_id = user.get("id")
 full_name = user.get("full_name", "User")
 
@@ -265,6 +263,28 @@ If you prefer paying manually, use:
 After payment, proceed to:  
 👉 **Subscription → Submit Payment**
 """)
+
+
+# ======================================================
+# CREDIT COST PER AI FUNCTION
+# ======================================================
+st.markdown("## 🔢 Credit Cost Per Feature")
+
+st.markdown("""
+| Feature | Credits per run |
+|---|---:|
+| Job Search (per search) | **3** |
+| Match Score | **5** |
+| Skills Extraction | **5** |
+| Cover Letter | **5** |
+| Eligibility Check | **5** |
+| Resume Writer | **5** |
+| Job Recommendations | **3** |
+| ATS SmartMatch | **10** |
+| InterviewIQ | **10** |
+""")
+
+st.caption("Tip: Your remaining credit balance is shown on your Dashboard and is deducted automatically when you run a tool.")
 
 
 # ======================================================

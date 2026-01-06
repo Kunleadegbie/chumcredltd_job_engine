@@ -4,6 +4,7 @@
 # ==========================================================
 
 import streamlit as st
+from components.analytics import render_analytics
 
 
 def render_sidebar():
@@ -17,6 +18,7 @@ def render_sidebar():
     # ------------------------------------------------------
     if st.session_state.get("_sidebar_rendered"):
         return
+    render_analytics()
 
     st.session_state["_sidebar_rendered"] = True
 

@@ -8,10 +8,35 @@ from config.supabase_client import supabase
 # ==========================================================
 # PLANS (UPDATED PRICING)
 # ==========================================================
+
+# ==========================================================
+# PLANS (Subscription Pricing)
+# ==========================================================
 PLANS = {
-    "Basic": {"price": 25000, "credits": 500, "duration_days": 90},
-    "Pro": {"price": 50000, "credits": 1150, "duration_days": 180},
-    "Premium": {"price": 100000, "credits": 2500, "duration_days": 365},
+    "FREEMIUM": {
+        "price": 0,
+        "credits": 50,
+        "duration_days": 14,   # testing window (change if you want 7/30)
+        "label": "Freemium",
+    },
+    "BASIC": {
+        "price": 25000,
+        "credits": 500,
+        "duration_days": 90,
+        "label": "Basic",
+    },
+    "PRO": {
+        "price": 50000,
+        "credits": 1150,
+        "duration_days": 180,
+        "label": "Pro",
+    },
+    "PREMIUM": {
+        "price": 100000,
+        "credits": 2500,
+        "duration_days": 365,
+        "label": "Premium",
+    },
 }
 
 
