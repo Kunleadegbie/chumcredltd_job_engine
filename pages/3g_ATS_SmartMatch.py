@@ -1,12 +1,14 @@
 
 # ==============================================================
-# pages/3g_ATS_SmartMatch.py — ATS SmartMatch™ (Premium AI)
+# pages/3g_ATS_SmartMatch.py — ATS SmartMatch™ (Premium AI) (FIXED Uploads)
 # ==============================================================
 
 import streamlit as st
 import sys
 import os
 from datetime import datetime
+from io import BytesIO
+import re
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
@@ -57,6 +59,9 @@ render_sidebar()
 # ==============================================================
 user = st.session_state.get("user", {})
 user_id = user.get("id")
+if not user_id:
+    st.switch_page("app.py")
+    st.stop()
 
 
 # ==============================================================
@@ -71,24 +76,64 @@ if not subscription or subscription.get("subscription_status") != "active":
 
 
 # ==============================================================
-# PAGE HEADER
-# ==============================================================
-st.title("🧬 ATS SmartMatch™")
-st.caption(
-    "Evaluate how well your resume matches a job description using ATS-grade intelligence."
-)
-st.divider()
-
-
-# ==============================================================
-# SANITIZER (CRITICAL FIX)
+# SANITIZER (CRITICAL)
 # ==============================================================
 def sanitize_text(text: str) -> str:
     if not text:
         return ""
-    text = text.replace("\x00", "")  # remove null bytes
+    text = text.replace("\x00", "")
     text = text.encode("utf-8", "ignore").decode("utf-8")
     return text
+
+
+# ==============================================================
+# SAFE TEXT EXTRACTOR (PDF/DOCX/TXT) — NO pdfplumber
+# ==============================================================
+def read_uploaded_text(uploaded_file) -> str:
+    if not uploaded_file:
+        return ""
+
+    name = (uploaded_file.name or "").lower()
+    data = uploaded_file.getvalue() or b""
+    data = data.replace(b"\x00", b"")
+
+    if name.endswith(".txt"):
+        return data.decode("utf-8", errors="ignore").replace("\x00", "").strip()
+
+    if name.endswith(".docx"):
+        try:
+            from docx import Document
+            doc = Document(BytesIO(data))
+            text = "\n".join(p.text for p in doc.paragraphs)
+            return re.sub(r"\x00", "", text).strip()
+        except Exception:
+            return ""
+
+    if name.endswith(".pdf"):
+        for lib in ("pypdf", "PyPDF2"):
+            try:
+                if lib == "pypdf":
+                    from pypdf import PdfReader
+                else:
+                    import PyPDF2
+                    PdfReader = PyPDF2.PdfReader
+
+                reader = PdfReader(BytesIO(data))
+                pages = []
+                for page in reader.pages:
+                    try:
+                        pages.append(page.extract_text() or "")
+                    except Exception:
+                        pages.append("")
+                text = "\n".join(pages)
+                return re.sub(r"\x00", "", text).strip()
+            except Exception:
+                continue
+
+        st.warning("PDF parsing library not available. Please upload DOCX/TXT or paste text.")
+        return ""
+
+    return data.decode("utf-8", errors="ignore").replace("\x00", "").strip()
 
 
 # ==============================================================
@@ -105,43 +150,56 @@ previous = (
     .data
 )
 
+st.title("🧬 ATS SmartMatch™")
+st.caption("Evaluate how well your resume matches a job description using ATS-grade intelligence.")
+st.divider()
+
 if previous:
     with st.expander("📌 Your last ATS SmartMatch result", expanded=True):
-        st.markdown(previous[0]["output"])
+        st.markdown(previous[0].get("output", ""))
 
 
 # ==============================================================
 # INPUTS
 # ==============================================================
 st.subheader("📄 Resume / CV")
+
 resume_text = st.text_area(
     "Paste your resume content here",
     height=220,
-    placeholder="Paste your resume text here…"
+    placeholder="Paste your resume text here…",
+    key="ats_resume_area"
 )
 
 resume_file = st.file_uploader(
-    "Or upload resume (PDF / DOCX)",
-    type=["pdf", "docx"]
+    "Or upload resume (PDF / DOCX / TXT)",
+    type=["pdf", "docx", "txt"],
+    key="ats_resume_upload"
 )
+
+if resume_file and not resume_text.strip():
+    extracted = read_uploaded_text(resume_file)
+    if extracted:
+        st.session_state["ats_resume_prefill"] = extracted
+        resume_text = st.session_state["ats_resume_prefill"]
 
 st.subheader("📝 Job Description")
-job_description = st.text_area(
-    "Paste the job description here (Required)",
-    height=220,
-    placeholder="Paste the job description here…"
+
+jd_file = st.file_uploader(
+    "Upload job description (PDF / DOCX / TXT) — optional",
+    type=["pdf", "docx", "txt"],
+    key="ats_jd_upload"
 )
+if jd_file:
+    st.session_state["ats_jd_prefill"] = read_uploaded_text(jd_file)
 
-
-# ==============================================================
-# FILE TEXT EXTRACTION (SAFE)
-# ==============================================================
-def extract_text_from_file(uploaded_file):
-    try:
-        content = uploaded_file.read()
-        return content.decode("utf-8", errors="ignore")
-    except Exception:
-        return ""
+job_description = st.text_area(
+    "Or paste the job description here (Required)",
+    value=st.session_state.get("ats_jd_prefill", ""),
+    height=220,
+    placeholder="Paste the job description here…",
+    key="ats_jd_area"
+)
 
 
 # ==============================================================
@@ -200,26 +258,25 @@ Overall suitability for the role.
 # ==============================================================
 # RUN ATS SMARTMATCH (10 CREDITS)
 # ==============================================================
-if st.button("🧬 Run ATS SmartMatch™ (10 Credits)"):
+if st.button("🧬 Run ATS SmartMatch™ (10 Credits)", key="ats_run"):
 
     if is_low_credit(subscription, minimum_required=10):
         st.error("❌ You do not have enough credits.")
         st.stop()
 
     if not job_description.strip():
-        st.warning("Please provide a job description.")
+        st.warning("Please provide a job description (paste or upload).")
         st.stop()
 
     final_resume = resume_text.strip()
 
     if resume_file and not final_resume:
-        final_resume = extract_text_from_file(resume_file)
+        final_resume = read_uploaded_text(resume_file)
 
-    if not final_resume:
-        st.warning("Please provide your resume.")
+    if not final_resume.strip():
+        st.warning("Please provide your resume (paste or upload).")
         st.stop()
 
-    # Deduct credits ONCE
     ok, msg = deduct_credits(user_id, 10)
     if not ok:
         st.error(msg)
@@ -229,7 +286,6 @@ if st.button("🧬 Run ATS SmartMatch™ (10 Credits)"):
 
     result = run_ats_smartmatch(final_resume, job_description)
 
-    # Sanitize before DB save (CRITICAL)
     clean_resume = sanitize_text(final_resume)[:5000]
     clean_jd = sanitize_text(job_description)[:5000]
     clean_output = sanitize_text(result)
@@ -248,8 +304,4 @@ if st.button("🧬 Run ATS SmartMatch™ (10 Credits)"):
     st.success("✅ ATS SmartMatch™ completed!")
     st.markdown(clean_output)
 
-
-# ==============================================================
-# FOOTER
-# ==============================================================
 st.caption("Chumcred TalentIQ — ATS SmartMatch™ © 2025")
