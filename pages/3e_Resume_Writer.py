@@ -1,10 +1,10 @@
 
 # ================================================================
-# 3e_Resume_Writer.py — Persistent AI Resume Writer (FIXED Upload)
+# 3e_Resume_Writer.py — Persistent AI Resume Writer + Resume Upload
 # ================================================================
 
 import streamlit as st
-import sys, os
+import os, sys
 from io import BytesIO
 import re
 
@@ -18,29 +18,17 @@ from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
 
-# ======================================================
-# PAGE CONFIG
-# ======================================================
 st.set_page_config(page_title="AI Resume Writer", page_icon="📝", layout="wide")
 
-
-# ======================================================
-# HIDE STREAMLIT SIDEBAR
-# ======================================================
 hide_streamlit_sidebar()
 st.session_state["_sidebar_rendered"] = False
 
 
-# ======================================================
-# SAFE TEXT EXTRACTOR
-# ======================================================
-def read_uploaded_text(uploaded_file) -> str:
+def extract_text(uploaded_file) -> str:
     if not uploaded_file:
         return ""
-
     name = (uploaded_file.name or "").lower()
-    data = uploaded_file.getvalue() or b""
-    data = data.replace(b"\x00", b"")
+    data = (uploaded_file.getvalue() or b"").replace(b"\x00", b"")
 
     if name.endswith(".txt"):
         return data.decode("utf-8", errors="ignore").replace("\x00", "").strip()
@@ -49,41 +37,26 @@ def read_uploaded_text(uploaded_file) -> str:
         try:
             from docx import Document
             doc = Document(BytesIO(data))
-            text = "\n".join(p.text for p in doc.paragraphs)
-            return re.sub(r"\x00", "", text).strip()
+            return re.sub(r"\x00", "", "\n".join(p.text for p in doc.paragraphs)).strip()
         except Exception:
             return ""
 
     if name.endswith(".pdf"):
-        for lib in ("pypdf", "PyPDF2"):
-            try:
-                if lib == "pypdf":
-                    from pypdf import PdfReader
-                else:
-                    import PyPDF2
-                    PdfReader = PyPDF2.PdfReader
-
-                reader = PdfReader(BytesIO(data))
-                pages = []
-                for page in reader.pages:
-                    try:
-                        pages.append(page.extract_text() or "")
-                    except Exception:
-                        pages.append("")
-                text = "\n".join(pages)
-                return re.sub(r"\x00", "", text).strip()
-            except Exception:
-                continue
-
-        st.warning("PDF parsing library not available. Please upload DOCX/TXT or paste text.")
-        return ""
-
-    return data.decode("utf-8", errors="ignore").replace("\x00", "").strip()
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(BytesIO(data))
+            return re.sub(r"\x00", "", "\n".join((p.extract_text() or "") for p in reader.pages)).strip()
+        except Exception:
+            pass
+        try:
+            import PyPDF2
+            reader = PyPDF2.PdfReader(BytesIO(data))
+            return re.sub(r"\x00", "", "\n".join((p.extract_text() or "") for p in reader.pages)).strip()
+        except Exception:
+            return ""
+    return ""
 
 
-# ======================================================
-# AUTH CHECK
-# ======================================================
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
     st.stop()
@@ -96,24 +69,15 @@ if not user_id:
     st.switch_page("app.py")
     st.stop()
 
-
-# ======================================================
-# SUBSCRIPTION
-# ======================================================
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
-
 if not subscription or subscription.get("subscription_status") != "active":
-    st.error("Active subscription required.")
+    st.error("❌ Active subscription required.")
     st.stop()
 
 CREDIT_COST = 15
 TOOL = "resume_writer"
 
-
-# ======================================================
-# LOAD LAST OUTPUT
-# ======================================================
 saved = (
     supabase.table("ai_outputs")
     .select("*")
@@ -122,33 +86,34 @@ saved = (
     .order("created_at", desc=True)
     .limit(1)
     .execute()
-    .data
-)
+).data
+
+st.title("📝 AI Resume Writer")
+st.caption("Upload or paste your resume — get a polished, ATS-friendly rewrite.")
+st.divider()
 
 if saved:
-    st.info("📌 Your last generated resume")
-    st.write(saved[0].get("output", ""))
+    with st.expander("📌 Your last generated resume", expanded=True):
+        st.markdown(saved[0].get("output", ""))
 
-
-# ======================================================
-# UI
-# ======================================================
-st.title("📝 AI Resume Writer")
+RESUME_KEY = "rw_resume_text"
 
 resume_file = st.file_uploader("Upload Resume (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="rw_resume_upload")
 if resume_file:
-    st.session_state["rw_resume_text"] = read_uploaded_text(resume_file)
+    extracted = extract_text(resume_file)
+    st.session_state[RESUME_KEY] = extracted
+    if extracted.strip():
+        st.success(f"✅ Resume extracted ({len(extracted)} characters).")
+    else:
+        st.warning("⚠️ Resume uploaded but no readable text extracted. Upload DOCX/TXT or paste text.")
 
-resume_text = st.text_area(
-    "Or paste resume text",
-    value=st.session_state.get("rw_resume_text", ""),
-    height=300,
-    key="rw_resume_area"
-)
+resume_text = st.text_area("Or paste resume text", key=RESUME_KEY, height=300)
 
-if st.button("Rewrite Resume", key="rw_run"):
+run = st.button(f"Rewrite Resume ({CREDIT_COST} credits)", key="rw_run")
+
+if run:
     if not resume_text.strip():
-        st.warning("Resume required.")
+        st.warning("Please provide your resume (upload or paste).")
         st.stop()
 
     ok, msg = deduct_credits(user_id, CREDIT_COST)
@@ -157,17 +122,17 @@ if st.button("Rewrite Resume", key="rw_run"):
         st.stop()
 
     with st.spinner("Rewriting resume..."):
-        output = ai_generate_resume_rewrite(resume_text=resume_text)
+        output = ai_generate_resume_rewrite(resume_text=resume_text.strip())
 
-        supabase.table("ai_outputs").insert({
-            "user_id": user_id,
-            "tool": TOOL,
-            "input": {"resume_text": resume_text[:200]},
-            "output": output,
-            "credits_used": CREDIT_COST,
-        }).execute()
+    supabase.table("ai_outputs").insert({
+        "user_id": user_id,
+        "tool": TOOL,
+        "input": {"resume_text": resume_text.strip()[:500]},
+        "output": (output or "").replace("\x00", ""),
+        "credits_used": CREDIT_COST
+    }).execute()
 
-        st.success("Resume generated!")
-        st.write(output)
+    st.success("✅ Resume generated!")
+    st.markdown(output or "")
 
 st.caption("Chumcred TalentIQ © 2025")

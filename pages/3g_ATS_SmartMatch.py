@@ -1,101 +1,33 @@
 
 # ==============================================================
-# pages/3g_ATS_SmartMatch.py — ATS SmartMatch™ (Premium AI) (FIXED Uploads)
+# pages/3g_ATS_SmartMatch.py — ATS SmartMatch™ (Stable Uploads)
 # ==============================================================
 
 import streamlit as st
-import sys
-import os
-from datetime import datetime
+import sys, os
 from io import BytesIO
 import re
+from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
-from services.utils import (
-    get_subscription,
-    auto_expire_subscription,
-    deduct_credits,
-    is_low_credit,
-)
+from services.utils import get_subscription, auto_expire_subscription, deduct_credits, is_low_credit
 from config.supabase_client import supabase
 
 
-# ==============================================================
-# PAGE CONFIG
-# ==============================================================
-st.set_page_config(
-    page_title="ATS SmartMatch™",
-    page_icon="🧬",
-    layout="wide"
-)
+st.set_page_config(page_title="ATS SmartMatch™", page_icon="🧬", layout="wide")
 
-
-# ==============================================================
-# HIDE STREAMLIT NAV + RESET SIDEBAR FLAG
-# ==============================================================
 hide_streamlit_sidebar()
 st.session_state["_sidebar_rendered"] = False
 
 
-# ==============================================================
-# AUTH CHECK
-# ==============================================================
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.switch_page("app.py")
-    st.stop()
-
-
-# ==============================================================
-# RENDER CUSTOM SIDEBAR (ONCE)
-# ==============================================================
-render_sidebar()
-
-
-# ==============================================================
-# USER CONTEXT
-# ==============================================================
-user = st.session_state.get("user", {})
-user_id = user.get("id")
-if not user_id:
-    st.switch_page("app.py")
-    st.stop()
-
-
-# ==============================================================
-# SUBSCRIPTION CHECK
-# ==============================================================
-subscription = get_subscription(user_id)
-auto_expire_subscription(user_id)
-
-if not subscription or subscription.get("subscription_status") != "active":
-    st.error("❌ You need an active subscription to use ATS SmartMatch™.")
-    st.stop()
-
-
-# ==============================================================
-# SANITIZER (CRITICAL)
-# ==============================================================
-def sanitize_text(text: str) -> str:
-    if not text:
-        return ""
-    text = text.replace("\x00", "")
-    text = text.encode("utf-8", "ignore").decode("utf-8")
-    return text
-
-
-# ==============================================================
-# SAFE TEXT EXTRACTOR (PDF/DOCX/TXT) — NO pdfplumber
-# ==============================================================
-def read_uploaded_text(uploaded_file) -> str:
+def extract_text(uploaded_file) -> str:
     if not uploaded_file:
         return ""
-
     name = (uploaded_file.name or "").lower()
-    data = uploaded_file.getvalue() or b""
-    data = data.replace(b"\x00", b"")
+    data = (uploaded_file.getvalue() or b"").replace(b"\x00", b"")
 
     if name.endswith(".txt"):
         return data.decode("utf-8", errors="ignore").replace("\x00", "").strip()
@@ -104,123 +36,45 @@ def read_uploaded_text(uploaded_file) -> str:
         try:
             from docx import Document
             doc = Document(BytesIO(data))
-            text = "\n".join(p.text for p in doc.paragraphs)
-            return re.sub(r"\x00", "", text).strip()
+            return re.sub(r"\x00", "", "\n".join(p.text for p in doc.paragraphs)).strip()
         except Exception:
             return ""
 
     if name.endswith(".pdf"):
-        for lib in ("pypdf", "PyPDF2"):
-            try:
-                if lib == "pypdf":
-                    from pypdf import PdfReader
-                else:
-                    import PyPDF2
-                    PdfReader = PyPDF2.PdfReader
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(BytesIO(data))
+            return re.sub(r"\x00", "", "\n".join((p.extract_text() or "") for p in reader.pages)).strip()
+        except Exception:
+            pass
+        try:
+            import PyPDF2
+            reader = PyPDF2.PdfReader(BytesIO(data))
+            return re.sub(r"\x00", "", "\n".join((p.extract_text() or "") for p in reader.pages)).strip()
+        except Exception:
+            return ""
 
-                reader = PdfReader(BytesIO(data))
-                pages = []
-                for page in reader.pages:
-                    try:
-                        pages.append(page.extract_text() or "")
-                    except Exception:
-                        pages.append("")
-                text = "\n".join(pages)
-                return re.sub(r"\x00", "", text).strip()
-            except Exception:
-                continue
+    return ""
 
-        st.warning("PDF parsing library not available. Please upload DOCX/TXT or paste text.")
+
+def sanitize_text(text: str) -> str:
+    if not text:
         return ""
-
-    return data.decode("utf-8", errors="ignore").replace("\x00", "").strip()
-
-
-# ==============================================================
-# LOAD PREVIOUS RESULT (PERSISTENCE)
-# ==============================================================
-previous = (
-    supabase.table("ai_outputs")
-    .select("output")
-    .eq("user_id", user_id)
-    .eq("tool", "ATS_SMARTMATCH")
-    .order("created_at", desc=True)
-    .limit(1)
-    .execute()
-    .data
-)
-
-st.title("🧬 ATS SmartMatch™")
-st.caption("Evaluate how well your resume matches a job description using ATS-grade intelligence.")
-st.divider()
-
-if previous:
-    with st.expander("📌 Your last ATS SmartMatch result", expanded=True):
-        st.markdown(previous[0].get("output", ""))
+    return text.replace("\x00", "").encode("utf-8", "ignore").decode("utf-8")
 
 
-# ==============================================================
-# INPUTS
-# ==============================================================
-st.subheader("📄 Resume / CV")
+def run_ats_smartmatch(resume: str, jd: str) -> str:
+    resume_l = resume.lower()
+    jd_l = jd.lower()
 
-resume_text = st.text_area(
-    "Paste your resume content here",
-    height=220,
-    placeholder="Paste your resume text here…",
-    key="ats_resume_area"
-)
-
-resume_file = st.file_uploader(
-    "Or upload resume (PDF / DOCX / TXT)",
-    type=["pdf", "docx", "txt"],
-    key="ats_resume_upload"
-)
-
-if resume_file and not resume_text.strip():
-    extracted = read_uploaded_text(resume_file)
-    if extracted:
-        st.session_state["ats_resume_prefill"] = extracted
-        resume_text = st.session_state["ats_resume_prefill"]
-
-st.subheader("📝 Job Description")
-
-jd_file = st.file_uploader(
-    "Upload job description (PDF / DOCX / TXT) — optional",
-    type=["pdf", "docx", "txt"],
-    key="ats_jd_upload"
-)
-if jd_file:
-    st.session_state["ats_jd_prefill"] = read_uploaded_text(jd_file)
-
-job_description = st.text_area(
-    "Or paste the job description here (Required)",
-    value=st.session_state.get("ats_jd_prefill", ""),
-    height=220,
-    placeholder="Paste the job description here…",
-    key="ats_jd_area"
-)
-
-
-# ==============================================================
-# ATS SCORING ENGINE (EXPLAINABLE)
-# ==============================================================
-def run_ats_smartmatch(resume, jd):
-    resume = resume.lower()
-    jd = jd.lower()
-
-    keywords = [w for w in jd.split() if len(w) > 4]
-    matches = sum(1 for k in keywords if k in resume)
+    keywords = [w for w in re.findall(r"[a-zA-Z]{5,}", jd_l)]
+    matches = sum(1 for k in keywords if k in resume_l)
 
     skills_score = min(100, int((matches / max(len(keywords), 1)) * 100))
     experience_score = min(100, skills_score + 10)
     role_fit_score = min(100, int((skills_score + experience_score) / 2))
 
-    overall = int(
-        (skills_score * 0.4)
-        + (experience_score * 0.3)
-        + (role_fit_score * 0.3)
-    )
+    overall = int((skills_score * 0.4) + (experience_score * 0.3) + (role_fit_score * 0.3))
 
     return f"""
 ### 📊 ATS SmartMatch™ Results
@@ -250,53 +104,127 @@ Overall suitability for the role.
 
 ### 🚀 Improvement Tips
 - Add missing job-specific keywords
-- Align experience descriptions
-- Highlight relevant achievements
+- Align experience descriptions with the JD
+- Highlight measurable achievements
 """
 
 
-# ==============================================================
-# RUN ATS SMARTMATCH (10 CREDITS)
-# ==============================================================
-if st.button("🧬 Run ATS SmartMatch™ (10 Credits)", key="ats_run"):
+# ======================================================
+# AUTH CHECK
+# ======================================================
+if "authenticated" not in st.session_state or not st.session_state.authenticated:
+    st.switch_page("app.py")
+    st.stop()
 
-    if is_low_credit(subscription, minimum_required=10):
+render_sidebar()
+
+user = st.session_state.get("user", {}) or {}
+user_id = user.get("id")
+if not user_id:
+    st.switch_page("app.py")
+    st.stop()
+
+
+# ======================================================
+# SUBSCRIPTION CHECK
+# ======================================================
+auto_expire_subscription(user_id)
+subscription = get_subscription(user_id)
+if not subscription or subscription.get("subscription_status") != "active":
+    st.error("❌ You need an active subscription to use ATS SmartMatch™.")
+    st.stop()
+
+CREDIT_COST = 10
+TOOL = "ATS_SMARTMATCH"
+
+
+# ======================================================
+# HEADER + PREVIOUS
+# ======================================================
+st.title("🧬 ATS SmartMatch™")
+st.caption("Upload or paste your Resume and Job Description for an ATS-grade match score + explanation.")
+st.divider()
+
+previous = (
+    supabase.table("ai_outputs")
+    .select("output")
+    .eq("user_id", user_id)
+    .eq("tool", TOOL)
+    .order("created_at", desc=True)
+    .limit(1)
+    .execute()
+).data
+
+if previous:
+    with st.expander("📌 Your last ATS SmartMatch result", expanded=True):
+        st.markdown(previous[0].get("output", ""))
+
+
+# ======================================================
+# INPUTS
+# ======================================================
+RESUME_KEY = "ats_resume_text"
+JD_KEY = "ats_jd_text"
+
+st.subheader("📄 Resume / CV")
+resume_file = st.file_uploader("Upload Resume (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="ats_resume_upload")
+if resume_file:
+    extracted = extract_text(resume_file)
+    st.session_state[RESUME_KEY] = extracted
+    if extracted.strip():
+        st.success(f"✅ Resume extracted ({len(extracted)} characters).")
+    else:
+        st.warning("⚠️ Resume uploaded but no readable text extracted. Upload DOCX/TXT or paste text.")
+
+resume_text = st.text_area("Or paste resume text", key=RESUME_KEY, height=220)
+
+st.subheader("📝 Job Description")
+jd_file = st.file_uploader("Upload Job Description (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="ats_jd_upload")
+if jd_file:
+    extracted_jd = extract_text(jd_file)
+    st.session_state[JD_KEY] = extracted_jd
+    if extracted_jd.strip():
+        st.success(f"✅ Job description extracted ({len(extracted_jd)} characters).")
+    else:
+        st.warning("⚠️ Job description uploaded but no readable text extracted. Upload DOCX/TXT or paste text.")
+
+job_description = st.text_area("Or paste job description text", key=JD_KEY, height=220)
+
+
+# ======================================================
+# RUN
+# ======================================================
+if st.button(f"🧬 Run ATS SmartMatch™ ({CREDIT_COST} Credits)", key="ats_run"):
+
+    if is_low_credit(subscription, minimum_required=CREDIT_COST):
         st.error("❌ You do not have enough credits.")
         st.stop()
 
+    if not resume_text.strip():
+        st.warning("Please provide your resume (upload or paste).")
+        st.stop()
+
     if not job_description.strip():
-        st.warning("Please provide a job description (paste or upload).")
+        st.warning("Please provide the job description (upload or paste).")
         st.stop()
 
-    final_resume = resume_text.strip()
-
-    if resume_file and not final_resume:
-        final_resume = read_uploaded_text(resume_file)
-
-    if not final_resume.strip():
-        st.warning("Please provide your resume (paste or upload).")
-        st.stop()
-
-    ok, msg = deduct_credits(user_id, 10)
+    ok, msg = deduct_credits(user_id, CREDIT_COST)
     if not ok:
         st.error(msg)
         st.stop()
 
     st.info("🔍 Running ATS SmartMatch™ analysis…")
 
-    result = run_ats_smartmatch(final_resume, job_description)
+    result = run_ats_smartmatch(resume_text.strip(), job_description.strip())
 
-    clean_resume = sanitize_text(final_resume)[:5000]
-    clean_jd = sanitize_text(job_description)[:5000]
+    clean_resume = sanitize_text(resume_text.strip())[:5000]
+    clean_jd = sanitize_text(job_description.strip())[:5000]
     clean_output = sanitize_text(result)
 
     supabase.table("ai_outputs").insert({
         "user_id": user_id,
-        "tool": "ATS_SMARTMATCH",
-        "input": {
-            "resume": clean_resume,
-            "job_description": clean_jd,
-        },
+        "tool": TOOL,
+        "input": {"resume": clean_resume, "job_description": clean_jd},
         "output": clean_output,
         "created_at": datetime.utcnow().isoformat()
     }).execute()

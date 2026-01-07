@@ -1,6 +1,6 @@
 
 # ============================
-# 3a_Match_Score.py — Persistent (FIXED Uploads)
+# 3a_Match_Score.py — Persistent + Resume & JD Upload
 # ============================
 
 import streamlit as st
@@ -19,13 +19,13 @@ from components.sidebar import render_sidebar
 
 
 # ======================================================
-# PAGE CONFIG (FIRST STREAMLIT CALL)
+# PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
 # ======================================================
 st.set_page_config(page_title="Match Score Analyzer", page_icon="📊", layout="wide")
 
 
 # ======================================================
-# HIDE STREAMLIT SIDEBAR + RESET SIDEBAR FLAG
+# HIDE STREAMLIT DEFAULT SIDEBAR
 # ======================================================
 hide_streamlit_sidebar()
 st.session_state["_sidebar_rendered"] = False
@@ -34,7 +34,7 @@ st.session_state["_sidebar_rendered"] = False
 # ======================================================
 # SAFE TEXT EXTRACTOR (PDF/DOCX/TXT) — NO pdfplumber
 # ======================================================
-def read_uploaded_text(uploaded_file) -> str:
+def extract_text(uploaded_file) -> str:
     if not uploaded_file:
         return ""
 
@@ -58,31 +58,25 @@ def read_uploaded_text(uploaded_file) -> str:
 
     # PDF
     if name.endswith(".pdf"):
-        for lib in ("pypdf", "PyPDF2"):
-            try:
-                if lib == "pypdf":
-                    from pypdf import PdfReader
-                else:
-                    import PyPDF2
-                    PdfReader = PyPDF2.PdfReader
+        # Try pypdf
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(BytesIO(data))
+            pages = [(p.extract_text() or "") for p in reader.pages]
+            return re.sub(r"\x00", "", "\n".join(pages)).strip()
+        except Exception:
+            pass
 
-                reader = PdfReader(BytesIO(data))
-                pages = []
-                for page in reader.pages:
-                    try:
-                        pages.append(page.extract_text() or "")
-                    except Exception:
-                        pages.append("")
-                text = "\n".join(pages)
-                return re.sub(r"\x00", "", text).strip()
-            except Exception:
-                continue
+        # Try PyPDF2
+        try:
+            import PyPDF2
+            reader = PyPDF2.PdfReader(BytesIO(data))
+            pages = [(p.extract_text() or "") for p in reader.pages]
+            return re.sub(r"\x00", "", "\n".join(pages)).strip()
+        except Exception:
+            return ""
 
-        st.warning("PDF parsing library not available. Please upload DOCX/TXT or paste text.")
-        return ""
-
-    # fallback
-    return data.decode("utf-8", errors="ignore").replace("\x00", "").strip()
+    return ""
 
 
 # ======================================================
@@ -106,9 +100,8 @@ if not user_id:
 # ======================================================
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
-
 if not subscription or subscription.get("subscription_status") != "active":
-    st.error("Active subscription required.")
+    st.error("❌ Active subscription required.")
     st.stop()
 
 CREDIT_COST = 5
@@ -128,47 +121,60 @@ saved = (
     .execute()
 ).data
 
-if saved:
-    st.info("📌 Your last Match Score result")
-    st.write(saved[0].get("output", ""))
-
-
-# ======================================================
-# UI
-# ======================================================
 st.title("📊 Match Score Analyzer")
+st.caption("Upload or paste your Resume and Job Description to generate an ATS-style match score.")
+st.divider()
 
-st.subheader("📄 Resume")
+if saved:
+    with st.expander("📌 Your last Match Score result", expanded=True):
+        st.markdown(saved[0].get("output", ""))
+
+
+# ======================================================
+# INPUTS
+# ======================================================
+RESUME_KEY = "ms_resume_text"
+JD_KEY = "ms_jd_text"
+
+st.subheader("📄 Resume / CV")
 resume_file = st.file_uploader("Upload Resume (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="ms_resume_upload")
-if resume_file:
-    st.session_state["ms_resume_text"] = read_uploaded_text(resume_file)
 
-resume_text = st.text_area(
-    "Or paste resume text",
-    value=st.session_state.get("ms_resume_text", ""),
-    height=220,
-    key="ms_resume_text_area"
-)
+if resume_file:
+    extracted = extract_text(resume_file)
+    st.session_state[RESUME_KEY] = extracted
+    if extracted.strip():
+        st.success(f"✅ Resume extracted ({len(extracted)} characters).")
+    else:
+        st.warning("⚠️ Resume uploaded but no readable text extracted. If it is a scanned PDF, upload DOCX/TXT or paste the text.")
+
+resume_text = st.text_area("Or paste resume text", key=RESUME_KEY, height=220)
 
 st.subheader("📝 Job Description")
 jd_file = st.file_uploader("Upload Job Description (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="ms_jd_upload")
-if jd_file:
-    st.session_state["ms_job_desc_text"] = read_uploaded_text(jd_file)
 
-job_description = st.text_area(
-    "Or paste job description",
-    value=st.session_state.get("ms_job_desc_text", ""),
-    height=220,
-    key="ms_job_desc_area"
-)
+if jd_file:
+    extracted_jd = extract_text(jd_file)
+    st.session_state[JD_KEY] = extracted_jd
+    if extracted_jd.strip():
+        st.success(f"✅ Job description extracted ({len(extracted_jd)} characters).")
+    else:
+        st.warning("⚠️ Job description uploaded but no readable text extracted. Upload DOCX/TXT or paste the text.")
+
+job_description = st.text_area("Or paste job description text", key=JD_KEY, height=220)
+
+run = st.button(f"Generate Match Score ({CREDIT_COST} credits)", key="ms_run")
 
 
 # ======================================================
 # RUN
 # ======================================================
-if st.button("Generate Match Score", key="ms_run"):
-    if not resume_text.strip() or not job_description.strip():
-        st.warning("Resume and job description are required.")
+if run:
+    if not resume_text.strip():
+        st.warning("Please provide your resume (upload or paste).")
+        st.stop()
+
+    if not job_description.strip():
+        st.warning("Please provide the job description (upload or paste).")
         st.stop()
 
     ok, msg = deduct_credits(user_id, CREDIT_COST)
@@ -176,20 +182,21 @@ if st.button("Generate Match Score", key="ms_run"):
         st.error(msg)
         st.stop()
 
-    output = ai_generate_match_score(
-        resume_text=resume_text,
-        job_description=job_description
-    )
+    with st.spinner("Generating match score..."):
+        output = ai_generate_match_score(
+            resume_text=resume_text.strip(),
+            job_description=job_description.strip()
+        )
 
     supabase.table("ai_outputs").insert({
         "user_id": user_id,
         "tool": TOOL,
-        "input": {"job_description": job_description[:200]},
-        "output": output,
+        "input": {"job_description": job_description.strip()[:500]},
+        "output": (output or "").replace("\x00", ""),
         "credits_used": CREDIT_COST
     }).execute()
 
-    st.success("Match Score generated!")
-    st.write(output)
+    st.success("✅ Match Score generated!")
+    st.markdown(output or "")
 
 st.caption("Chumcred TalentIQ © 2025")
