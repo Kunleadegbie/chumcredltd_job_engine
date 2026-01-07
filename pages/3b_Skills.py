@@ -1,167 +1,149 @@
-
-# ============================================================
-# 3b_Skills.py — AI Skills Extraction (FIXED & PERSISTENT)
-# ============================================================
+# ==============================================================
+# pages/3b_Skills.py — Skills Extraction (Persistent + Upload)
+# ==============================================================
 
 import streamlit as st
-import os, sys
+import sys
+import os
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from config.supabase_client import supabase
-from services.utils import get_subscription, auto_expire_subscription, deduct_credits
-from services.ai_engine import ai_extract_skills
-from services.resume_parser import extract_text_from_resume
-
-# ======================================================
-# HIDE STREAMLIT SIDEBAR
-# ======================================================
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
+from services.resume_parser import extract_text_from_resume
+from services.ai_engine import ai_extract_skills
+from services.utils import get_subscription, auto_expire_subscription, deduct_credits
+from config.supabase_client import supabase
 
-# Hide Streamlit default navigation
+TOOL = "skills_extraction"
+CREDIT_COST = 5
+
+RESUME_TEXT_KEY = "sk_resume_text"
+RESUME_SIG_KEY = "sk_resume_sig"
+
+# ======================================================
+# PAGE CONFIG (MUST BE FIRST)
+# ======================================================
+st.set_page_config(page_title="Skills Extraction", page_icon="🧠", layout="wide")
+
+# Hide Streamlit default sidebar/navigation
 hide_streamlit_sidebar()
-
 st.session_state["_sidebar_rendered"] = False
 
-
-# Auth check
+# ======================================================
+# AUTH CHECK
+# ======================================================
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
     st.stop()
 
-# Render custom sidebar
 render_sidebar()
 
-# ---------------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------------
-st.set_page_config(page_title="AI Skills Extraction", page_icon="🧠")
-
-# ---------------------------------------------------------
-# AUTH CHECK
-# ---------------------------------------------------------
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.switch_page("app.py")
-
-user = st.session_state.get("user")
-if not user:
+user = st.session_state.get("user") or {}
+user_id = user.get("id")
+if not user_id:
     st.switch_page("app.py")
     st.stop()
 
-user_id = user.get("id")
-
-# ---------------------------------------------------------
+# ======================================================
 # SUBSCRIPTION CHECK
-# ---------------------------------------------------------
+# ======================================================
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
-
 if not subscription or subscription.get("subscription_status") != "active":
     st.error("❌ You need an active subscription to use Skills Extraction.")
     st.stop()
 
-# ---------------------------------------------------------
-# CONFIG
-# ---------------------------------------------------------
-TOOL = "skills_extraction"
-CREDIT_COST = 5
-
-# ---------------------------------------------------------
-# LOAD LAST SAVED OUTPUT (PERSISTENCE)
-# ---------------------------------------------------------
-saved = (
-    supabase.table("ai_outputs")
-    .select("*")
-    .eq("user_id", user_id)
-    .eq("tool", TOOL)
-    .order("created_at", desc=True)
-    .limit(1)
-    .execute()
-).data
-
-if saved:
-    st.info("📌 Your last extracted skills")
-    st.write(saved[0]["output"])
-
-# ---------------------------------------------------------
-# PAGE HEADER
-# ---------------------------------------------------------
+# ======================================================
+# HEADER
+# ======================================================
 st.title("🧠 AI Skills Extraction")
-st.caption("Upload your resume to extract and categorize professional skills.")
+st.caption(f"Cost: {CREDIT_COST} credits per run")
 
-# ---------------------------------------------------------
+# ======================================================
+# VIEW LAST RESULT
+# ======================================================
+try:
+    last = (
+        supabase.table("ai_outputs")
+        .select("output")
+        .eq("user_id", user_id)
+        .eq("tool", TOOL)
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if last.data:
+        with st.expander("📌 View last result"):
+            st.markdown(last.data[0].get("output", ""))
+except Exception:
+    pass
+
+st.write("---")
+
+# ======================================================
 # INPUTS
-# ---------------------------------------------------------
+# ======================================================
 resume_file = st.file_uploader(
-    "Upload Resume (PDF or DOCX)",
-    type=["pdf", "docx"]
+    "Upload Resume (PDF/DOCX/TXT)",
+    type=["pdf", "docx", "txt"],
+    key="sk_resume_file"
 )
 
-resume_text_manual = st.text_area(
-    "Or paste resume text (optional)",
-    height=250
+if resume_file:
+    sig = (resume_file.name, getattr(resume_file, "size", None))
+    if st.session_state.get(RESUME_SIG_KEY) != sig:
+        extracted = extract_text_from_resume(resume_file)
+
+        if (not extracted.strip()) and resume_file.name.lower().endswith(".pdf"):
+            st.warning(
+                "⚠️ This PDF may be a scanned image (no selectable text). "
+                "Please upload DOCX/TXT or paste the resume text below."
+            )
+
+        if extracted.strip():
+            st.session_state[RESUME_TEXT_KEY] = extracted
+
+        st.session_state[RESUME_SIG_KEY] = sig
+
+resume_text = st.text_area(
+    "Resume (Required)",
+    key=RESUME_TEXT_KEY,
+    height=260,
+    placeholder="Upload your resume OR paste the text here…",
 )
 
-# ---------------------------------------------------------
+st.write("---")
+
+# ======================================================
 # ACTION
-# ---------------------------------------------------------
-if st.button("Extract Skills"):
-
-    # -----------------------------
-    # INPUT VALIDATION
-    # -----------------------------
-    if not resume_file and not resume_text_manual.strip():
-        st.warning("Please upload a resume or paste resume text.")
+# ======================================================
+if st.button("Extract Skills", key="sk_generate"):
+    if not (resume_text or "").strip():
+        st.warning("Please provide your resume (upload or paste).")
         st.stop()
 
-    # -----------------------------
-    # EXTRACT TEXT SAFELY
-    # -----------------------------
-    if resume_file:
-        extracted_text = extract_text_from_resume(resume_file)
-    else:
-        extracted_text = resume_text_manual.strip()
-
-    if not extracted_text:
-        st.error(
-            "❌ Unable to extract readable text from the uploaded resume.\n\n"
-            "Please upload a clear PDF/DOCX or paste the resume text manually."
-        )
-        st.stop()
-
-    # -----------------------------
-    # CREDIT CHECK
-    # -----------------------------
     ok, msg = deduct_credits(user_id, CREDIT_COST)
     if not ok:
         st.error(msg)
         st.stop()
 
-    # -----------------------------
-    # AI PROCESSING
-    # -----------------------------
     with st.spinner("Extracting skills…"):
-        output = ai_extract_skills(resume_text=extracted_text)
+        output = ai_extract_skills(resume_text=resume_text)
 
-    # -----------------------------
-    # SAVE OUTPUT (CRITICAL)
-    # -----------------------------
-    supabase.table("ai_outputs").insert({
-        "user_id": user_id,
-        "tool": TOOL,
-        "input": {
-            "source": "upload" if resume_file else "manual",
-            "text_preview": extracted_text[:200]
-        },
-        "output": output,
-        "credits_used": CREDIT_COST
-    }).execute()
+    output = (output or "").replace("\x00", "").strip()
+
+    supabase.table("ai_outputs").insert(
+        {
+            "user_id": user_id,
+            "tool": TOOL,
+            "input": {"source": "upload_or_paste"},
+            "output": output,
+            "credits_used": CREDIT_COST,
+        }
+    ).execute()
 
     st.success("✅ Skills extracted successfully!")
-    st.write(output)
+    st.markdown(output)
 
-# ---------------------------------------------------------
-# FOOTER
-# ---------------------------------------------------------
 st.caption("Chumcred TalentIQ © 2025")

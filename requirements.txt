@@ -5,17 +5,14 @@ openai
 requests
 pandas
 pydantic
-PyPDF2
-python-docx
 tiktoken
-pdfplumber
 python-docx
 bcrypt
 
-
-
-
-
+# PDF extraction backends (match resume_parser.py fallbacks)
+PyMuPDF
+pypdf
+pdfminer.six
 
 
 

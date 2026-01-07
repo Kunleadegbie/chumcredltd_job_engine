@@ -1,4 +1,3 @@
-
 # ==============================================================
 # pages/3d_Eligibility.py — Eligibility Check (Persistent + Uploads)
 # ==============================================================
@@ -49,6 +48,7 @@ if not subscription or subscription.get("subscription_status") != "active":
 st.title("✅ Eligibility Check")
 st.caption(f"Cost: {CREDIT_COST} credits per run")
 
+# ✅ View last result
 try:
     last = (
         supabase.table("ai_outputs")
@@ -76,12 +76,7 @@ if resume_file:
             st.session_state[RESUME_TEXT_KEY] = extracted
         st.session_state[RESUME_SIG_KEY] = sig
 
-resume_text = st.text_area(
-    "Resume (Required)",
-    key=RESUME_TEXT_KEY,
-    height=240,
-    placeholder="Upload resume OR paste text…",
-)
+resume_text = st.text_area("Resume (Required)", key=RESUME_TEXT_KEY, height=240)
 
 jd_file = st.file_uploader("Upload Job Description (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="el_jd_file")
 if jd_file:
@@ -92,12 +87,7 @@ if jd_file:
             st.session_state[JD_TEXT_KEY] = extracted
         st.session_state[JD_SIG_KEY] = sig
 
-job_description = st.text_area(
-    "Job Description (Required)",
-    key=JD_TEXT_KEY,
-    height=240,
-    placeholder="Upload JD OR paste text…",
-)
+job_description = st.text_area("Job Description (Required)", key=JD_TEXT_KEY, height=240)
 
 st.write("---")
 
@@ -118,13 +108,7 @@ if st.button("Run Eligibility Check", key="el_generate"):
     output = (output or "").replace("\x00", "").strip()
 
     supabase.table("ai_outputs").insert(
-        {
-            "user_id": user_id,
-            "tool": TOOL,
-            "input": {"job_description": (job_description or "")[:300]},
-            "output": output,
-            "credits_used": CREDIT_COST,
-        }
+        {"user_id": user_id, "tool": TOOL, "input": {}, "output": output, "credits_used": CREDIT_COST}
     ).execute()
 
     st.success("✅ Eligibility result generated!")

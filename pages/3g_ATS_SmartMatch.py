@@ -46,6 +46,24 @@ if not subscription or subscription.get("subscription_status") != "active":
 
 st.title("🧬 ATS SmartMatch™")
 st.caption(f"Cost: {CREDIT_COST} credits per run")
+# Add this block right after st.caption(...) in ATS SmartMatch
+
+# ✅ View last result
+try:
+    last = (
+        supabase.table("ai_outputs")
+        .select("output")
+        .eq("user_id", user_id)
+        .eq("tool", TOOL)
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if last.data:
+        with st.expander("📌 View last result"):
+            st.markdown(last.data[0].get("output", ""))
+except Exception:
+    pass
 
 # ---------------------------------------------
 # Helper: remove null bytes to avoid Supabase error

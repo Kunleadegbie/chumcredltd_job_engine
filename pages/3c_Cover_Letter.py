@@ -49,6 +49,7 @@ if not subscription or subscription.get("subscription_status") != "active":
 st.title("✍️ Cover Letter Generator")
 st.caption(f"Cost: {CREDIT_COST} credits per run")
 
+# ✅ View last result
 try:
     last = (
         supabase.table("ai_outputs")
@@ -76,12 +77,7 @@ if resume_file:
             st.session_state[RESUME_TEXT_KEY] = extracted
         st.session_state[RESUME_SIG_KEY] = sig
 
-resume_text = st.text_area(
-    "Resume (Required)",
-    key=RESUME_TEXT_KEY,
-    height=220,
-    placeholder="Upload your resume OR paste here…",
-)
+resume_text = st.text_area("Resume (Required)", key=RESUME_TEXT_KEY, height=220)
 
 jd_file = st.file_uploader("Upload Job Description (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="cl_jd_file")
 if jd_file:
@@ -92,12 +88,7 @@ if jd_file:
             st.session_state[JD_TEXT_KEY] = extracted
         st.session_state[JD_SIG_KEY] = sig
 
-job_description = st.text_area(
-    "Job Description (Required)",
-    key=JD_TEXT_KEY,
-    height=220,
-    placeholder="Upload JD OR paste here…",
-)
+job_description = st.text_area("Job Description (Required)", key=JD_TEXT_KEY, height=220)
 
 tone = st.selectbox("Tone", ["Professional", "Confident", "Friendly", "Executive"], index=0)
 
@@ -116,22 +107,11 @@ if st.button("Generate Cover Letter", key="cl_generate"):
         st.error(msg)
         st.stop()
 
-    output = ai_generate_cover_letter(
-        resume_text=resume_text,
-        job_description=job_description,
-        tone=tone,
-    )
-
+    output = ai_generate_cover_letter(resume_text=resume_text, job_description=job_description, tone=tone)
     output = (output or "").replace("\x00", "").strip()
 
     supabase.table("ai_outputs").insert(
-        {
-            "user_id": user_id,
-            "tool": TOOL,
-            "input": {"tone": tone},
-            "output": output,
-            "credits_used": CREDIT_COST,
-        }
+        {"user_id": user_id, "tool": TOOL, "input": {"tone": tone}, "output": output, "credits_used": CREDIT_COST}
     ).execute()
 
     st.success("✅ Cover letter generated!")

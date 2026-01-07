@@ -2,23 +2,37 @@
 
 import io
 from typing import Optional
-
 from docx import Document
 
 
 def _clean_text(text: str) -> str:
-    # Prevent Supabase unicode issues (null bytes)
     return (text or "").replace("\x00", "").strip()
 
 
 def _extract_pdf_text(file_bytes: bytes) -> str:
     """
-    Extract text from PDF using available libs.
-    Tries pypdf -> pdfminer as fallback.
+    Extract text from PDF using multiple fallbacks:
+    1) PyMuPDF (fitz)  -> usually best
+    2) pypdf
+    3) pdfminer
     """
-    # Try pypdf first
+    # 1) PyMuPDF (best, if installed)
     try:
-        from pypdf import PdfReader  # available in your environment
+        import fitz  # PyMuPDF
+
+        doc = fitz.open(stream=file_bytes, filetype="pdf")
+        chunks = []
+        for page in doc:
+            t = page.get_text("text") or ""
+            if t.strip():
+                chunks.append(t)
+        return _clean_text("\n\n".join(chunks))
+    except Exception:
+        pass
+
+    # 2) pypdf
+    try:
+        from pypdf import PdfReader
 
         reader = PdfReader(io.BytesIO(file_bytes))
         chunks = []
@@ -30,9 +44,9 @@ def _extract_pdf_text(file_bytes: bytes) -> str:
     except Exception:
         pass
 
-    # Fallback: pdfminer
+    # 3) pdfminer
     try:
-        from pdfminer.high_level import extract_text  # available in your environment
+        from pdfminer.high_level import extract_text
 
         text = extract_text(io.BytesIO(file_bytes)) or ""
         return _clean_text(text)
@@ -51,7 +65,6 @@ def _extract_docx_text(file_bytes: bytes) -> str:
 
 def _extract_txt_text(file_bytes: bytes) -> str:
     try:
-        # try utf-8, fallback latin-1
         try:
             return _clean_text(file_bytes.decode("utf-8", errors="ignore"))
         except Exception:
@@ -70,7 +83,6 @@ def extract_text_from_resume(uploaded_file: Optional[object]) -> str:
 
     name = (getattr(uploaded_file, "name", "") or "").lower()
 
-    # Use getvalue() so we don't consume the stream irreversibly
     try:
         file_bytes = uploaded_file.getvalue()
     except Exception:
