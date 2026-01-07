@@ -1,6 +1,7 @@
 
 # ==========================================================
-# pages/12_Admin_Payments.py — Admin Payment Approvals (SERVICE ROLE + ATOMIC + CREDIT ADJUST)
+# pages/12_Admin_Payments.py — Admin Payment Approvals
+# (SERVICE ROLE + ATOMIC + CREDIT ADJUST)
 # ==========================================================
 
 import streamlit as st
@@ -45,7 +46,7 @@ if not admin_id or not is_admin(admin_id):
 # ----------------------------------------------------------
 # HELPERS
 # ----------------------------------------------------------
-def _now_iso():
+def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -70,17 +71,19 @@ def _update_subscription_credits(user_id: str, new_credits: int):
     """
     sub = _get_subscription(user_id)
     if not sub:
-        raise ValueError("Subscription row not found for this user. Approve a payment first or create subscription.")
+        raise ValueError(
+            "Subscription row not found for this user. "
+            "Approve a payment first or create subscription."
+        )
 
-    # amount is NOT NULL in your schema, keep it
+    # amount is NOT NULL in your schema, keep it safe
     amount = sub.get("amount")
     if amount is None:
         amount = 0
 
-    supabase_admin.table("subscriptions").update({
-        "credits": int(new_credits),
-        "amount": amount,
-    }).eq("user_id", user_id).execute()
+    supabase_admin.table("subscriptions").update(
+        {"credits": int(new_credits), "amount": amount}
+    ).eq("user_id", user_id).execute()
 
 
 def _apply_plan_credits_additive(user_id: str, plan: str):
@@ -104,6 +107,7 @@ def _apply_plan_credits_additive(user_id: str, plan: str):
         current_credits = int(sub.get("credits", 0) or 0)
         new_credits = current_credits + credits_to_add
 
+        # extend from later of now or existing end_date
         base = now
         try:
             end_date = sub.get("end_date")
@@ -117,28 +121,33 @@ def _apply_plan_credits_additive(user_id: str, plan: str):
 
         new_end = base + timedelta(days=days)
 
-        supabase_admin.table("subscriptions").update({
-            "plan": plan,
-            "credits": new_credits,
-            "amount": amount,  # ✅ keep NOT NULL satisfied
-            "subscription_status": "active",
-            "end_date": new_end.isoformat(),
-        }).eq("user_id", user_id).execute()
+        supabase_admin.table("subscriptions").update(
+            {
+                "plan": plan,
+                "credits": new_credits,
+                "amount": amount,  # keep NOT NULL
+                "subscription_status": "active",
+                "end_date": new_end.isoformat(),
+            }
+        ).eq("user_id", user_id).execute()
 
     else:
         new_end = now + timedelta(days=days)
-        supabase_admin.table("subscriptions").insert({
-            "user_id": user_id,
-            "plan": plan,
-            "credits": credits_to_add,
-            "amount": amount,
-            "subscription_status": "active",
-            "start_date": now.isoformat(),
-            "end_date": new_end.isoformat(),
-        }).execute()
+        supabase_admin.table("subscriptions").insert(
+            {
+                "user_id": user_id,
+                "plan": plan,
+                "credits": credits_to_add,
+                "amount": amount,
+                "subscription_status": "active",
+                "start_date": now.isoformat(),
+                "end_date": new_end.isoformat(),
+            }
+        ).execute()
 
 
 def _rollback_to_pending(payment_id: str):
+    """Best-effort rollback: approved -> pending (only if currently approved)."""
     try:
         supabase_admin.table("subscription_payments").update(
             {"status": "pending"}
@@ -177,23 +186,22 @@ def _approve_payment_atomic(payment_id: str, admin_user_id: str):
 
     user_id = payment.get("user_id")
     plan = payment.get("plan")
+
     if not user_id or plan not in PLANS:
         raise ValueError("Invalid payment record (missing user_id or invalid plan).")
 
-    # ✅ Conditional approve (prevents multi-crediting)
+    # Conditional approve (prevents multi-crediting)
     try:
-        supabase_admin.table("subscription_payments").update({
-            "status": "approved",
-            "approved_by": admin_user_id,
-            "approved_at": _now_iso(),
-        }).eq("id", payment_id).eq("status", "pending").execute()
+        supabase_admin.table("subscription_payments").update(
+            {"status": "approved", "approved_by": admin_user_id, "approved_at": _now_iso()}
+        ).eq("id", payment_id).eq("status", "pending").execute()
     except Exception:
         # Fallback if audit columns don't exist
         supabase_admin.table("subscription_payments").update(
             {"status": "approved"}
         ).eq("id", payment_id).eq("status", "pending").execute()
 
-    # Verify
+    # Verify status actually became approved
     verify = (
         supabase_admin.table("subscription_payments")
         .select("status")
@@ -204,9 +212,9 @@ def _approve_payment_atomic(payment_id: str, admin_user_id: str):
     )
     v_status = (verify.get("status") or "").strip().lower() if verify else ""
     if v_status != "approved":
-        raise ValueError("Payment already approved (or status changed). No credits applied.")
+        raise ValueError("Could not approve payment (status did not change).")
 
-    # Credit user (additive)
+    # Credit user (additive). If fails -> rollback.
     try:
         _apply_plan_credits_additive(user_id, plan)
     except Exception as e:
@@ -225,7 +233,7 @@ st.divider()
 
 
 # ----------------------------------------------------------
-# CREDIT CORRECTION PANEL (RESTORED)
+# CREDIT CORRECTION PANEL (ADD / DEDUCT)
 # ----------------------------------------------------------
 with st.expander("🛠 Credit Correction (Add/Deduct Credits Safely)", expanded=False):
     st.write(
@@ -240,14 +248,14 @@ with st.expander("🛠 Credit Correction (Add/Deduct Credits Safely)", expanded=
             min_value=-100000,
             max_value=100000,
             value=0,
-            step=10
+            step=10,
         )
         apply_btn = st.form_submit_button("✅ Apply Adjustment")
 
     if apply_btn:
         if not adj_user_id:
             st.error("User ID is required.")
-        elif adj_delta == 0:
+        elif int(adj_delta) == 0:
             st.warning("Adjustment is 0 — nothing to apply.")
         else:
             try:
@@ -258,7 +266,7 @@ with st.expander("🛠 Credit Correction (Add/Deduct Credits Safely)", expanded=
                     current = int(sub.get("credits", 0) or 0)
                     new_val = current + int(adj_delta)
                     if new_val < 0:
-                        new_val = 0  # clamp to 0 for safety
+                        new_val = 0  # clamp to 0
 
                     _update_subscription_credits(adj_user_id, new_val)
                     st.success(f"Credits updated: {current} → {new_val}")
@@ -269,7 +277,7 @@ st.divider()
 
 
 # ----------------------------------------------------------
-# LOAD PAYMENTS (FIX: fetch PENDING explicitly)
+# LOAD PAYMENTS
 # ----------------------------------------------------------
 show_all = st.checkbox("Show all payments (including approved)", value=False)
 
@@ -288,6 +296,7 @@ else:
         supabase_admin.table("subscription_payments")
         .select("*")
         .eq("status", "pending")
+        .order("id", desc=True)
         .limit(5000)
         .execute()
         .data
@@ -315,14 +324,16 @@ for p in payments:
     except Exception:
         amount_display = str(amount)
 
-    st.markdown(f"""
+    st.markdown(
+        f"""
 **Payment ID:** `{payment_id}`  
 **User ID:** `{pay_user_id}`  
 **Plan:** **{plan}**  
 **Amount:** {amount_display}  
 **Reference:** `{reference}`  
 **Status:** `{p.get("status", "")}`
-""")
+"""
+    )
 
     if plan not in PLANS:
         st.error(f"❌ Invalid plan for payment {payment_id}")
