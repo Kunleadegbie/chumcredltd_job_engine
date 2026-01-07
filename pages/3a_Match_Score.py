@@ -1,87 +1,34 @@
 
-# ============================
-# 3a_Match_Score.py — Persistent + Resume & JD Upload
-# ============================
+# ==============================================================
+# pages/3a_Match_Score.py — Match Score (Persistent + Uploads)
+# ==============================================================
 
 import streamlit as st
-import os, sys
-from io import BytesIO
-import re
+import sys
+import os
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
+from components.ui import hide_streamlit_sidebar
+from components.sidebar import render_sidebar
+from services.resume_parser import extract_text_from_resume
 from services.ai_engine import ai_generate_match_score
 from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from config.supabase_client import supabase
 
-from components.ui import hide_streamlit_sidebar
-from components.sidebar import render_sidebar
+TOOL = "match_score"
+CREDIT_COST = 5
+
+RESUME_TEXT_KEY = "ms_resume_text"
+RESUME_SIG_KEY = "ms_resume_sig"
+JD_TEXT_KEY = "ms_jd_text"
+JD_SIG_KEY = "ms_jd_sig"
 
 
-# ======================================================
-# PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
-# ======================================================
-st.set_page_config(page_title="Match Score Analyzer", page_icon="📊", layout="wide")
-
-
-# ======================================================
-# HIDE STREAMLIT DEFAULT SIDEBAR
-# ======================================================
+st.set_page_config(page_title="Match Score", page_icon="📈", layout="wide")
 hide_streamlit_sidebar()
 st.session_state["_sidebar_rendered"] = False
 
-
-# ======================================================
-# SAFE TEXT EXTRACTOR (PDF/DOCX/TXT) — NO pdfplumber
-# ======================================================
-def extract_text(uploaded_file) -> str:
-    if not uploaded_file:
-        return ""
-
-    name = (uploaded_file.name or "").lower()
-    data = uploaded_file.getvalue() or b""
-    data = data.replace(b"\x00", b"")
-
-    # TXT
-    if name.endswith(".txt"):
-        return data.decode("utf-8", errors="ignore").replace("\x00", "").strip()
-
-    # DOCX
-    if name.endswith(".docx"):
-        try:
-            from docx import Document
-            doc = Document(BytesIO(data))
-            text = "\n".join(p.text for p in doc.paragraphs)
-            return re.sub(r"\x00", "", text).strip()
-        except Exception:
-            return ""
-
-    # PDF
-    if name.endswith(".pdf"):
-        # Try pypdf
-        try:
-            from pypdf import PdfReader
-            reader = PdfReader(BytesIO(data))
-            pages = [(p.extract_text() or "") for p in reader.pages]
-            return re.sub(r"\x00", "", "\n".join(pages)).strip()
-        except Exception:
-            pass
-
-        # Try PyPDF2
-        try:
-            import PyPDF2
-            reader = PyPDF2.PdfReader(BytesIO(data))
-            pages = [(p.extract_text() or "") for p in reader.pages]
-            return re.sub(r"\x00", "", "\n".join(pages)).strip()
-        except Exception:
-            return ""
-
-    return ""
-
-
-# ======================================================
-# AUTH CHECK
-# ======================================================
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
     st.stop()
@@ -94,87 +41,89 @@ if not user_id:
     st.switch_page("app.py")
     st.stop()
 
-
-# ======================================================
-# SUBSCRIPTION CHECK
-# ======================================================
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 if not subscription or subscription.get("subscription_status") != "active":
-    st.error("❌ Active subscription required.")
+    st.error("❌ You need an active subscription to use this tool.")
     st.stop()
 
-CREDIT_COST = 5
-TOOL = "match_score"
+st.title("📈 Match Score")
+st.caption(f"Cost: {CREDIT_COST} credits per run")
 
+# -----------------------------
+# Load last output (optional)
+# -----------------------------
+try:
+    last = (
+        supabase.table("ai_outputs")
+        .select("output")
+        .eq("user_id", user_id)
+        .eq("tool", TOOL)
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if last.data:
+        with st.expander("📌 View last result"):
+            st.markdown(last.data[0].get("output", ""))
+except Exception:
+    pass
 
-# ======================================================
-# LOAD LAST OUTPUT
-# ======================================================
-saved = (
-    supabase.table("ai_outputs")
-    .select("*")
-    .eq("user_id", user_id)
-    .eq("tool", TOOL)
-    .order("created_at", desc=True)
-    .limit(1)
-    .execute()
-).data
+st.write("---")
 
-st.title("📊 Match Score Analyzer")
-st.caption("Upload or paste your Resume and Job Description to generate an ATS-style match score.")
-st.divider()
-
-if saved:
-    with st.expander("📌 Your last Match Score result", expanded=True):
-        st.markdown(saved[0].get("output", ""))
-
-
-# ======================================================
-# INPUTS
-# ======================================================
-RESUME_KEY = "ms_resume_text"
-JD_KEY = "ms_jd_text"
-
-st.subheader("📄 Resume / CV")
-resume_file = st.file_uploader("Upload Resume (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="ms_resume_upload")
-
+# -----------------------------
+# Resume input (Upload + Paste)
+# -----------------------------
+resume_file = st.file_uploader("Upload Resume (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="ms_resume_file")
 if resume_file:
-    extracted = extract_text(resume_file)
-    st.session_state[RESUME_KEY] = extracted
-    if extracted.strip():
-        st.success(f"✅ Resume extracted ({len(extracted)} characters).")
-    else:
-        st.warning("⚠️ Resume uploaded but no readable text extracted. If it is a scanned PDF, upload DOCX/TXT or paste the text.")
+    sig = (resume_file.name, getattr(resume_file, "size", None))
+    if st.session_state.get(RESUME_SIG_KEY) != sig:
+        extracted = extract_text_from_resume(resume_file)
+        if extracted.strip():
+            st.session_state[RESUME_TEXT_KEY] = extracted
+        st.session_state[RESUME_SIG_KEY] = sig
 
-resume_text = st.text_area("Or paste resume text", key=RESUME_KEY, height=220)
+resume_text = st.text_area(
+    "Resume (Required)",
+    key=RESUME_TEXT_KEY,
+    height=220,
+    placeholder="Upload your resume OR paste the text here…",
+)
 
-st.subheader("📝 Job Description")
-jd_file = st.file_uploader("Upload Job Description (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="ms_jd_upload")
-
+# -----------------------------
+# Job description input (Upload + Paste)
+# -----------------------------
+jd_file = st.file_uploader("Upload Job Description (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="ms_jd_file")
 if jd_file:
-    extracted_jd = extract_text(jd_file)
-    st.session_state[JD_KEY] = extracted_jd
-    if extracted_jd.strip():
-        st.success(f"✅ Job description extracted ({len(extracted_jd)} characters).")
-    else:
-        st.warning("⚠️ Job description uploaded but no readable text extracted. Upload DOCX/TXT or paste the text.")
+    sig = (jd_file.name, getattr(jd_file, "size", None))
+    if st.session_state.get(JD_SIG_KEY) != sig:
+        extracted = extract_text_from_resume(jd_file)
+        if extracted.strip():
+            st.session_state[JD_TEXT_KEY] = extracted
+        st.session_state[JD_SIG_KEY] = sig
 
-job_description = st.text_area("Or paste job description text", key=JD_KEY, height=220)
+job_description = st.text_area(
+    "Job Description (Required)",
+    key=JD_TEXT_KEY,
+    height=220,
+    placeholder="Upload the JD OR paste the text here…",
+)
 
-run = st.button(f"Generate Match Score ({CREDIT_COST} credits)", key="ms_run")
+st.write("---")
 
-
-# ======================================================
-# RUN
-# ======================================================
-if run:
-    if not resume_text.strip():
-        st.warning("Please provide your resume (upload or paste).")
+if st.button("Generate Match Score", key="ms_generate"):
+    if not (resume_text or "").strip():
+        if resume_file:
+            st.error("Resume uploaded but no readable text was extracted. Please upload DOCX/TXT or paste the resume text.")
+        else:
+            st.warning("Please provide your resume (upload or paste).")
         st.stop()
 
-    if not job_description.strip():
-        st.warning("Please provide the job description (upload or paste).")
+    if not (job_description or "").strip():
+        if jd_file:
+            st.error("Job Description uploaded but no readable text was extracted. Please upload DOCX/TXT or paste the JD text.")
+        else:
+            st.warning("Please provide your job description (upload or paste).")
         st.stop()
 
     ok, msg = deduct_credits(user_id, CREDIT_COST)
@@ -182,21 +131,22 @@ if run:
         st.error(msg)
         st.stop()
 
-    with st.spinner("Generating match score..."):
-        output = ai_generate_match_score(
-            resume_text=resume_text.strip(),
-            job_description=job_description.strip()
-        )
+    output = ai_generate_match_score(resume_text=resume_text, job_description=job_description)
 
-    supabase.table("ai_outputs").insert({
-        "user_id": user_id,
-        "tool": TOOL,
-        "input": {"job_description": job_description.strip()[:500]},
-        "output": (output or "").replace("\x00", ""),
-        "credits_used": CREDIT_COST
-    }).execute()
+    # safe cleanup
+    output = (output or "").replace("\x00", "").strip()
+
+    supabase.table("ai_outputs").insert(
+        {
+            "user_id": user_id,
+            "tool": TOOL,
+            "input": {"job_description": (job_description or "")[:500]},
+            "output": output,
+            "credits_used": CREDIT_COST,
+        }
+    ).execute()
 
     st.success("✅ Match Score generated!")
-    st.markdown(output or "")
+    st.markdown(output)
 
 st.caption("Chumcred TalentIQ © 2025")

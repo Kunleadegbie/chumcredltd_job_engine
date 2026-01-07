@@ -1,61 +1,32 @@
 
-# ============================
-# 3c_Cover_Letter.py — Persistent + Resume & JD Upload
-# ============================
+# ==============================================================
+# pages/3c_Cover_Letter.py — Cover Letter (Persistent + Uploads)
+# ==============================================================
 
 import streamlit as st
-import os, sys
-from io import BytesIO
-import re
+import sys
+import os
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
+from components.ui import hide_streamlit_sidebar
+from components.sidebar import render_sidebar
+from services.resume_parser import extract_text_from_resume
 from services.ai_engine import ai_generate_cover_letter
 from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from config.supabase_client import supabase
 
-from components.ui import hide_streamlit_sidebar
-from components.sidebar import render_sidebar
+TOOL = "cover_letter"
+CREDIT_COST = 5
 
+RESUME_TEXT_KEY = "cl_resume_text"
+RESUME_SIG_KEY = "cl_resume_sig"
+JD_TEXT_KEY = "cl_jd_text"
+JD_SIG_KEY = "cl_jd_sig"
 
-st.set_page_config(page_title="AI Cover Letter", page_icon="✉️", layout="wide")
-
+st.set_page_config(page_title="Cover Letter", page_icon="✍️", layout="wide")
 hide_streamlit_sidebar()
 st.session_state["_sidebar_rendered"] = False
-
-
-def extract_text(uploaded_file) -> str:
-    if not uploaded_file:
-        return ""
-    name = (uploaded_file.name or "").lower()
-    data = (uploaded_file.getvalue() or b"").replace(b"\x00", b"")
-
-    if name.endswith(".txt"):
-        return data.decode("utf-8", errors="ignore").replace("\x00", "").strip()
-
-    if name.endswith(".docx"):
-        try:
-            from docx import Document
-            doc = Document(BytesIO(data))
-            return re.sub(r"\x00", "", "\n".join(p.text for p in doc.paragraphs)).strip()
-        except Exception:
-            return ""
-
-    if name.endswith(".pdf"):
-        try:
-            from pypdf import PdfReader
-            reader = PdfReader(BytesIO(data))
-            return re.sub(r"\x00", "", "\n".join((p.extract_text() or "") for p in reader.pages)).strip()
-        except Exception:
-            pass
-        try:
-            import PyPDF2
-            reader = PyPDF2.PdfReader(BytesIO(data))
-            return re.sub(r"\x00", "", "\n".join((p.extract_text() or "") for p in reader.pages)).strip()
-        except Exception:
-            return ""
-    return ""
-
 
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
@@ -72,65 +43,72 @@ if not user_id:
 auto_expire_subscription(user_id)
 subscription = get_subscription(user_id)
 if not subscription or subscription.get("subscription_status") != "active":
-    st.error("❌ Active subscription required.")
+    st.error("❌ You need an active subscription to use this tool.")
     st.stop()
 
-CREDIT_COST = 10
-TOOL = "cover_letter"
+st.title("✍️ Cover Letter Generator")
+st.caption(f"Cost: {CREDIT_COST} credits per run")
 
-saved = (
-    supabase.table("ai_outputs")
-    .select("*")
-    .eq("user_id", user_id)
-    .eq("tool", TOOL)
-    .order("created_at", desc=True)
-    .limit(1)
-    .execute()
-).data
+try:
+    last = (
+        supabase.table("ai_outputs")
+        .select("output")
+        .eq("user_id", user_id)
+        .eq("tool", TOOL)
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if last.data:
+        with st.expander("📌 View last result"):
+            st.markdown(last.data[0].get("output", ""))
+except Exception:
+    pass
 
-st.title("✉️ AI Cover Letter Generator")
-st.caption("Upload or paste your Resume and Job Description to generate a tailored cover letter.")
-st.divider()
+st.write("---")
 
-if saved:
-    with st.expander("📌 Your last Cover Letter", expanded=True):
-        st.markdown(saved[0].get("output", ""))
-
-RESUME_KEY = "cl_resume_text"
-JD_KEY = "cl_jd_text"
-
-st.subheader("📄 Resume / CV")
-resume_file = st.file_uploader("Upload Resume (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="cl_resume_upload")
+resume_file = st.file_uploader("Upload Resume (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="cl_resume_file")
 if resume_file:
-    extracted = extract_text(resume_file)
-    st.session_state[RESUME_KEY] = extracted
-    if extracted.strip():
-        st.success(f"✅ Resume extracted ({len(extracted)} characters).")
-    else:
-        st.warning("⚠️ Resume uploaded but no readable text extracted. Upload DOCX/TXT or paste text.")
+    sig = (resume_file.name, getattr(resume_file, "size", None))
+    if st.session_state.get(RESUME_SIG_KEY) != sig:
+        extracted = extract_text_from_resume(resume_file)
+        if extracted.strip():
+            st.session_state[RESUME_TEXT_KEY] = extracted
+        st.session_state[RESUME_SIG_KEY] = sig
 
-resume_text = st.text_area("Or paste resume text", key=RESUME_KEY, height=220)
+resume_text = st.text_area(
+    "Resume (Required)",
+    key=RESUME_TEXT_KEY,
+    height=220,
+    placeholder="Upload your resume OR paste here…",
+)
 
-st.subheader("📝 Job Description")
-jd_file = st.file_uploader("Upload Job Description (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="cl_jd_upload")
+jd_file = st.file_uploader("Upload Job Description (PDF/DOCX/TXT)", type=["pdf", "docx", "txt"], key="cl_jd_file")
 if jd_file:
-    extracted_jd = extract_text(jd_file)
-    st.session_state[JD_KEY] = extracted_jd
-    if extracted_jd.strip():
-        st.success(f"✅ Job description extracted ({len(extracted_jd)} characters).")
-    else:
-        st.warning("⚠️ Job description uploaded but no readable text extracted. Upload DOCX/TXT or paste text.")
+    sig = (jd_file.name, getattr(jd_file, "size", None))
+    if st.session_state.get(JD_SIG_KEY) != sig:
+        extracted = extract_text_from_resume(jd_file)
+        if extracted.strip():
+            st.session_state[JD_TEXT_KEY] = extracted
+        st.session_state[JD_SIG_KEY] = sig
 
-job_description = st.text_area("Or paste job description text", key=JD_KEY, height=220)
+job_description = st.text_area(
+    "Job Description (Required)",
+    key=JD_TEXT_KEY,
+    height=220,
+    placeholder="Upload JD OR paste here…",
+)
 
-run = st.button(f"Generate Cover Letter ({CREDIT_COST} credits)", key="cl_run")
+tone = st.selectbox("Tone", ["Professional", "Confident", "Friendly", "Executive"], index=0)
 
-if run:
-    if not resume_text.strip():
+st.write("---")
+
+if st.button("Generate Cover Letter", key="cl_generate"):
+    if not (resume_text or "").strip():
         st.warning("Please provide your resume (upload or paste).")
         st.stop()
-    if not job_description.strip():
-        st.warning("Please provide the job description (upload or paste).")
+    if not (job_description or "").strip():
+        st.warning("Please provide your job description (upload or paste).")
         st.stop()
 
     ok, msg = deduct_credits(user_id, CREDIT_COST)
@@ -138,21 +116,25 @@ if run:
         st.error(msg)
         st.stop()
 
-    with st.spinner("Generating cover letter..."):
-        output = ai_generate_cover_letter(
-            resume_text=resume_text.strip(),
-            job_description=job_description.strip()
-        )
+    output = ai_generate_cover_letter(
+        resume_text=resume_text,
+        job_description=job_description,
+        tone=tone,
+    )
 
-    supabase.table("ai_outputs").insert({
-        "user_id": user_id,
-        "tool": TOOL,
-        "input": {"job_description": job_description.strip()[:500]},
-        "output": (output or "").replace("\x00", ""),
-        "credits_used": CREDIT_COST
-    }).execute()
+    output = (output or "").replace("\x00", "").strip()
+
+    supabase.table("ai_outputs").insert(
+        {
+            "user_id": user_id,
+            "tool": TOOL,
+            "input": {"tone": tone},
+            "output": output,
+            "credits_used": CREDIT_COST,
+        }
+    ).execute()
 
     st.success("✅ Cover letter generated!")
-    st.markdown(output or "")
+    st.markdown(output)
 
 st.caption("Chumcred TalentIQ © 2025")

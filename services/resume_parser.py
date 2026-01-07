@@ -1,54 +1,92 @@
 # services/resume_parser.py
 
 import io
-import re
+from typing import Optional
+
 from docx import Document
 
-def extract_text_from_resume(uploaded_file):
-    """
-    Extract readable text from PDF/DOCX/TXT resume uploads.
-    - Works without pdfplumber (fallbacks to PyPDF2/pypdf if available).
-    - Returns "" if extraction fails.
-    """
 
+def _clean_text(text: str) -> str:
+    # Prevent Supabase unicode issues (null bytes)
+    return (text or "").replace("\x00", "").strip()
+
+
+def _extract_pdf_text(file_bytes: bytes) -> str:
+    """
+    Extract text from PDF using available libs.
+    Tries pypdf -> pdfminer as fallback.
+    """
+    # Try pypdf first
+    try:
+        from pypdf import PdfReader  # available in your environment
+
+        reader = PdfReader(io.BytesIO(file_bytes))
+        chunks = []
+        for page in reader.pages:
+            t = page.extract_text() or ""
+            if t.strip():
+                chunks.append(t)
+        return _clean_text("\n\n".join(chunks))
+    except Exception:
+        pass
+
+    # Fallback: pdfminer
+    try:
+        from pdfminer.high_level import extract_text  # available in your environment
+
+        text = extract_text(io.BytesIO(file_bytes)) or ""
+        return _clean_text(text)
+    except Exception:
+        return ""
+
+
+def _extract_docx_text(file_bytes: bytes) -> str:
+    try:
+        doc = Document(io.BytesIO(file_bytes))
+        text = "\n".join(p.text for p in doc.paragraphs if p.text)
+        return _clean_text(text)
+    except Exception:
+        return ""
+
+
+def _extract_txt_text(file_bytes: bytes) -> str:
+    try:
+        # try utf-8, fallback latin-1
+        try:
+            return _clean_text(file_bytes.decode("utf-8", errors="ignore"))
+        except Exception:
+            return _clean_text(file_bytes.decode("latin-1", errors="ignore"))
+    except Exception:
+        return ""
+
+
+def extract_text_from_resume(uploaded_file: Optional[object]) -> str:
+    """
+    Extract readable text from PDF/DOCX/TXT uploads.
+    Returns "" if extraction fails.
+    """
     if uploaded_file is None:
         return ""
 
-    filename = (uploaded_file.name or "").lower()
-    data = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
-    data = (data or b"").replace(b"\x00", b"")
+    name = (getattr(uploaded_file, "name", "") or "").lower()
 
+    # Use getvalue() so we don't consume the stream irreversibly
     try:
-        # -------- TXT --------
-        if filename.endswith(".txt"):
-            return data.decode("utf-8", errors="ignore").replace("\x00", "").strip()
-
-        # -------- DOCX --------
-        if filename.endswith(".docx"):
-            doc = Document(io.BytesIO(data))
-            return "\n".join(p.text for p in doc.paragraphs).strip()
-
-        # -------- PDF --------
-        if filename.endswith(".pdf"):
-            # Try pypdf first
-            try:
-                from pypdf import PdfReader
-                reader = PdfReader(io.BytesIO(data))
-                text = "\n".join((p.extract_text() or "") for p in reader.pages)
-                return re.sub(r"\x00", "", text).strip()
-            except Exception:
-                pass
-
-            # Try PyPDF2 as fallback
-            try:
-                import PyPDF2
-                reader = PyPDF2.PdfReader(io.BytesIO(data))
-                text = "\n".join((p.extract_text() or "") for p in reader.pages)
-                return re.sub(r"\x00", "", text).strip()
-            except Exception:
-                return ""
-
-        return ""
-
+        file_bytes = uploaded_file.getvalue()
     except Exception:
+        try:
+            file_bytes = uploaded_file.read()
+        except Exception:
+            return ""
+
+    if not file_bytes:
         return ""
+
+    if name.endswith(".pdf"):
+        return _extract_pdf_text(file_bytes)
+    if name.endswith(".docx"):
+        return _extract_docx_text(file_bytes)
+    if name.endswith(".txt"):
+        return _extract_txt_text(file_bytes)
+
+    return ""
