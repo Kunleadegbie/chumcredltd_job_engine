@@ -24,6 +24,7 @@ RESUME_SIG_KEY = "ats_resume_sig"
 JD_SIG_KEY = "ats_jd_sig"
 RESUME_TEXT_KEY = "ats_resume_text"
 JD_TEXT_KEY = "ats_jd_text"
+LAST_OVERRIDE_KEY = "ats_last_output_override"
 
 
 # ======================================================
@@ -243,7 +244,7 @@ def build_report(resume_text: str, jd_text: str) -> str:
 def load_last_output():
     """
     Load latest saved output for this tool from ai_outputs.
-    Uses created_at ordering (safer), with fallback to id ordering.
+    Uses created_at ordering, with fallback to id ordering.
     """
     try:
         q = (
@@ -260,7 +261,6 @@ def load_last_output():
     except Exception:
         pass
 
-    # Fallback to id (some tables use this reliably)
     try:
         q = (
             supabase.table("ai_outputs")
@@ -284,6 +284,17 @@ def load_last_output():
 # ======================================================
 st.title("🧬 ATS SmartMatch™")
 st.caption(f"Cost: {CREDIT_COST} credits per run")
+st.write("---")
+
+
+# ======================================================
+# ✅ VIEW LAST RESULT (TOP — like other AI tools)
+# ======================================================
+last_output = st.session_state.get(LAST_OVERRIDE_KEY) or load_last_output()
+if last_output:
+    with st.expander("📌 View last result"):
+        st.markdown(last_output)
+
 st.write("---")
 
 
@@ -356,7 +367,7 @@ if st.button("Run ATS SmartMatch", key="ats_run"):
         st.error(msg)
         st.stop()
 
-    # Build robust report
+    # Build report
     clean_output = build_report(resume_text, job_description)
 
     # Save output
@@ -375,20 +386,13 @@ if st.button("Run ATS SmartMatch", key="ats_run"):
             }
         ).execute()
     except Exception as e:
-        # still show result even if logging fails
         st.warning(f"⚠️ Result generated but could not be saved to history: {e}")
+
+    # ✅ Make the TOP expander show the newest result immediately
+    st.session_state[LAST_OVERRIDE_KEY] = clean_output
 
     st.success("✅ SmartMatch completed!")
     st.markdown(clean_output)
-
-
-# ======================================================
-# ✅ VIEW LAST RESULT (NOW ALWAYS UP-TO-DATE)
-# ======================================================
-last_output = load_last_output()
-if last_output:
-    with st.expander("📌 View last result"):
-        st.markdown(last_output)
 
 
 st.caption("Chumcred TalentIQ — ATS SmartMatch™ © 2025")
