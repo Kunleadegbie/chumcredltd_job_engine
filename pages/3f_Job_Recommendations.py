@@ -152,7 +152,18 @@ resume_file = st.file_uploader(
 )
 
 if resume_file:
-    st.session_state["jr_resume_text"] = read_uploaded_text(resume_file)
+    extracted = read_uploaded_text(resume_file)
+
+    # IMPORTANT: write INTO the text_area widget key so it shows instantly
+    st.session_state["jr_resume_area"] = extracted
+
+    # Optional: show a quick preview so you know extraction worked
+    if extracted.strip():
+        st.success(f"✅ Extracted {len(extracted)} characters from upload.")
+        st.caption(extracted[:500] + ("..." if len(extracted) > 500 else ""))
+    else:
+        st.warning("⚠️ Upload read but no text extracted. If this is a scanned PDF, upload DOCX/TXT or paste text.")
+
 
 resume_text = st.text_area(
     "Or paste resume text",
