@@ -46,7 +46,7 @@ if not user:
 render_sidebar()
 
 # ======================================================
-# DEMO VIDEO YOTUBE LINK (TOP OF DASHBOARD)
+# DEMO VIDEO YOUTUBE LINK (TOP OF DASHBOARD)
 # ======================================================
 st.markdown("### 🎥 TalentIQ Demo Video")
 st.video("https://www.youtube.com/watch?v=57lO3K_3E0c")
