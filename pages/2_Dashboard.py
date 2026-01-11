@@ -46,23 +46,11 @@ if not user:
 render_sidebar()
 
 # ======================================================
-# DEMO VIDEO (TOP OF DASHBOARD)
+# DEMO VIDEO YOTUBE LINK (TOP OF DASHBOARD)
 # ======================================================
 st.markdown("### 🎥 TalentIQ Demo Video")
-
-video_path = "assets/talentiq_demo.mp4"  # make sure the file exists in this path
-
-try:
-    with open(video_path, "rb") as f:
-        st.video(f.read())
-except FileNotFoundError:
-    st.warning("Demo video not found. Please upload it to assets/talentiq_demo.mp4")
-except Exception as e:
-    st.warning(f"Could not load demo video: {e}")
-
+st.video("https://www.youtube.com/watch?v=57lO3K_3E0c")
 st.divider()
-
-
 
 # ======================================================
 # USER CONTEXT
