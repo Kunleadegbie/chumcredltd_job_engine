@@ -138,15 +138,17 @@ if latest:
             att_type = (latest.get("attachment_type") or "").lower()
 
             if att_url:
+                # Video attachment -> show smaller (Dashboard only) using a centered column
                 if "video" in att_type or str(att_url).lower().endswith((".mp4", ".mov", ".webm")):
+                    left, mid, right = st.columns([1, 2, 1])  # mid controls size
+                    with mid:
+                        st.video(att_url)
 
-       # --- Smaller broadcast video (Dashboard only) ---
-       left, mid, right = st.columns([1, 2, 1])   # middle column controls size
-       with mid:
-           st.video(attachment_url)
-
+                # Image attachment
                 elif str(att_url).lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
                     st.image(att_url, use_container_width=True)
+
+                # Anything else -> link button
                 else:
                     st.link_button(f"📎 Open: {att_name}", att_url)
 
