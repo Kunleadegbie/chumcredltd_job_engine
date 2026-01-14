@@ -90,6 +90,7 @@ with tab1:
                 "email": user.get("email"),
                 "full_name": user.get("full_name"),
                 "role": user.get("role", "user"),
+                "phone": user.get("phone"),  # NEW: keep in session (optional)
             }
 
             st.success("Login successful!")
@@ -105,15 +106,33 @@ with tab2:
     st.subheader("Create Account")
 
     full_name = st.text_input("Full Name")
+    phone = st.text_input("Phone Number (Required)", placeholder="e.g., 0803xxxxxxx")
     reg_email = st.text_input("Email")
     reg_password = st.text_input("Password", type="password")
     confirm_password = st.text_input("Confirm Password", type="password")
 
     if st.button("Register"):
+        # Mandatory checks (kept simple + safe)
+        if not full_name.strip():
+            st.error("Full Name is required.")
+            st.stop()
+
+        if not phone.strip():
+            st.error("Phone Number is required.")
+            st.stop()
+
+        if not reg_email.strip():
+            st.error("Email is required.")
+            st.stop()
+
+        if not reg_password.strip():
+            st.error("Password is required.")
+            st.stop()
+
         if reg_password != confirm_password:
             st.error("Passwords do not match.")
         else:
-            success, msg = register_user(full_name, reg_email, reg_password)
+            success, msg = register_user(full_name, phone, reg_email, reg_password)
 
             if success:
                 st.success(msg)

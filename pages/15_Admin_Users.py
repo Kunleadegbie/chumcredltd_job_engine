@@ -123,6 +123,9 @@ col_name = pick_first(cols, ["full_name", "name", "username"])
 col_role = pick_first(cols, ["role"])
 col_created = pick_first(cols, ["created_at", "timestamp"])
 
+# NEW: phone column support
+col_phone = pick_first(cols, ["phone", "phone_number", "mobile", "mobile_number"])
+
 if not col_id:
     st.error("Your users table has no obvious ID column (expected id).")
     st.stop()
@@ -191,6 +194,7 @@ def load_activity_table(table, time_candidates=("created_at", "timestamp", "time
     except Exception:
         return {}
 
+
 activity_maps = [
     load_activity_table("ai_usage_logs"),
     load_activity_table("ai_outputs"),
@@ -241,6 +245,8 @@ for _, u in dfu.iterrows():
     role = u.get(col_role) if col_role else "user"
     created = safe_dt(u.get(col_created)) if col_created else None
 
+    phone = u.get(col_phone) if col_phone else ""  # NEW
+
     acct_status, plan, credits, expiry = compute_status(uid)
     last_seen = safe_dt(last_activity.get(uid))
 
@@ -249,6 +255,7 @@ for _, u in dfu.iterrows():
             "user_id": uid,
             "name": name,
             "email": email,
+            "phone": phone,  # NEW
             "role": role,
             "registered": created.isoformat() if created else "",
             "subscription_status": acct_status,
@@ -288,6 +295,7 @@ if search:
     df_view = df_view[
         df_view["email"].fillna("").str.lower().str.contains(search)
         | df_view["name"].fillna("").str.lower().str.contains(search)
+        | df_view["phone"].fillna("").astype(str).str.lower().str.contains(search)
     ]
 
 # Inactivity filter (based on last_activity)

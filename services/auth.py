@@ -37,12 +37,13 @@ def verify_password(password: str, stored_password: str) -> bool:
 # ------------------------------------------------------------
 # REGISTER USER
 # ------------------------------------------------------------
-def register_user(full_name: str, email: str, password: str):
+def register_user(full_name: str, phone: str, email: str, password: str):
     try:
         hashed_password = hash_password(password)
 
         supabase.table("users").insert({
             "full_name": full_name,
+            "phone": phone,          # NEW
             "email": email,
             "password": hashed_password,
             "role": "user"
