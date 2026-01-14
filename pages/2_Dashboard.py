@@ -143,7 +143,7 @@ if latest:
                 if "video" in att_type or str(att_url).lower().endswith((".mp4", ".mov", ".webm")):
                     left, mid, right = st.columns([1, 2, 1])  # mid controls breadth
                     with mid:
-                        video_height_px = 300  # reduce length (height) but keep breadth
+                        video_height_px = 450  # reduce length (height) but keep breadth
                         components.html(
                             f"""
                             <div style="width:100%; display:flex; justify-content:center;">
