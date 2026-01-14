@@ -3,6 +3,7 @@
 # ==============================================================
 
 import streamlit as st
+import streamlit.components.v1 as components
 from datetime import datetime
 from config.supabase_client import supabase  # kept as-is (even if not used)
 from services.utils import get_subscription, is_low_credit
@@ -138,11 +139,22 @@ if latest:
             att_type = (latest.get("attachment_type") or "").lower()
 
             if att_url:
-                # Video attachment -> show smaller (Dashboard only) using a centered column
+                # Video attachment -> show smaller (Dashboard only)
                 if "video" in att_type or str(att_url).lower().endswith((".mp4", ".mov", ".webm")):
-                    left, mid, right = st.columns([1, 2, 1])  # mid controls size
+                    left, mid, right = st.columns([1, 2, 1])  # mid controls breadth
                     with mid:
-                        st.video(att_url)
+                        video_height_px = 300  # reduce length (height) but keep breadth
+                        components.html(
+                            f"""
+                            <div style="width:100%; display:flex; justify-content:center;">
+                              <video controls style="width:100%; max-height:{video_height_px}px; border-radius:12px;">
+                                <source src="{att_url}">
+                                Your browser does not support the video tag.
+                              </video>
+                            </div>
+                            """,
+                            height=video_height_px + 70,
+                        )
 
                 # Image attachment
                 elif str(att_url).lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
