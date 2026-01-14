@@ -139,7 +139,12 @@ if latest:
 
             if att_url:
                 if "video" in att_type or str(att_url).lower().endswith((".mp4", ".mov", ".webm")):
-                    st.video(att_url)
+
+       # --- Smaller broadcast video (Dashboard only) ---
+       left, mid, right = st.columns([1, 2, 1])   # middle column controls size
+       with mid:
+           st.video(attachment_url)
+
                 elif str(att_url).lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
                     st.image(att_url, use_container_width=True)
                 else:
