@@ -10,6 +10,12 @@ from services.utils import get_subscription, is_low_credit
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
+# NEW: use admin client for broadcast read tracking (persistent popup)
+try:
+    from config.supabase_client import supabase_admin as supabase_srv
+except Exception:
+    supabase_srv = None
+
 
 # ======================================================
 # PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
@@ -46,17 +52,113 @@ if not user:
 render_sidebar()
 
 # ======================================================
+# USER CONTEXT
+# ======================================================
+user_id = user.get("id")
+full_name = user.get("full_name", "User")
+
+
+# ======================================================
+# BROADCAST POPUP (ONCE EVER, PERSISTENT)
+# ======================================================
+BROADCAST_TABLE = "broadcast_messages"
+READS_TABLE = "broadcast_reads"
+
+
+def _sanitize_text(x: str) -> str:
+    if x is None:
+        return ""
+    return str(x).replace("\x00", "").strip()
+
+
+def get_latest_active_broadcast():
+    if supabase_srv is None:
+        return None
+    try:
+        rows = (
+            supabase_srv.table(BROADCAST_TABLE)
+            .select("*")
+            .eq("is_active", True)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        return rows[0] if rows else None
+    except Exception:
+        return None
+
+
+def has_user_read_broadcast(broadcast_id: str, uid: str) -> bool:
+    if supabase_srv is None:
+        return True
+    try:
+        rows = (
+            supabase_srv.table(READS_TABLE)
+            .select("id")
+            .eq("broadcast_id", broadcast_id)
+            .eq("user_id", uid)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        return len(rows) > 0
+    except Exception:
+        return False
+
+
+def mark_broadcast_read(broadcast_id: str, uid: str):
+    if supabase_srv is None:
+        return
+    try:
+        # Unique(broadcast_id, user_id) prevents duplicates
+        supabase_srv.table(READS_TABLE).insert(
+            {"broadcast_id": broadcast_id, "user_id": uid}
+        ).execute()
+    except Exception:
+        # If already exists, ignore
+        pass
+
+
+latest = get_latest_active_broadcast()
+if latest:
+    bid = latest.get("id")
+    if bid and not has_user_read_broadcast(bid, user_id):
+        st.toast("📣 New announcement from TalentIQ", icon="📣")
+
+        with st.container(border=True):
+            st.markdown("## 📣 Announcement")
+            st.markdown(f"### {_sanitize_text(latest.get('title') or 'Announcement')}")
+            st.write(_sanitize_text(latest.get("message") or ""))
+
+            att_url = latest.get("attachment_url")
+            att_name = latest.get("attachment_name") or "Attachment"
+            att_type = (latest.get("attachment_type") or "").lower()
+
+            if att_url:
+                if "video" in att_type or str(att_url).lower().endswith((".mp4", ".mov", ".webm")):
+                    st.video(att_url)
+                elif str(att_url).lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+                    st.image(att_url, use_container_width=True)
+                else:
+                    st.link_button(f"📎 Open: {att_name}", att_url)
+
+            if st.button("✅ Got it", key=f"ack_broadcast_{bid}", use_container_width=False):
+                mark_broadcast_read(bid, user_id)
+                st.success("Thanks — you won’t see this announcement again.")
+                st.rerun()
+
+        st.divider()
+
+
+# ======================================================
 # DEMO VIDEO YOUTUBE LINK (TOP OF DASHBOARD)
 # ======================================================
 st.markdown("### 🎥 TalentIQ Demo Video")
 st.video("https://www.youtube.com/watch?v=57lO3K_3E0c")
 st.divider()
-
-# ======================================================
-# USER CONTEXT
-# ======================================================
-user_id = user.get("id")
-full_name = user.get("full_name", "User")
 
 
 # ======================================================
