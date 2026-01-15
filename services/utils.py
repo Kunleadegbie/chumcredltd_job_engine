@@ -16,7 +16,7 @@ PLANS = {
     "FREEMIUM": {
         "price": 0,
         "credits": 50,
-        "duration_days": 14,   # testing window (change if you want 7/30)
+        "duration_days": 7,   # testing window (change if you want 7/30)
         "label": "Freemium",
     },
     "BASIC": {
