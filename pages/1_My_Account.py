@@ -22,37 +22,57 @@ if "user" not in st.session_state:
 
 user = st.session_state.user
 user_id = user["id"]
+user_email = user.get("email", "")
 
 # -------------------------------------------------
-# FETCH USER PROFILE (SAFE – NO COLUMN ASSUMPTIONS)
+# FETCH OR CREATE USER PROFILE (SAFE)
 # -------------------------------------------------
 profile_resp = (
     supabase
     .table("users_app")
     .select("*")
     .eq("id", user_id)
-    .single()
+    .limit(1)
     .execute()
 )
 
+if not profile_resp.data:
+    # Create profile row if missing (SAFE)
+    insert_resp = (
+        supabase
+        .table("users_app")
+        .insert({
+            "id": user_id,
+            "email": user_email
+        })
+        .execute()
+    )
+
+    if not insert_resp.data:
+        st.error("Unable to initialize user profile.")
+        st.stop()
+
+    profile = insert_resp.data[0]
+else:
+    profile = profile_resp.data[0]
+
 # -------------------------------------------------
-# FETCH SUBSCRIPTION
+# FETCH SUBSCRIPTION (SAFE)
 # -------------------------------------------------
 subscription_resp = (
     supabase
     .table("subscriptions")
     .select("plan, credits, subscription_status, end_date")
     .eq("user_id", user_id)
-    .single()
+    .limit(1)
     .execute()
 )
 
-if not profile_resp.data or not subscription_resp.data:
-    st.warning("Profile or subscription data not found.")
+if not subscription_resp.data:
+    st.warning("Subscription data not found.")
     st.stop()
 
-profile = profile_resp.data
-subscription = subscription_resp.data
+subscription = subscription_resp.data[0]
 
 email = profile.get("email", "")
 phone = profile.get("phone", "") or profile.get("phone_number", "")
@@ -78,18 +98,18 @@ with col2:
     st.metric(
         "Subscription Expiry",
         datetime.fromisoformat(end_date).strftime("%d %b %Y")
+        if end_date else "N/A"
     )
 
 st.divider()
 
 # -------------------------------------------------
-# UPDATE PROFILE (EMAIL + PHONE OPTIONAL)
+# UPDATE ACCOUNT DETAILS
 # -------------------------------------------------
 st.subheader("✏️ Update Account Details")
 
 with st.form("update_profile_form"):
     new_email = st.text_input("Email", value=email)
-
     new_phone = st.text_input(
         "Phone Number (International Format)",
         value=phone,
@@ -105,7 +125,6 @@ with st.form("update_profile_form"):
 
         update_payload = {"email": new_email}
 
-        # Only update phone if column exists AND value provided
         if new_phone:
             if not new_phone.startswith("+") or not new_phone[1:].isdigit():
                 st.error(
@@ -114,7 +133,7 @@ with st.form("update_profile_form"):
                 st.stop()
             update_payload["phone"] = new_phone
 
-        update = (
+        update_resp = (
             supabase
             .table("users_app")
             .update(update_payload)
@@ -122,13 +141,13 @@ with st.form("update_profile_form"):
             .execute()
         )
 
-        if update.data:
+        if update_resp.data:
             st.success("Account details updated successfully.")
         else:
             st.error("Failed to update account details.")
 
 # -------------------------------------------------
-# CHANGE PASSWORD (EMAIL AUTH)
+# CHANGE PASSWORD
 # -------------------------------------------------
 st.divider()
 st.subheader("🔐 Change Password")
