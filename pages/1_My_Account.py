@@ -23,9 +23,14 @@ if "user" not in st.session_state:
 user = st.session_state.user
 user_id = user["id"]
 user_email = user.get("email", "")
+full_name = user.get("full_name", "").strip()
+
+if not full_name:
+    st.error("User profile is incomplete. Full name is missing.")
+    st.stop()
 
 # -------------------------------------------------
-# FETCH OR CREATE USER PROFILE (SAFE)
+# FETCH OR CREATE USER PROFILE (FIXED)
 # -------------------------------------------------
 profile_resp = (
     supabase
@@ -37,13 +42,15 @@ profile_resp = (
 )
 
 if not profile_resp.data:
-    # Create profile row if missing (SAFE)
+    # 🔒 FIX: supply full_name to satisfy NOT NULL constraint
     insert_resp = (
         supabase
         .table("users_app")
         .insert({
             "id": user_id,
-            "email": user_email
+            "full_name": full_name,
+            "email": user_email,
+            "role": user.get("role", "user")
         })
         .execute()
     )
@@ -57,7 +64,7 @@ else:
     profile = profile_resp.data[0]
 
 # -------------------------------------------------
-# FETCH SUBSCRIPTION (SAFE)
+# FETCH SUBSCRIPTION
 # -------------------------------------------------
 subscription_resp = (
     supabase
@@ -74,6 +81,9 @@ if not subscription_resp.data:
 
 subscription = subscription_resp.data[0]
 
+# -------------------------------------------------
+# DATA EXTRACTION
+# -------------------------------------------------
 email = profile.get("email", "")
 phone = profile.get("phone", "") or profile.get("phone_number", "")
 
@@ -83,7 +93,7 @@ status = subscription["subscription_status"]
 end_date = subscription["end_date"]
 
 # -------------------------------------------------
-# PROFILE SUMMARY
+# ACCOUNT SUMMARY
 # -------------------------------------------------
 st.subheader("📊 Account Summary")
 
