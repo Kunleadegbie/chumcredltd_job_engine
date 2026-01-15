@@ -7,7 +7,7 @@ from config.supabase_client import supabase
 # PAGE CONFIG
 # -------------------------------------------------
 st.set_page_config(
-    page_title="Admin User Details",
+    page_title="Admin – User Details",
     page_icon="🛡️",
     layout="wide"
 )
