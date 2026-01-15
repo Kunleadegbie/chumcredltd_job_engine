@@ -31,9 +31,10 @@ if not session_email:
 # -------------------------------------------------
 # FETCH USER PROFILE (ID → EMAIL FALLBACK)
 # -------------------------------------------------
+
 profile = None
 
-# 1️⃣ Try by ID first
+# 1️⃣Try by ID first
 if session_user_id:
     resp = (
         supabase
@@ -46,13 +47,34 @@ if session_user_id:
     if resp.data:
         profile = resp.data[0]
 
+# Fallback: EMAIL (CASE-INSENSITIVE — FINAL FIX)
+if not profile:
+    resp = (
+        supabase
+        .table("users_app")
+        .select("id, full_name, email, role")
+        .ilike("email", session_email.strip())
+        .limit(1)
+        .execute()
+    )
+    if resp.data:
+        profile = resp.data[0]
+        st.session_state.user["id"] = profile["id"]
+
+if not profile:
+    st.error(
+        "Your user profile has not been fully provisioned.\n\n"
+        "Please contact the administrator to complete account setup."
+    )
+    st.stop()
+
 # 2️⃣ Fallback to EMAIL (FINAL FIX)
 if not profile:
     resp = (
         supabase
         .table("users_app")
         .select("id, full_name, email, role")
-        .eq("email", session_email)
+        .ilike("email", session_email.strip())
         .limit(1)
         .execute()
     )
