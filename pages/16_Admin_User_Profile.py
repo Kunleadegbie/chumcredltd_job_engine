@@ -7,12 +7,12 @@ from config.supabase_client import supabase
 # PAGE CONFIG
 # -------------------------------------------------
 st.set_page_config(
-    page_title="Admin – User Profiles",
+    page_title="Admin User Profiles – TalentIQ",
     page_icon="🛡️",
     layout="wide"
 )
 
-st.title("🛡️ Admin – User Profiles")
+st.title("🛡️ Admin – User Profiles - TalentIQ")
 
 # -------------------------------------------------
 # ADMIN AUTH GUARD
