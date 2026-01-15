@@ -15,25 +15,18 @@ st.set_page_config(
 st.title("🛡️ Admin – User Details")
 
 # -------------------------------------------------
-# ADMIN AUTH GUARD
+# ADMIN AUTH GUARD (ROLE-BASED — FIXED)
 # -------------------------------------------------
 if "user" not in st.session_state:
     st.error("Unauthorized access.")
     st.stop()
 
-ADMIN_EMAILS = [
-    "admin@talentiq.com",
-    "kunle@chumcred.com"
-]
-
-current_email = st.session_state.user.get("email")
-
-if current_email not in ADMIN_EMAILS:
+if st.session_state.user.get("role") != "admin":
     st.error("You do not have admin access.")
     st.stop()
 
 # -------------------------------------------------
-# FETCH USERS + SUBSCRIPTIONS
+# FETCH USERS + SUBSCRIPTIONS (SAFE)
 # -------------------------------------------------
 data = (
     supabase
@@ -46,8 +39,7 @@ data = (
         start_date,
         end_date,
         users_app (
-            email,
-            phone
+            email
         )
     """)
     .execute()
@@ -58,19 +50,20 @@ if not data.data:
     st.stop()
 
 # -------------------------------------------------
-# PREP DATAFRAME (FOR SEARCH & FILTER)
+# PREP DATAFRAME (SAFE COLUMN HANDLING)
 # -------------------------------------------------
 rows = []
 for r in data.data:
+    user_info = r.get("users_app") or {}
+
     rows.append({
-        "user_id": r["user_id"],
-        "email": r["users_app"]["email"],
-        "phone": r["users_app"]["phone"],
-        "plan": r["plan"],
-        "credits": r["credits"],
-        "status": r["subscription_status"],
-        "start_date": r["start_date"],
-        "end_date": r["end_date"],
+        "user_id": r.get("user_id"),
+        "email": user_info.get("email", ""),
+        "plan": r.get("plan"),
+        "credits": r.get("credits"),
+        "status": r.get("subscription_status"),
+        "start_date": r.get("start_date"),
+        "end_date": r.get("end_date"),
     })
 
 df = pd.DataFrame(rows)
@@ -88,20 +81,20 @@ with col1:
 with col2:
     plan_filter = st.selectbox(
         "Filter by Plan",
-        ["All"] + sorted(df["plan"].unique().tolist())
+        ["All"] + sorted(df["plan"].dropna().unique().tolist())
     )
 
 with col3:
     status_filter = st.selectbox(
         "Filter by Status",
-        ["All"] + sorted(df["status"].unique().tolist())
+        ["All"] + sorted(df["status"].dropna().unique().tolist())
     )
 
 filtered_df = df.copy()
 
 if email_filter:
     filtered_df = filtered_df[
-        filtered_df["email"].str.contains(email_filter, case=False)
+        filtered_df["email"].str.contains(email_filter, case=False, na=False)
     ]
 
 if plan_filter != "All":
@@ -121,6 +114,10 @@ st.dataframe(
 st.divider()
 st.subheader("👤 View User Profile")
 
+if filtered_df.empty:
+    st.info("No users match the selected filters.")
+    st.stop()
+
 selected_email = st.selectbox(
     "Select User",
     filtered_df["email"].unique()
@@ -129,7 +126,7 @@ selected_email = st.selectbox(
 user_row = filtered_df[filtered_df["email"] == selected_email].iloc[0]
 
 # -------------------------------------------------
-# RENDER PROFILE (SAME STRUCTURE AS Profile.py)
+# RENDER PROFILE (READ-ONLY, SAFE)
 # -------------------------------------------------
 st.subheader("📊 Account Summary")
 
@@ -144,14 +141,10 @@ with col2:
     st.metric(
         "Subscription Expiry",
         datetime.fromisoformat(user_row["end_date"]).strftime("%d %b %Y")
+        if user_row["end_date"] else "N/A"
     )
 
 st.divider()
 st.subheader("📄 Contact Information")
 
 st.text_input("Email", value=user_row["email"], disabled=True)
-st.text_input(
-    "Phone Number",
-    value=user_row["phone"] or "",
-    disabled=True
-)

@@ -24,12 +24,12 @@ user = st.session_state.user
 user_id = user["id"]
 
 # -------------------------------------------------
-# FETCH USER PROFILE
+# FETCH USER PROFILE (SAFE – NO COLUMN ASSUMPTIONS)
 # -------------------------------------------------
-profile = (
+profile_resp = (
     supabase
     .table("users_app")
-    .select("email, phone")
+    .select("*")
     .eq("id", user_id)
     .single()
     .execute()
@@ -38,7 +38,7 @@ profile = (
 # -------------------------------------------------
 # FETCH SUBSCRIPTION
 # -------------------------------------------------
-subscription = (
+subscription_resp = (
     supabase
     .table("subscriptions")
     .select("plan, credits, subscription_status, end_date")
@@ -47,16 +47,20 @@ subscription = (
     .execute()
 )
 
-if not profile.data or not subscription.data:
+if not profile_resp.data or not subscription_resp.data:
     st.warning("Profile or subscription data not found.")
     st.stop()
 
-email = profile.data["email"]
-phone = profile.data.get("phone", "")
-plan = subscription.data["plan"]
-credits = subscription.data["credits"]
-status = subscription.data["subscription_status"]
-end_date = subscription.data["end_date"]
+profile = profile_resp.data
+subscription = subscription_resp.data
+
+email = profile.get("email", "")
+phone = profile.get("phone", "") or profile.get("phone_number", "")
+
+plan = subscription["plan"]
+credits = subscription["credits"]
+status = subscription["subscription_status"]
+end_date = subscription["end_date"]
 
 # -------------------------------------------------
 # PROFILE SUMMARY
@@ -79,46 +83,52 @@ with col2:
 st.divider()
 
 # -------------------------------------------------
-# UPDATE PROFILE
+# UPDATE PROFILE (EMAIL + PHONE OPTIONAL)
 # -------------------------------------------------
-st.subheader("✏️ Update Profile")
+st.subheader("✏️ Update Account Details")
 
 with st.form("update_profile_form"):
     new_email = st.text_input("Email", value=email)
+
     new_phone = st.text_input(
         "Phone Number (International Format)",
         value=phone,
-        placeholder="+447911123456"
+        placeholder="+447911123456 (optional)"
     )
 
-    submitted = st.form_submit_button("Update Profile")
+    submitted = st.form_submit_button("Update Details")
 
     if submitted:
         if not new_email:
             st.error("Email cannot be empty.")
-        elif not new_phone.startswith("+") or not new_phone[1:].isdigit():
-            st.error(
-                "Phone number must be in international format (e.g. +447911123456)."
-            )
-        else:
-            update = (
-                supabase
-                .table("users_app")
-                .update({
-                    "email": new_email,
-                    "phone": new_phone
-                })
-                .eq("id", user_id)
-                .execute()
-            )
+            st.stop()
 
-            if update.data:
-                st.success("Profile updated successfully.")
-            else:
-                st.error("Failed to update profile.")
+        update_payload = {"email": new_email}
+
+        # Only update phone if column exists AND value provided
+        if new_phone:
+            if not new_phone.startswith("+") or not new_phone[1:].isdigit():
+                st.error(
+                    "Phone number must be in international format (e.g. +447911123456)."
+                )
+                st.stop()
+            update_payload["phone"] = new_phone
+
+        update = (
+            supabase
+            .table("users_app")
+            .update(update_payload)
+            .eq("id", user_id)
+            .execute()
+        )
+
+        if update.data:
+            st.success("Account details updated successfully.")
+        else:
+            st.error("Failed to update account details.")
 
 # -------------------------------------------------
-# CHANGE PASSWORD (EMAIL-BASED AUTH)
+# CHANGE PASSWORD (EMAIL AUTH)
 # -------------------------------------------------
 st.divider()
 st.subheader("🔐 Change Password")
