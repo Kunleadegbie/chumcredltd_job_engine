@@ -40,6 +40,7 @@ def render_sidebar():
         # -------------------------
         # Core Pages
         # -------------------------
+	st.page_link("pages/1_My_Account.py", label="👤 My Account")
         st.page_link("pages/2_Dashboard.py", label="📊 Dashboard")
         st.page_link("pages/3_Job_Search.py", label="🔍 Job Search")
         st.page_link("pages/4_Saved_Jobs.py", label="💾 Saved Jobs")
@@ -76,7 +77,10 @@ def render_sidebar():
             st.page_link("pages/12_Admin_Payments.py", label="💼 Payment Approvals")
             st.page_link("pages/9_Admin_Revenue.py", label="💰 Revenue Dashboard")
             st.page_link("pages/13_Admin_Credit_Usage.py", label="📊 Credit Usage")
-            st.page_link("pages/15_Admin_Users.py", label="👥 Users Profile")
+            st.page_link("pages/15_Admin_Users.py", label="👥 Users Profile") 
+   
+            if st.session_state.user.get("email") in ["chumcred@gmail.com"]:
+            st.page_link("pages/16_Admin_User_Details.py", label="🛡️ User Details")
 
         st.divider()
 
