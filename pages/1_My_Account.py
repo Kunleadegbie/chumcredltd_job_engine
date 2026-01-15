@@ -14,82 +14,38 @@ st.set_page_config(
 st.title("👤 My Account")
 
 # -------------------------------------------------
-# AUTH GUARD
+# AUTHENTICATION (SINGLE SOURCE OF TRUTH)
 # -------------------------------------------------
-if "user" not in st.session_state:
-    st.error("You must be logged in to view this page.")
+auth_response = supabase.auth.get_user()
+
+if not auth_response or not auth_response.user:
+    st.error("Authentication error. Please log in again.")
     st.stop()
 
-session_user = st.session_state.user
-session_user_id = session_user.get("id")
-session_email = session_user.get("email")
-
-if not session_email:
-    st.error("Invalid session state. Please log in again.")
-    st.stop()
+auth_user = auth_response.user
+auth_user_id = auth_user.id
+auth_email = auth_user.email
 
 # -------------------------------------------------
-# FETCH USER PROFILE (ID → EMAIL FALLBACK)
+# FETCH USER PROFILE (USERS_APP)
 # -------------------------------------------------
+profile_resp = (
+    supabase
+    .table("users_app")
+    .select("id, full_name, email, role")
+    .eq("id", auth_user_id)
+    .limit(1)
+    .execute()
+)
 
-profile = None
-
-# 1️⃣Try by ID first
-if session_user_id:
-    resp = (
-        supabase
-        .table("users_app")
-        .select("id, full_name, email, role")
-        .eq("id", session_user_id)
-        .limit(1)
-        .execute()
-    )
-    if resp.data:
-        profile = resp.data[0]
-
-# Fallback: EMAIL (CASE-INSENSITIVE — FINAL FIX)
-if not profile:
-    resp = (
-        supabase
-        .table("users_app")
-        .select("id, full_name, email, role")
-        .ilike("email", session_email.strip())
-        .limit(1)
-        .execute()
-    )
-    if resp.data:
-        profile = resp.data[0]
-        st.session_state.user["id"] = profile["id"]
-
-if not profile:
+if not profile_resp.data:
     st.error(
         "Your user profile has not been fully provisioned.\n\n"
         "Please contact the administrator to complete account setup."
     )
     st.stop()
 
-# 2️⃣ Fallback to EMAIL (FINAL FIX)
-if not profile:
-    resp = (
-        supabase
-        .table("users_app")
-        .select("id, full_name, email, role")
-        .ilike("email", session_email.strip())
-        .limit(1)
-        .execute()
-    )
-    if resp.data:
-        profile = resp.data[0]
-        # 🔁 Normalize session ID
-        st.session_state.user["id"] = profile["id"]
-
-# 3️⃣ Still not found → real error
-if not profile:
-    st.error(
-        "Your user profile has not been fully provisioned.\n\n"
-        "Please contact the administrator to complete account setup."
-    )
-    st.stop()
+profile = profile_resp.data[0]
 
 # -------------------------------------------------
 # FETCH SUBSCRIPTION
@@ -98,7 +54,7 @@ subscription_resp = (
     supabase
     .table("subscriptions")
     .select("plan, credits, subscription_status, end_date")
-    .eq("user_id", profile["id"])
+    .eq("user_id", auth_user_id)
     .limit(1)
     .execute()
 )
@@ -139,7 +95,7 @@ st.text_input("Email", value=profile["email"], disabled=True)
 st.text_input("Role", value=profile["role"], disabled=True)
 
 # -------------------------------------------------
-# CHANGE PASSWORD (AUTH ONLY)
+# CHANGE PASSWORD (SUPABASE AUTH ONLY)
 # -------------------------------------------------
 st.divider()
 st.subheader("🔐 Change Password")
