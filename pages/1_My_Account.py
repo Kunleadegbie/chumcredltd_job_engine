@@ -14,17 +14,20 @@ st.set_page_config(
 st.title("👤 My Account")
 
 # -------------------------------------------------
-# AUTHENTICATION (SINGLE SOURCE OF TRUTH)
+# AUTH GUARD (STREAMLIT-CORRECT)
 # -------------------------------------------------
-auth_response = supabase.auth.get_user()
-
-if not auth_response or not auth_response.user:
+if "user" not in st.session_state or not st.session_state.user:
     st.error("Authentication error. Please log in again.")
     st.stop()
 
-auth_user = auth_response.user
-auth_user_id = auth_user.id
-auth_email = auth_user.email
+session_user = st.session_state.user
+
+auth_user_id = session_user.get("id")
+auth_email = session_user.get("email")
+
+if not auth_user_id or not auth_email:
+    st.error("Authentication error. Please log in again.")
+    st.stop()
 
 # -------------------------------------------------
 # FETCH USER PROFILE (USERS_APP)
@@ -95,7 +98,7 @@ st.text_input("Email", value=profile["email"], disabled=True)
 st.text_input("Role", value=profile["role"], disabled=True)
 
 # -------------------------------------------------
-# CHANGE PASSWORD (SUPABASE AUTH ONLY)
+# CHANGE PASSWORD (AUTH SERVICE)
 # -------------------------------------------------
 st.divider()
 st.subheader("🔐 Change Password")
