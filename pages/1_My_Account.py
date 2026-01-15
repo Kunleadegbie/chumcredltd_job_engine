@@ -22,49 +22,30 @@ if "user" not in st.session_state:
 
 user = st.session_state.user
 user_id = user["id"]
-user_email = user.get("email", "")
-full_name = user.get("full_name", "").strip()
-
-if not full_name:
-    st.error("User profile is incomplete. Full name is missing.")
-    st.stop()
 
 # -------------------------------------------------
-# FETCH OR CREATE USER PROFILE (FIXED)
+# FETCH USER RECORD (NO AUTO-CREATE — FINAL FIX)
 # -------------------------------------------------
 profile_resp = (
     supabase
     .table("users_app")
-    .select("*")
+    .select("id, full_name, email, role")
     .eq("id", user_id)
     .limit(1)
     .execute()
 )
 
 if not profile_resp.data:
-    # 🔒 FIX: supply full_name to satisfy NOT NULL constraint
-    insert_resp = (
-        supabase
-        .table("users_app")
-        .insert({
-            "id": user_id,
-            "full_name": full_name,
-            "email": user_email,
-            "role": user.get("role", "user")
-        })
-        .execute()
+    st.error(
+        "Your user profile has not been fully provisioned.\n\n"
+        "Please contact the administrator to complete account setup."
     )
+    st.stop()
 
-    if not insert_resp.data:
-        st.error("Unable to initialize user profile.")
-        st.stop()
-
-    profile = insert_resp.data[0]
-else:
-    profile = profile_resp.data[0]
+profile = profile_resp.data[0]
 
 # -------------------------------------------------
-# FETCH SUBSCRIPTION
+# FETCH SUBSCRIPTION (SAFE)
 # -------------------------------------------------
 subscription_resp = (
     supabase
@@ -84,8 +65,9 @@ subscription = subscription_resp.data[0]
 # -------------------------------------------------
 # DATA EXTRACTION
 # -------------------------------------------------
-email = profile.get("email", "")
-phone = profile.get("phone", "") or profile.get("phone_number", "")
+full_name = profile["full_name"]
+email = profile["email"]
+role = profile["role"]
 
 plan = subscription["plan"]
 credits = subscription["credits"]
@@ -114,50 +96,16 @@ with col2:
 st.divider()
 
 # -------------------------------------------------
-# UPDATE ACCOUNT DETAILS
+# PROFILE INFORMATION (READ-ONLY)
 # -------------------------------------------------
-st.subheader("✏️ Update Account Details")
+st.subheader("👤 Profile Information")
 
-with st.form("update_profile_form"):
-    new_email = st.text_input("Email", value=email)
-    new_phone = st.text_input(
-        "Phone Number (International Format)",
-        value=phone,
-        placeholder="+447911123456 (optional)"
-    )
-
-    submitted = st.form_submit_button("Update Details")
-
-    if submitted:
-        if not new_email:
-            st.error("Email cannot be empty.")
-            st.stop()
-
-        update_payload = {"email": new_email}
-
-        if new_phone:
-            if not new_phone.startswith("+") or not new_phone[1:].isdigit():
-                st.error(
-                    "Phone number must be in international format (e.g. +447911123456)."
-                )
-                st.stop()
-            update_payload["phone"] = new_phone
-
-        update_resp = (
-            supabase
-            .table("users_app")
-            .update(update_payload)
-            .eq("id", user_id)
-            .execute()
-        )
-
-        if update_resp.data:
-            st.success("Account details updated successfully.")
-        else:
-            st.error("Failed to update account details.")
+st.text_input("Full Name", value=full_name, disabled=True)
+st.text_input("Email", value=email, disabled=True)
+st.text_input("Role", value=role, disabled=True)
 
 # -------------------------------------------------
-# CHANGE PASSWORD
+# CHANGE PASSWORD (SUPABASE AUTH ONLY)
 # -------------------------------------------------
 st.divider()
 st.subheader("🔐 Change Password")
