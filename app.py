@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit as st
 import sys
 import os
 
@@ -48,17 +47,10 @@ if "authenticated" not in st.session_state:
 if "user" not in st.session_state:
     st.session_state.user = None
 
-
 # ==========================================================
-# INTERNATIONAL PHONE VALIDATION (STEP 2B)
+# INTERNATIONAL PHONE VALIDATION
 # ==========================================================
 def is_valid_international_phone(phone: str) -> bool:
-    """
-    Accepts international phone numbers in E.164-like format.
-    Examples:
-    +447911123456
-    +14165551234
-    """
     if not phone:
         return False
     phone = phone.strip()
@@ -70,7 +62,6 @@ def is_valid_international_phone(phone: str) -> bool:
         return False
     return True
 
-
 # ==========================================================
 # IF LOGGED IN → SHOW CUSTOM SIDEBAR + REDIRECT
 # ==========================================================
@@ -79,7 +70,6 @@ if st.session_state.authenticated and st.session_state.user:
     st.switch_page("pages/2_Dashboard.py")
     st.stop()
 
-
 # ==========================================================
 # LOGIN / REGISTER UI
 # ==========================================================
@@ -87,7 +77,6 @@ st.title("🔐 Welcome to Chumcred TalentIQ")
 st.caption("AI-powered tools for job seekers, career growth, and talent acceleration.")
 
 tab1, tab2 = st.tabs(["🔓 Sign In", "📝 Register"])
-
 
 # ==========================================================
 # LOGIN TAB
@@ -108,9 +97,7 @@ with tab1:
                 "email": user.get("email"),
                 "full_name": user.get("full_name"),
                 "role": user.get("role", "user"),
-                "phone": user.get("phone"),
             }
-
             st.success("Login successful!")
             st.rerun()
         else:
@@ -134,15 +121,12 @@ with tab1:
         else:
             try:
                 supabase.auth.reset_password_email(reset_email)
-                st.success(
-                    "Password reset email sent. Please check your inbox."
-                )
+                st.success("Password reset email sent. Please check your inbox.")
             except Exception:
                 st.error("Unable to send reset email.")
 
-
 # ==========================================================
-# REGISTER TAB
+# REGISTER TAB (FIXED – USERS_APP PROVISIONING)
 # ==========================================================
 with tab2:
     st.subheader("Create Account")
@@ -162,9 +146,7 @@ with tab2:
             st.stop()
 
         if not is_valid_international_phone(phone):
-            st.error(
-                "Invalid phone number. Use international format, e.g. +447911123456"
-            )
+            st.error("Invalid phone number. Use international format.")
             st.stop()
 
         if not reg_email.strip():
@@ -179,14 +161,47 @@ with tab2:
             st.error("Passwords do not match.")
             st.stop()
 
-        success, msg = register_user(full_name, phone, reg_email, reg_password)
+        # --------------------------------------------------
+        # STEP 1: CREATE AUTH USER
+        # --------------------------------------------------
+        success, msg, auth_user = register_user(
+            full_name,
+            phone,
+            reg_email,
+            reg_password
+        )
 
-        if success:
-            st.success(msg)
-            st.info("You can now sign in from the Sign In tab.")
-        else:
+        if not success:
             st.error(msg)
+            st.stop()
 
+        auth_user_id = auth_user["id"]
+
+        # --------------------------------------------------
+        # STEP 2: CREATE users_app RECORD (CORRECT)
+        # --------------------------------------------------
+        profile_insert = (
+            supabase
+            .table("users_app")
+            .insert({
+                "id": auth_user_id,
+                "full_name": full_name,
+                "email": reg_email,
+                "role": "user",
+                "is_active": True
+            })
+            .execute()
+        )
+
+        if not profile_insert.data:
+            st.error(
+                "Account created, but profile provisioning failed. "
+                "Please contact support."
+            )
+            st.stop()
+
+        st.success("Account created successfully!")
+        st.info("You can now sign in from the Sign In tab.")
 
 # ==========================================================
 # FOOTER
