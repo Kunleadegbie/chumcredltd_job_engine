@@ -65,15 +65,15 @@ st.markdown(
 # ----------------------------------------------------------
 # HELPER: RESET SIDEBAR GUARD
 # ----------------------------------------------------------
-def reset_sidebar_guard():
-    st.session_state.pop("_sidebar_rendered", None)
+# def reset_sidebar_guard():
+    #  st.session_state.pop("_sidebar_rendered", None)
 
 
 # ----------------------------------------------------------
 # AUTO-REDIRECT IF ALREADY AUTHENTICATED
 # ----------------------------------------------------------
 if st.session_state.get("authenticated") and st.session_state.get("user"):
-    reset_sidebar_guard()
+    # reset_sidebar_guard()
 
     if st.session_state.get("force_pw_change"):
         st.switch_page("pages/1_My_Account.py")
@@ -143,7 +143,7 @@ with tab_login:
         ensure_subscription_row(user.id)
 
         # Reset sidebar guard before redirect
-        reset_sidebar_guard()
+        # reset_sidebar_guard()
 
         # --------------------------------------------------
         # FORCE PASSWORD CHANGE (TEMP PASSWORD USERS)

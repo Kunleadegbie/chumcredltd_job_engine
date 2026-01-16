@@ -29,14 +29,9 @@ def safe_page_link(page_path: str, label: str) -> None:
 
 
 # ----------------------------------------------------------
-# Sidebar Renderer (ONCE PER RUN)
+# Sidebar Renderer (ALWAYS RENDER — CORRECT MODEL)
 # ----------------------------------------------------------
 def render_sidebar() -> None:
-    # 🔐 HARD GUARD — render sidebar only once per run
-    if st.session_state.get("_sidebar_rendered"):
-        return
-    st.session_state["_sidebar_rendered"] = True
-
     user = st.session_state.get("user") or {}
     role = (user.get("role") or "user").lower()
     email = (user.get("email") or "").lower()
@@ -106,8 +101,9 @@ def render_sidebar() -> None:
         st.divider()
 
         # -------------------------
-        # Logout (SAFE)
+        # Logout
         # -------------------------
-        if st.button("🚪 Logout", key="logout_once"):
+        if st.button("🚪 Logout"):
             st.session_state.clear()
             st.switch_page("app.py")
+)
