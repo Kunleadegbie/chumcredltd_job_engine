@@ -2,225 +2,185 @@
 # ==========================================================
 # app.py — TalentIQ Authentication Entry Point (STABLE)
 # ==========================================================
-
 import streamlit as st
-from config.supabase_client import supabase
-from datetime import datetime, timedelta, timezone
+import sys
+import os
+
+# ==========================================================
+# ENSURE IMPORTS WORK (Railway / Streamlit Cloud)
+# ==========================================================
+sys.path.append(os.path.dirname(__file__))
+
+from services.auth import login_user, register_user, send_password_reset_email
+from components.sidebar import render_sidebar
 
 
-def ensure_subscription_row(user_id: str):
-    """
-    Ensure a FREEMIUM subscription exists for the user.
-    Creates one if missing. Safe to call multiple times.
-    """
-    try:
-        existing = (
-            supabase.table("subscriptions")
-            .select("id")
-            .eq("user_id", user_id)
-            .limit(1)
-            .execute()
-        )
-
-        if existing.data:
-            return existing.data[0]
-
-        now = datetime.now(timezone.utc)
-        payload = {
-            "user_id": user_id,
-            "plan": "FREEMIUM",
-            "credits": 50,
-            "amount": 0,
-            "subscription_status": "active",
-            "start_date": now.isoformat(),
-            "end_date": (now + timedelta(days=7)).isoformat(),
-        }
-
-        supabase.table("subscriptions").insert(payload).execute()
-        return payload
-
-    except Exception:
-        # Never crash login because of subscription provisioning
-        return None
-
-# ----------------------------------------------------------
+# ==========================================================
 # PAGE CONFIG
-# ----------------------------------------------------------
+# ==========================================================
 st.set_page_config(
-    page_title="TalentIQ – Login",
-    page_icon="🧠",
-    layout="centered",
+    page_title="Chumcred TalentIQ",
+    page_icon="assets/talentiq_logo.png",
+    layout="wide"
 )
 
-# Hide Streamlit default sidebar nav
+# ==========================================================
+# HIDE STREAMLIT DEFAULT NAV
+# ==========================================================
 st.markdown(
     """
     <style>
-        [data-testid="stSidebarNav"] { display: none !important; }
+        [data-testid="stSidebarNav"] { display: none; }
+        section[data-testid="stSidebar"] > div:first-child {
+            padding-top: 0rem;
+        }
     </style>
     """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=True
 )
 
-# ----------------------------------------------------------
-# HELPER: RESET SIDEBAR GUARD
-# ----------------------------------------------------------
-# def reset_sidebar_guard():
-    #  st.session_state.pop("_sidebar_rendered", None)
+# ==========================================================
+# SESSION INITIALIZATION
+# ==========================================================
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+if "show_forgot" not in st.session_state:
+    st.session_state.show_forgot = False
 
 
-# ----------------------------------------------------------
-# AUTO-REDIRECT IF ALREADY AUTHENTICATED
-# ----------------------------------------------------------
-if st.session_state.get("authenticated") and st.session_state.get("user"):
-    # reset_sidebar_guard()
-
-    if st.session_state.get("force_pw_change"):
-        st.switch_page("pages/1_My_Account.py")
-        st.stop()
-
+# ==========================================================
+# IF LOGGED IN → REDIRECT
+# ==========================================================
+if st.session_state.authenticated and st.session_state.user:
+    render_sidebar()
     st.switch_page("pages/2_Dashboard.py")
     st.stop()
 
-# ----------------------------------------------------------
-# UI
-# ----------------------------------------------------------
-st.title("🧠 TalentIQ")
-st.caption("AI-Powered Career & Talent Intelligence")
-
-tab_login, tab_register = st.tabs(["🔐 Login", "📝 Register"])
 
 # ==========================================================
-# LOGIN
+# LANDING / AUTH UI
 # ==========================================================
-with tab_login:
+st.image("assets/talentiq_logo.png", width=280)
+st.title("🔐 Welcome to Chumcred TalentIQ")
+st.caption("AI-powered tools for job seekers, career growth, and talent acceleration.")
+
+tab1, tab2 = st.tabs(["🔓 Sign In", "📝 Register"])
+
+
+# ==========================================================
+# SIGN IN TAB
+# ==========================================================
+with tab1:
+    st.subheader("Sign In")
+
     email = st.text_input("Email", key="login_email")
     password = st.text_input("Password", type="password", key="login_password")
 
-    if st.button("Login"):
-        if not email or not password:
-            st.error("Email and password are required.")
-            st.stop()
+    col1, col2 = st.columns([1, 2])
 
-        try:
-            auth = supabase.auth.sign_in_with_password(
-                {"email": email.strip(), "password": password}
-            )
-        except Exception:
-            st.error("Login error: Invalid login credentials.")
-            st.stop()
+    with col1:
+        if st.button("Sign In"):
+            user = login_user(email, password)
 
-        user = getattr(auth, "user", None)
-        session = getattr(auth, "session", None)
+            if user:
+                st.session_state.authenticated = True
+                st.session_state.user = {
+                    "id": user.get("id"),
+                    "email": user.get("email"),
+                    "full_name": user.get("full_name"),
+                    "role": user.get("role", "user"),
+                }
+                st.success("Login successful!")
+                st.rerun()
+            else:
+                st.error("Invalid email or password.")
 
-        if not user or not session:
-            st.error("Login error: Invalid login credentials.")
-            st.stop()
-
-        # Store tokens
-        st.session_state.sb_access_token = session.access_token
-        st.session_state.sb_refresh_token = session.refresh_token
-
-        # Fetch role from users_app
-        role_resp = (
-            supabase.table("users_app")
-            .select("id, role")
-            .eq("id", user.id)
-            .limit(1)
-            .execute()
+    with col2:
+        st.markdown(
+            "<a style='cursor:pointer; color:#1f77b4;'>Forgot password?</a>",
+            unsafe_allow_html=True,
         )
-        role = role_resp.data[0]["role"] if role_resp.data else "user"
+        if st.button("Reset password", key="forgot_btn"):
+            st.session_state.show_forgot = True
 
-        # Store session user
-        st.session_state.authenticated = True
-        st.session_state.user = {
-            "id": user.id,
-            "email": user.email,
-            "role": role,
-        }
+    # ------------------------------
+    # FORGOT PASSWORD (EMAIL ONLY)
+    # ------------------------------
+    if st.session_state.show_forgot:
+        st.info("Enter your email to receive a password reset link.")
+        reset_email = st.text_input("Reset Email", key="reset_email")
 
-        # Ensure FREEMIUM subscription exists
-        ensure_subscription_row(user.id)
+        if st.button("Send reset link"):
+            if not reset_email.strip():
+                st.error("Please enter your email.")
+            else:
+                ok, msg = send_password_reset_email(reset_email)
+                if ok:
+                    st.success(msg)
+                    st.session_state.show_forgot = False
+                else:
+                    st.error(msg)
 
-        # Reset sidebar guard before redirect
-        # reset_sidebar_guard()
-
-        # --------------------------------------------------
-        # FORCE PASSWORD CHANGE (TEMP PASSWORD USERS)
-        # --------------------------------------------------
-        meta = getattr(user, "user_metadata", {}) or {}
-
-        if meta.get("must_change_password") is True:
-            st.session_state.force_pw_change = True
-            st.success("Login successful — please change your temporary password.")
-            st.switch_page("pages/1_My_Account.py")
-            st.stop()
-
-        # Normal login
-        st.session_state.force_pw_change = False
-        st.success("Login successful!")
-        st.switch_page("pages/2_Dashboard.py")
-        st.stop()
 
 # ==========================================================
-# REGISTER
+# REGISTER TAB
 # ==========================================================
-with tab_register:
+with tab2:
+    st.subheader("Create Account")
+
     full_name = st.text_input("Full Name")
+
+    phone = st.text_input(
+        "Phone Number (International)",
+        placeholder="e.g. +2348030000000 or +447900000000",
+        help="Include country code. Example: +234, +44, +1",
+    )
+
     reg_email = st.text_input("Email")
     reg_password = st.text_input("Password", type="password")
-    reg_password2 = st.text_input("Confirm Password", type="password")
+    confirm_password = st.text_input("Confirm Password", type="password")
 
-    if st.button("Create Account"):
-        if not all([full_name, reg_email, reg_password, reg_password2]):
-            st.error("All fields are required.")
+    if st.button("Register"):
+        if not full_name.strip():
+            st.error("Full Name is required.")
             st.stop()
 
-        if reg_password != reg_password2:
+        if not phone.strip():
+            st.error("Phone Number is required.")
+            st.stop()
+
+        if not reg_email.strip():
+            st.error("Email is required.")
+            st.stop()
+
+        if not reg_password.strip():
+            st.error("Password is required.")
+            st.stop()
+
+        if reg_password != confirm_password:
             st.error("Passwords do not match.")
             st.stop()
 
-        if len(reg_password) < 8:
-            st.error("Password must be at least 8 characters.")
-            st.stop()
+        success, msg = register_user(
+            full_name=full_name.strip(),
+            phone=phone.strip(),   # international accepted
+            email=reg_email.strip(),
+            password=reg_password,
+        )
 
-        try:
-            res = supabase.auth.sign_up(
-                {
-                    "email": reg_email.strip(),
-                    "password": reg_password,
-                    "options": {
-                        "data": {
-                            "full_name": full_name,
-                            "must_change_password": False,
-                        }
-                    },
-                }
-            )
-        except Exception:
-            st.error("Registration failed.")
-            st.stop()
+        if success:
+            st.success(msg)
+            st.info("You can now sign in from the Sign In tab.")
+        else:
+            st.error(msg)
 
-        user = getattr(res, "user", None)
-        if not user:
-            st.error("Registration failed.")
-            st.stop()
 
-        # Create users_app profile
-        supabase.table("users_app").insert(
-            {
-                "id": user.id,
-                "email": user.email,
-                "full_name": full_name,
-                "role": "user",
-            }
-        ).execute()
-
-        # Auto-create FREEMIUM subscription
-        ensure_subscription_row(user.id)
-
-        st.success("Account created successfully. Please log in.")
-        st.stop()
-
+# ==========================================================
+# FOOTER
+# ==========================================================
 st.write("---")
 st.caption("Powered by Chumcred Limited © 2025")
