@@ -51,7 +51,7 @@ st.set_page_config(page_title="Job Search", page_icon="🔍")
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
 
-render_sidebar()
+
 
 user = st.session_state.get("user")
 if not user:
