@@ -55,12 +55,21 @@ if not user:
 # Render custom sidebar (safe after auth exists)
 
 # ======================================================
-# USER CONTEXT
+# USER CONTEXT — FIX NAME DISPLAY ONLY
 # ======================================================
-user_id = user.get("id")
+user = st.session_state.get("user", {})
 
-# 🔧 CHANGE 1 — ensure real name, never email
-full_name = user.get("full_name") or "User"
+raw_name = user.get("full_name", "")
+email = user.get("email", "")
+
+# If full_name is missing OR looks like an email, fix it
+if not raw_name or "@" in raw_name:
+    if email and "@" in email:
+        full_name = email.split("@")[0].replace(".", " ").title()
+    else:
+        full_name = "User"
+else:
+    full_name = raw_name
 
 # ======================================================
 # BROADCAST POPUP (ONCE EVER, PERSISTENT)
