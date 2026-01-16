@@ -1,4 +1,3 @@
-if st.button("🚪 Logout"):
 
 # ==========================================================
 # components/sidebar.py — Stable Custom Sidebar (Safe Links)
