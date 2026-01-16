@@ -1,7 +1,7 @@
 
 
 # ==========================================================
-# app.py — TalentIQ Authentication Entry Point (FINAL)
+# app.py — TalentIQ Authentication Entry Point (FIXED)
 # ==========================================================
 import streamlit as st
 import sys
@@ -90,19 +90,32 @@ with tab1:
 
     col1, col2 = st.columns([1, 2])
 
+    # ---------- LOGIN BUTTON ----------
     with col1:
         if st.button("Sign In"):
             result = login_user(email, password)
 
-            # ------------------------------
-            # EXPECTED: (success, user_dict)
-            # ------------------------------
-            if isinstance(result, tuple) and len(result) == 2:
-                success, user = result
-            else:
-                success, user = False, None
+            user = None
+            success = False
 
-            if success and isinstance(user, dict):
+            # Normalize all possible return formats
+            if isinstance(result, dict):
+                user = result
+                success = True
+
+            elif isinstance(result, tuple) and len(result) == 2:
+                a, b = result
+                if isinstance(a, dict):
+                    user = a
+                    success = True
+                elif isinstance(b, dict):
+                    user = b
+                    success = True
+                elif a is True and isinstance(b, dict):
+                    user = b
+                    success = True
+
+            if success and user:
                 st.session_state.authenticated = True
                 st.session_state.user = {
                     "id": user.get("id"),
@@ -115,13 +128,12 @@ with tab1:
             else:
                 st.error("Invalid email or password.")
 
+    # ---------- FORGOT PASSWORD TRIGGER ----------
     with col2:
         if st.button("Forgot password?", key="forgot_btn"):
             st.session_state.show_forgot = True
 
-    # ------------------------------
-    # FORGOT PASSWORD
-    # ------------------------------
+    # ---------- FORGOT PASSWORD FLOW ----------
     if st.session_state.show_forgot:
         st.info("Enter your email to receive a password reset link.")
         reset_email = st.text_input("Reset Email", key="reset_email")
