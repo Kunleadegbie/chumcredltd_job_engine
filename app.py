@@ -1,13 +1,13 @@
 import streamlit as st
 import sys
 import os
+from datetime import datetime, timezone, timedelta
 
 # ==========================================================
 # ENSURE IMPORTS WORK (Render / Railway / Streamlit Cloud)
 # ==========================================================
 sys.path.append(os.path.dirname(__file__))
 
-from services.auth import login_user, register_user
 from components.sidebar import render_sidebar
 from config.supabase_client import supabase
 
@@ -43,7 +43,6 @@ if "authenticated" not in st.session_state:
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# ✅ store Supabase session tokens
 if "sb_access_token" not in st.session_state:
     st.session_state.sb_access_token = None
 
@@ -52,14 +51,14 @@ if "sb_refresh_token" not in st.session_state:
 
 
 # ==========================================================
-# INTERNATIONAL PHONE VALIDATION (STEP 2B)
+# HELPERS
 # ==========================================================
 def is_valid_international_phone(phone: str) -> bool:
     """
     Accepts international phone numbers in E.164-like format.
     Examples:
-    +447911123456
-    +14165551234
+      +447911123456
+      +14165551234
     """
     if not phone:
         return False
@@ -73,93 +72,107 @@ def is_valid_international_phone(phone: str) -> bool:
     return True
 
 
-# ==========================================================
-# LOGIN RESULT NORMALIZER (FIXES YOUR LOGIN ERROR)
-# ==========================================================
-def normalize_login_result(result):
-    """
-    Supports these login_user() return shapes:
-    A) {"user": {...}, "session": {...}}
-    B) {"id": "...", "email": "...", ...}  (plain user dict)
-    C) (user_dict, err_string)             (tuple return)
-    D) Supabase AuthResponse object with .user and .session
-    Returns: (user_dict_or_none, session_dict_or_none, err_message_or_none)
-    """
-    if result is None:
-        return None, None, None
-
-    # C) tuple: (user, err)
-    if isinstance(result, tuple) and len(result) == 2:
-        user, err = result
-        if user:
-            return user, {}, None
-        return None, None, err or "Invalid email or password."
-
-    # D) AuthResponse (has .user / .session)
-    if hasattr(result, "user") and getattr(result, "user", None):
-        uobj = result.user
-        sobj = getattr(result, "session", None)
-
-        user_dict = {
-            "id": getattr(uobj, "id", None),
-            "email": getattr(uobj, "email", None),
-            "full_name": None,
-            "role": "user",
-            "phone": None,
-        }
-
-        # try metadata if present
+def restore_supabase_session():
+    """Restore Supabase Auth session for RLS-protected pages."""
+    at = st.session_state.get("sb_access_token")
+    rt = st.session_state.get("sb_refresh_token")
+    if at and rt:
         try:
-            md = getattr(uobj, "user_metadata", None) or {}
-            user_dict["full_name"] = md.get("full_name")
-            user_dict["phone"] = md.get("phone")
+            supabase.auth.set_session(at, rt)
+            return True
         except Exception:
-            pass
+            return False
+    return False
 
-        session_dict = {}
-        if sobj:
-            session_dict = {
-                "access_token": getattr(sobj, "access_token", None),
-                "refresh_token": getattr(sobj, "refresh_token", None),
-            }
 
-        return user_dict, session_dict, None
+def ensure_users_app_row(auth_user_id: str, email: str, full_name: str):
+    """
+    Ensure there's a users_app row for this Auth user id.
+    We only use fields that are already used across your pages:
+    id, email, full_name, role
+    """
+    try:
+        existing = (
+            supabase.table("users_app")
+            .select("id, email, full_name, role")
+            .eq("id", auth_user_id)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            return existing.data[0]
 
-    # A / B) dict returns
-    if isinstance(result, dict):
-        # A) wrapped
-        if result.get("user"):
-            u = result.get("user") or {}
-            sess = result.get("session") or {}
-            return u, sess, result.get("error")
+        # Insert minimal safe fields (avoid phone columns guessing)
+        payload = {
+            "id": auth_user_id,
+            "email": email,
+            "full_name": full_name or email,
+            "role": "user",
+        }
+        ins = supabase.table("users_app").insert(payload).execute()
+        if ins.data:
+            return ins.data[0]
 
-        # B) plain user dict
-        if result.get("id") and result.get("email"):
-            return result, {}, None
+    except Exception:
+        pass
 
-        # dict that includes error
-        if result.get("error"):
-            return None, None, result.get("error")
+    # Fallback: try fetch by email (case-insensitive exact)
+    try:
+        existing2 = (
+            supabase.table("users_app")
+            .select("id, email, full_name, role")
+            .ilike("email", email.strip())
+            .limit(1)
+            .execute()
+        )
+        if existing2.data:
+            return existing2.data[0]
+    except Exception:
+        pass
 
-    # fallback
-    return None, None, "Login failed. Please check your email/password."
+    return None
+
+
+def ensure_subscription_row(user_id: str):
+    """
+    Ensure user has a subscription row. FREEMIUM = 50 credits, 7 days.
+    Uses only known columns from your subscriptions schema.
+    """
+    try:
+        sub = (
+            supabase.table("subscriptions")
+            .select("user_id, plan, credits, subscription_status, start_date, end_date")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if sub.data:
+            return sub.data[0]
+
+        now = datetime.now(timezone.utc)
+        payload = {
+            "user_id": user_id,
+            "plan": "FREEMIUM",
+            "credits": 50,
+            "amount": 0,
+            "subscription_status": "active",
+            "start_date": now.isoformat(),
+            "end_date": (now + timedelta(days=7)).isoformat(),
+        }
+        ins = supabase.table("subscriptions").insert(payload).execute()
+        if ins.data:
+            return ins.data[0]
+    except Exception:
+        pass
+    return None
 
 
 # ==========================================================
 # IF LOGGED IN → RESTORE SESSION + REDIRECT
 # ==========================================================
 if st.session_state.authenticated and st.session_state.user:
-    # ✅ Restore Supabase Auth session for RLS-protected pages
-    if st.session_state.sb_access_token and st.session_state.sb_refresh_token:
-        try:
-            supabase.auth.set_session(
-                st.session_state.sb_access_token,
-                st.session_state.sb_refresh_token
-            )
-        except Exception:
-            # If restore fails, user will be asked to login again on pages that need it
-            pass
-
+    # Restore tokens for RLS pages
+    restore_supabase_session()
     render_sidebar()
     st.switch_page("pages/2_Dashboard.py")
     st.stop()
@@ -175,7 +188,7 @@ tab1, tab2 = st.tabs(["🔓 Sign In", "📝 Register"])
 
 
 # ==========================================================
-# LOGIN TAB
+# LOGIN TAB (AUTH = Supabase)
 # ==========================================================
 with tab1:
     st.subheader("Sign In")
@@ -184,50 +197,61 @@ with tab1:
     password = st.text_input("Password", type="password", key="login_password")
 
     if st.button("Sign In"):
-        # Normalize email/password (prevents invisible whitespace / casing issues)
-        email_clean = (email or "").strip().lower()
-        password_clean = (password or "").strip()
+        if not email.strip() or not password:
+            st.error("Email and password are required.")
+            st.stop()
 
-        if not email_clean or not password_clean:
-            st.error("Please enter both email and password.")
-        else:
+        try:
+            auth_res = supabase.auth.sign_in_with_password(
+                {"email": email.strip(), "password": password}
+            )
+
+            if not auth_res or not auth_res.user:
+                st.error("Invalid email or password.")
+                st.stop()
+
+            # Save tokens
+            sess = getattr(auth_res, "session", None) or {}
+            st.session_state.sb_access_token = sess.get("access_token")
+            st.session_state.sb_refresh_token = sess.get("refresh_token")
+
+            # Restore immediately
+            restore_supabase_session()
+
+            auth_user = auth_res.user
+            auth_user_id = auth_user.id
+            auth_email = auth_user.email
+
+            full_name = None
             try:
-                raw = login_user(email_clean, password_clean)
-                u, sess, err = normalize_login_result(raw)
+                full_name = (auth_user.user_metadata or {}).get("full_name")
+            except Exception:
+                full_name = None
 
-                if u and u.get("email"):
-                    # ✅ Save user info
-                    st.session_state.authenticated = True
-                    st.session_state.user = {
-                        "id": u.get("id"),  # MUST be Supabase Auth UUID
-                        "email": u.get("email"),
-                        "full_name": u.get("full_name"),
-                        "role": u.get("role", "user"),
-                        "phone": u.get("phone"),
-                    }
+            # Ensure users_app exists + read role
+            profile = ensure_users_app_row(auth_user_id, auth_email, full_name or auth_email)
+            if not profile:
+                st.error("Login ok, but profile provisioning failed. Please contact admin.")
+                st.stop()
 
-                    # ✅ Save tokens for use on ALL pages (if present)
-                    st.session_state.sb_access_token = (sess or {}).get("access_token")
-                    st.session_state.sb_refresh_token = (sess or {}).get("refresh_token")
+            # Ensure subscription row exists
+            ensure_subscription_row(profile["id"])
 
-                    # ✅ Restore immediately in this run
-                    if st.session_state.sb_access_token and st.session_state.sb_refresh_token:
-                        try:
-                            supabase.auth.set_session(
-                                st.session_state.sb_access_token,
-                                st.session_state.sb_refresh_token
-                            )
-                        except Exception:
-                            pass
+            # Save session user
+            st.session_state.authenticated = True
+            st.session_state.user = {
+                "id": profile.get("id") or auth_user_id,
+                "email": profile.get("email") or auth_email,
+                "full_name": profile.get("full_name") or full_name or auth_email,
+                "role": profile.get("role", "user"),
+            }
 
-                    st.success("Login successful!")
-                    st.rerun()
-                else:
-                    st.error(err or "Invalid email or password.")
+            st.success("Login successful!")
+            st.rerun()
 
-            except Exception as e:
-                # ✅ show real reason (helps you debug: email not confirmed, etc.)
-                st.error(f"Login failed: {e}")
+        except Exception:
+            st.error("Login error: Invalid login credentials")
+
 
     # --------------------------------------------------
     # FORGOT PASSWORD (EMAIL ONLY)
@@ -242,18 +266,18 @@ with tab1:
     )
 
     if st.button("Send Password Reset Email"):
-        if not reset_email:
+        if not reset_email.strip():
             st.error("Please enter your email.")
         else:
             try:
-                supabase.auth.reset_password_email(reset_email.strip().lower())
+                supabase.auth.reset_password_email(reset_email.strip())
                 st.success("Password reset email sent. Please check your inbox.")
-            except Exception as e:
-                st.error(f"Unable to send reset email: {e}")
+            except Exception:
+                st.error("Unable to send reset email.")
 
 
 # ==========================================================
-# REGISTER TAB
+# REGISTER TAB (AUTH + users_app + subscriptions)
 # ==========================================================
 with tab2:
     st.subheader("Create Account")
@@ -288,17 +312,33 @@ with tab2:
             st.error("Passwords do not match.")
             st.stop()
 
-        success, msg = register_user(full_name, phone, reg_email.strip().lower(), reg_password)
+        try:
+            signup_res = supabase.auth.sign_up({
+                "email": reg_email.strip(),
+                "password": reg_password,
+                "options": {"data": {"full_name": full_name.strip(), "phone": phone.strip()}}
+            })
 
-        if success:
-            st.success(msg)
-            st.info("You can now sign in from the Sign In tab.")
-        else:
-            st.error(msg)
+            if not signup_res or not signup_res.user:
+                st.error("Registration failed.")
+                st.stop()
+
+            auth_user = signup_res.user
+
+            # Create users_app row
+            profile = ensure_users_app_row(auth_user.id, reg_email.strip(), full_name.strip())
+            if not profile:
+                st.error("Account created, but user profile provisioning failed.")
+                st.stop()
+
+            # Create subscription
+            ensure_subscription_row(profile["id"])
+
+            st.success("Registration successful! You can now sign in.")
+
+        except Exception as e:
+            st.error(f"Registration error: {e}")
 
 
-# ==========================================================
-# FOOTER
-# ==========================================================
 st.write("---")
 st.caption("Powered by Chumcred Limited © 2025")
