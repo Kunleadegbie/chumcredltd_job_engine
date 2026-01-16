@@ -190,6 +190,10 @@ if latest:
 # ======================================================
 # LOAD SUBSCRIPTION
 # ======================================================
+
+# 🔄 Force fresh subscription read (fix stale credits)
+st.cache_data.clear()
+
 subscription = get_subscription(user_id)
 
 if subscription:
