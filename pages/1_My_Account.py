@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import datetime
 from config.supabase_client import supabase
+from components.sidebar import render_sidebar
 
 # -------------------------------------------------
 # PAGE CONFIG
@@ -11,6 +12,20 @@ st.set_page_config(
     layout="centered"
 )
 
+# ✅ Hide Streamlit default multipage navigation
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebarNav"] { display: none !important; }
+        section[data-testid="stSidebar"] > div:first-child { padding-top: 0rem; }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# ✅ Render your custom sidebar
+render_sidebar()
+
 st.title("👤 My Account")
 
 # -------------------------------------------------
@@ -20,7 +35,6 @@ if "user" not in st.session_state or not st.session_state.user:
     st.error("You must be logged in to view this page.")
     st.stop()
 
-# Restore Supabase Auth session for RLS-protected tables
 access_token = st.session_state.get("sb_access_token")
 refresh_token = st.session_state.get("sb_refresh_token")
 
@@ -31,7 +45,6 @@ if access_token and refresh_token:
         st.error("Authentication error. Please log in again.")
         st.stop()
 else:
-    # Tokens missing => user must re-login
     st.error("Authentication error. Please log in again.")
     st.stop()
 
@@ -104,7 +117,6 @@ if not subscription_resp.data:
 
 subscription = subscription_resp.data[0]
 
-# Safe end_date parsing
 end_date_str = subscription.get("end_date")
 expiry_display = "N/A"
 try:
