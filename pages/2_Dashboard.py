@@ -188,13 +188,15 @@ if latest:
 
 
 # ======================================================
-# LOAD SUBSCRIPTION
+# LOAD SUBSCRIPTION (ALWAYS SOURCE OF TRUTH = DATABASE)
 # ======================================================
 
-# 🔄 Force fresh subscription read (fix stale credits)
-st.cache_data.clear()
-
 subscription = get_subscription(user_id)
+
+# 🔄 Sync session with latest DB credits
+if subscription:
+    st.session_state.user["credits"] = subscription.get("credits", 0)
+
 
 if subscription:
     plan = subscription.get("plan", "None")
