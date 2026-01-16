@@ -15,7 +15,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-render_sidebar()
+
 st.markdown("")  # 👈 REQUIRED
 
 # auth checks below
