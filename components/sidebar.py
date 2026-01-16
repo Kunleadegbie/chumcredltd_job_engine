@@ -1,5 +1,6 @@
+
 # ==========================================================
-# components/sidebar.py — FULL FEATURED, STABLE SIDEBAR 
+# components/sidebar.py — FULL FEATURED, STABLE SIDEBAR
 # ==========================================================
 
 from __future__ import annotations
@@ -8,7 +9,7 @@ import streamlit as st
 
 
 # ----------------------------------------------------------
-# Helpers 
+# Helpers
 # ----------------------------------------------------------
 def _page_exists(page_path: str) -> bool:
     candidates = [
@@ -32,9 +33,14 @@ def safe_page_link(page_path: str, label: str) -> None:
 
 
 # ----------------------------------------------------------
-# Sidebar Renderer (ALWAYS RENDER)
+# Sidebar Renderer (RENDER ONCE PER RUN)
 # ----------------------------------------------------------
 def render_sidebar() -> None:
+    # 🔒 HARD GUARD — prevents duplicate rendering in same run
+    if st.session_state.get("_sidebar_rendered"):
+        return
+    st.session_state["_sidebar_rendered"] = True
+
     user = st.session_state.get("user") or {}
     role = (user.get("role") or "user").lower()
     email = (user.get("email") or "").lower()
@@ -104,8 +110,9 @@ def render_sidebar() -> None:
         st.divider()
 
         # -------------------------
-        # Logout
+        # Logout (SAFE)
         # -------------------------
         if st.button("🚪 Logout", key="sidebar_logout"):
             st.session_state.clear()
+            st.session_state.pop("_sidebar_rendered", None)
             st.switch_page("app.py")
