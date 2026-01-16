@@ -5,7 +5,6 @@
 import streamlit as st
 from config.supabase_client import supabase
 from services.utils import (
-    restore_supabase_session,
     user_must_change_password,
     ensure_subscription_row,
 )
@@ -40,9 +39,6 @@ def reset_sidebar_guard():
 # AUTO-REDIRECT IF ALREADY AUTHENTICATED
 # ----------------------------------------------------------
 if st.session_state.get("authenticated") and st.session_state.get("user"):
-    restore_supabase_session()
-
-    # 🔑 IMPORTANT: reset sidebar before redirect
     reset_sidebar_guard()
 
     if st.session_state.get("force_pw_change"):
