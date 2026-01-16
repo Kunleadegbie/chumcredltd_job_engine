@@ -1,6 +1,7 @@
 import streamlit as st
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from config.supabase_client import supabase
+from components.sidebar import render_sidebar  # ✅ IMPORTANT
 
 # -------------------------------------------------
 # PAGE CONFIG
@@ -11,7 +12,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Hide Streamlit default multipage nav (so you use your custom sidebar everywhere)
+# Hide Streamlit default multipage nav (keep only your custom sidebar)
 st.markdown(
     """
     <style>
@@ -21,6 +22,9 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+# ✅ Render your custom sidebar on this page
+render_sidebar()
 
 st.title("👤 My Account")
 
@@ -40,20 +44,17 @@ def restore_supabase_session() -> bool:
 
 
 def ensure_subscription_row(user_id: str):
-    """
-    Ensure user has a subscription row (FREEMIUM auto-credit if missing).
-    Uses known schema columns.
-    """
+    """Auto-create FREEMIUM (50 credits, 7 days) only if missing."""
     try:
-        sub = (
+        existing = (
             supabase.table("subscriptions")
             .select("plan, credits, subscription_status, end_date")
             .eq("user_id", user_id)
             .limit(1)
             .execute()
         )
-        if sub.data:
-            return sub.data[0]
+        if existing.data:
+            return existing.data[0]
 
         now = datetime.now(timezone.utc)
         payload = {
@@ -63,17 +64,10 @@ def ensure_subscription_row(user_id: str):
             "amount": 0,
             "subscription_status": "active",
             "start_date": now.isoformat(),
-            "end_date": (now + timezone.utc.utcoffset(now)).isoformat(),  # fallback if needed
+            "end_date": (now + timedelta(days=7)).isoformat(),
         }
-        # Safer: just insert without depending on that fallback end_date line
-        payload["end_date"] = (now.replace(tzinfo=timezone.utc)).isoformat()
-        # But we really want 7 days:
-        from datetime import timedelta
-        payload["end_date"] = (now + timedelta(days=7)).isoformat()
-
         ins = supabase.table("subscriptions").insert(payload).execute()
         if ins.data:
-            # Return in the same shape as select
             return {
                 "plan": ins.data[0].get("plan", "FREEMIUM"),
                 "credits": ins.data[0].get("credits", 50),
@@ -82,7 +76,6 @@ def ensure_subscription_row(user_id: str):
             }
     except Exception:
         return None
-
     return None
 
 
@@ -116,7 +109,7 @@ if not session_email:
     st.stop()
 
 # -------------------------------------------------
-# FETCH USER PROFILE (ID → EMAIL FALLBACK) — no duplicates
+# FETCH USER PROFILE (ID → EMAIL FALLBACK)
 # -------------------------------------------------
 profile = None
 
@@ -156,20 +149,17 @@ if not profile:
     st.stop()
 
 # -------------------------------------------------
-# MUST CHANGE PASSWORD STATUS (from Auth user_metadata OR session flag)
+# MUST CHANGE PASSWORD STATUS
 # -------------------------------------------------
 must_change = bool(st.session_state.get("force_pw_change"))
 
 try:
     current = supabase.auth.get_user()
     auth_user = getattr(current, "user", None) or (current.get("user") if isinstance(current, dict) else None)
-    meta = {}
-    if auth_user:
-        meta = getattr(auth_user, "user_metadata", None) or {}
+    meta = getattr(auth_user, "user_metadata", None) or {} if auth_user else {}
     if meta.get("must_change_password") is True:
         must_change = True
 except Exception:
-    # If this fails, we rely on session flag only
     pass
 
 if must_change:
@@ -219,13 +209,12 @@ else:
 # -------------------------------------------------
 st.divider()
 st.subheader("👤 Profile Information")
-
 st.text_input("Full Name", value=str(profile.get("full_name") or ""), disabled=True)
 st.text_input("Email", value=str(profile.get("email") or ""), disabled=True)
 st.text_input("Role", value=str(profile.get("role") or "user"), disabled=True)
 
 # -------------------------------------------------
-# CHANGE PASSWORD (AUTH ONLY)
+# CHANGE PASSWORD
 # -------------------------------------------------
 st.divider()
 st.subheader("🔐 Change Password")
@@ -257,8 +246,6 @@ with st.form("change_password_form"):
             if res and getattr(res, "user", None):
                 st.session_state.force_pw_change = False
                 st.success("Password updated successfully.")
-
-                # Send user to dashboard after changing password
                 st.switch_page("pages/2_Dashboard.py")
                 st.stop()
 
