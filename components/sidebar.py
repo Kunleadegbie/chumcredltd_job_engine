@@ -1,4 +1,3 @@
-
 # ==========================================================
 # components/sidebar.py — Stable Custom Sidebar (Safe Links)
 # ==========================================================
@@ -8,20 +7,13 @@ from __future__ import annotations
 import os
 import streamlit as st
 
-# If you have analytics, keep it optional so sidebar never breaks
-try:
-    from components.analytics import render_analytics
-except Exception:
-    render_analytics = None
-
 
 def _page_exists(page_path: str) -> bool:
     """
     Check if a page file exists in common deployment layouts.
-    Supports running from project root (e.g., /app) or local.
     """
     candidates = [
-        page_path,  # e.g. "pages/2_Dashboard.py"
+        page_path,
         os.path.join(os.getcwd(), page_path),
         os.path.join(os.path.dirname(__file__), "..", page_path),
         os.path.join(os.path.dirname(__file__), page_path),
@@ -31,39 +23,34 @@ def _page_exists(page_path: str) -> bool:
 
 def safe_page_link(page_path: str, label: str) -> None:
     """
-    Use st.page_link only if the file exists.
-    This prevents sidebar rendering from crashing when a page is missing/renamed.
+    Render a link only if the target page exists.
+    Prevents sidebar crashes when files are renamed/removed.
     """
     try:
         if _page_exists(page_path):
             st.page_link(page_path, label=label)
     except Exception:
-        # Never let sidebar crash the app
+        # Sidebar must never crash the app
         pass
 
 
 def render_sidebar() -> None:
     """
-    Render the custom sidebar EVERY time.
-    Do NOT gate it with session_state flags, because session_state persists across pages
-    and causes the sidebar to vanish after navigation.
+    Render the custom sidebar every time.
+    Do NOT gate with session_state flags, to avoid "sidebar disappears" bugs.
     """
-
-    # Optional analytics (never crash if unavailable)
-    try:
-        if render_analytics:
-            render_analytics()
-    except Exception:
-        pass
-
     user = st.session_state.get("user") or {}
     role = (user.get("role") or "user").strip().lower()
     email = (user.get("email") or "").strip().lower()
 
-    admin_emails = {"chumcred@gmail.com", "admin@talentiq.com", "kunle@chumcred.com"}
+    admin_emails = {
+        "chumcred@gmail.com",
+        "admin@talentiq.com",
+        "kunle@chumcred.com",
+    }
 
     with st.sidebar:
-        # Brand
+        # Logo (optional)
         try:
             st.image("assets/talentiq_logo.png", width=220)
         except Exception:
@@ -110,20 +97,19 @@ def render_sidebar() -> None:
         if role == "admin":
             st.divider()
             st.markdown("### 🛡️ Admin Panel")
-
             safe_page_link("pages/12_Admin_Payments.py", "💼 Payment Approvals")
             safe_page_link("pages/9_Admin_Revenue.py", "💰 Revenue Dashboard")
             safe_page_link("pages/13_Admin_Credit_Usage.py", "📊 Credit Usage")
             safe_page_link("pages/15_Admin_Users.py", "👥 Users Profile")
 
-            # Only show deeper tools for trusted admin emails
+            # Optional deeper admin tool
             if email in admin_emails:
                 safe_page_link("pages/16_Admin_User_Details.py", "🛡️ User Details")
 
         st.divider()
 
         # -------------------------
-        # Logout
+        # Logout (NO fixed key to avoid duplicate key crashes)
         # -------------------------
         if st.button("🚪 Logout"):
             st.session_state.clear()
