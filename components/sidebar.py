@@ -1,5 +1,5 @@
 # ==========================================================
-# components/sidebar.py — FULL FEATURED, STABLE SIDEBAR FEATURES
+# components/sidebar.py — FULL FEATURED, STABLE SIDEBAR 
 # ==========================================================
 
 from __future__ import annotations
@@ -8,7 +8,7 @@ import streamlit as st
 
 
 # ----------------------------------------------------------
-# Helpers on the app
+# Helpers 
 # ----------------------------------------------------------
 def _page_exists(page_path: str) -> bool:
     candidates = [
