@@ -1,16 +1,14 @@
 
+
 # ==========================================================
-# app.py — TalentIQ Authentication Entry Point (STABLE)
-# ==========================================================
-# ==========================================================
-# app.py — TalentIQ Authentication Entry Point (STABLE)
+# app.py — TalentIQ Authentication Entry Point (FINAL)
 # ==========================================================
 import streamlit as st
 import sys
 import os
 
 # ==========================================================
-# ENSURE IMPORTS WORK (Railway / Streamlit Cloud)
+# ENSURE IMPORTS WORK
 # ==========================================================
 sys.path.append(os.path.dirname(__file__))
 
@@ -20,13 +18,9 @@ from config.supabase_client import supabase
 
 
 # ==========================================================
-# LOCAL PASSWORD RESET (OPTION A — SAFE)
+# LOCAL PASSWORD RESET (EMAIL ONLY)
 # ==========================================================
 def send_password_reset_email(email: str):
-    """
-    Email-only password reset using Supabase Auth.
-    Defined locally to avoid touching services.auth.
-    """
     try:
         supabase.auth.reset_password_for_email(email)
         return True, "Password reset link sent to your email."
@@ -44,7 +38,7 @@ st.set_page_config(
 )
 
 # ==========================================================
-# HIDE STREAMLIT DEFAULT NAV
+# HIDE DEFAULT STREAMLIT NAV
 # ==========================================================
 st.markdown(
     """
@@ -61,14 +55,9 @@ st.markdown(
 # ==========================================================
 # SESSION INITIALIZATION
 # ==========================================================
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-if "user" not in st.session_state:
-    st.session_state.user = None
-
-if "show_forgot" not in st.session_state:
-    st.session_state.show_forgot = False
+st.session_state.setdefault("authenticated", False)
+st.session_state.setdefault("user", None)
+st.session_state.setdefault("show_forgot", False)
 
 
 # ==========================================================
@@ -81,7 +70,7 @@ if st.session_state.authenticated and st.session_state.user:
 
 
 # ==========================================================
-# LANDING / AUTH UI (RESTORED AESTHETIC)
+# LANDING / AUTH UI
 # ==========================================================
 st.image("assets/talentiq_logo.png", width=280)
 st.title("🔐 Welcome to Chumcred TalentIQ")
@@ -103,9 +92,17 @@ with tab1:
 
     with col1:
         if st.button("Sign In"):
-            user = login_user(email, password)
+            result = login_user(email, password)
 
-            if user:
+            # ------------------------------
+            # EXPECTED: (success, user_dict)
+            # ------------------------------
+            if isinstance(result, tuple) and len(result) == 2:
+                success, user = result
+            else:
+                success, user = False, None
+
+            if success and isinstance(user, dict):
                 st.session_state.authenticated = True
                 st.session_state.user = {
                     "id": user.get("id"),
@@ -123,7 +120,7 @@ with tab1:
             st.session_state.show_forgot = True
 
     # ------------------------------
-    # FORGOT PASSWORD (EMAIL ONLY)
+    # FORGOT PASSWORD
     # ------------------------------
     if st.session_state.show_forgot:
         st.info("Enter your email to receive a password reset link.")
@@ -182,7 +179,7 @@ with tab2:
 
         success, msg = register_user(
             full_name=full_name.strip(),
-            phone=phone.strip(),   # International accepted
+            phone=phone.strip(),
             email=reg_email.strip(),
             password=reg_password,
         )
