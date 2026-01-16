@@ -20,6 +20,10 @@ st.markdown(
 )
 
 render_sidebar()
+st.markdown("")  # 👈 REQUIRED
+
+# auth checks below
+
 
 st.title("🛡️ Admin – User Details")
 

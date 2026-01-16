@@ -33,6 +33,10 @@ st.markdown(
 # SIDEBAR (RENDER ONCE)
 # --------------------------------------------------
 render_sidebar()
+st.markdown("")  # 👈 REQUIRED
+
+# auth checks below
+
 
 st.title("👤 My Account")
 
@@ -186,3 +190,4 @@ with st.form("change_password"):
             st.switch_page("pages/2_Dashboard.py")
         except Exception:
             st.error("Password update failed. Please log in again.")
+
