@@ -109,8 +109,12 @@ def render_sidebar() -> None:
         st.divider()
 
         # -------------------------
-        # Logout (NO fixed key to avoid duplicate key crashes)
+        # Logout (unique per session)
         # -------------------------
-        if st.button("🚪 Logout"):
+        logout_key = f"logout_{st.session_state.get('sb_access_token', 'guest')}"
+        if st.button("🚪 Logout", key=logout_key):
             st.session_state.clear()
             st.switch_page("app.py")
+
+
+      
