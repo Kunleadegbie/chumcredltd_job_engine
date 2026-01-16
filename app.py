@@ -1,8 +1,7 @@
-
-
 # ==========================================================
-# app.py — TalentIQ Authentication Entry Point (FINAL)
+# app.py — Chumcred TalentIQ (FINAL, STABLE, INDENT-SAFE)
 # ==========================================================
+
 import streamlit as st
 import sys
 import os
@@ -34,7 +33,7 @@ def send_password_reset_email(email: str):
 st.set_page_config(
     page_title="Chumcred TalentIQ",
     page_icon="assets/talentiq_logo.png",
-    layout="wide"
+    layout="wide",
 )
 
 # ==========================================================
@@ -49,15 +48,20 @@ st.markdown(
         }
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 # ==========================================================
 # SESSION INITIALIZATION
 # ==========================================================
-st.session_state.setdefault("authenticated", False)
-st.session_state.setdefault("user", None)
-st.session_state.setdefault("show_forgot", False)
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+if "show_forgot" not in st.session_state:
+    st.session_state.show_forgot = False
 
 
 # ==========================================================
@@ -70,78 +74,82 @@ if st.session_state.authenticated and st.session_state.user:
 
 
 # ==========================================================
-# LANDING / AUTH UI
+# LANDING / AUTH UI (RESTORED AESTHETIC)
 # ==========================================================
 st.image("assets/talentiq_logo.png", width=280)
 st.title("🔐 Welcome to Chumcred TalentIQ")
 st.caption("AI-powered tools for job seekers, career growth, and talent acceleration.")
 
-tab1, tab2 = st.tabs(["🔓 Sign In", "📝 Register"])
+tab_login, tab_register = st.tabs(["🔓 Sign In", "📝 Register"])
 
 
 # ==========================================================
 # SIGN IN TAB
 # ==========================================================
-with tab1:
+with tab_login:
     st.subheader("Sign In")
 
     email = st.text_input("Email", key="login_email")
     password = st.text_input("Password", type="password", key="login_password")
 
-    col1, col2 = st.columns([1, 2])
+    col_login, col_forgot = st.columns([1, 2])
 
-    with col1:
+    # ------------------ LOGIN ------------------
+    with col_login:
         if st.button("Sign In"):
             result = login_user(email, password)
 
-            # ------------------------------
-            # EXPECTED: (success, user_dict)
-            # ------------------------------
+            user = None
+            success = False
 
-            result = login_user(email, password)
+            # Normalize all known return shapes
+            if isinstance(result, dict):
+                user = result
+                success = True
 
-                user = None
-                success = False
+            elif isinstance(result, tuple) and len(result) == 2:
+                a, b = result
+                if isinstance(a, dict):
+                    user = a
+                    success = True
+                elif isinstance(b, dict):
+                    user = b
+                    success = True
+                elif a is True and isinstance(b, dict):
+                    user = b
+                    success = True
 
-# Normalize all possible return formats
-if isinstance(result, dict):
-    user = result
-    success = True
+            if success and user:
+                # Restore Supabase auth session (critical for My Account)
+                try:
+                    supabase.auth.sign_in_with_password(
+                        {
+                            "email": user.get("email"),
+                            "password": password,
+                        }
+                    )
+                except Exception:
+                    pass
 
-elif isinstance(result, tuple):
-    if len(result) == 2:
-        a, b = result
-        if isinstance(a, dict):
-            user = a
-            success = True
-        elif isinstance(b, dict):
-            user = b
-            success = True
-        elif a is True and isinstance(b, dict):
-            user = b
-            success = True
+                st.session_state.authenticated = True
+                st.session_state.user = {
+                    "id": user.get("id"),
+                    "email": user.get("email"),
+                    "full_name": user.get("full_name"),
+                    "role": user.get("role", "user"),
+                }
 
-if success and user:
-    st.session_state.authenticated = True
-    st.session_state.user = {
-        "id": user.get("id"),
-        "email": user.get("email"),
-        "full_name": user.get("full_name"),
-        "role": user.get("role", "user"),
-    }
-    st.success("Login successful!")
-    st.rerun()
-else:
-    st.error("Invalid email or password.")
-            
+                st.success("Login successful!")
+                st.rerun()
+            else:
+                st.error("Invalid email or password.")
 
-    with col2:
+    # ------------------ FORGOT PASSWORD TRIGGER ------------------
+    with col_forgot:
         if st.button("Forgot password?", key="forgot_btn"):
             st.session_state.show_forgot = True
 
-    # ------------------------------
-    # FORGOT PASSWORD
-    # ------------------------------
+    # ------------------ FORGOT PASSWORD FLOW ------------------
     if st.session_state.show_forgot:
         st.info("Enter your email to receive a password reset link.")
         reset_email = st.text_input("Reset Email", key="reset_email")
@@ -161,7 +169,7 @@ else:
 # ==========================================================
 # REGISTER TAB
 # ==========================================================
-with tab2:
+with tab_register:
     st.subheader("Create Account")
 
     full_name = st.text_input("Full Name")
@@ -169,7 +177,7 @@ with tab2:
     phone = st.text_input(
         "Phone Number (International)",
         placeholder="e.g. +2348030000000 or +447900000000",
-        help="Include country code. Example: +234, +44, +1",
+        help="Include country code (e.g. +234, +44, +1)",
     )
 
     reg_email = st.text_input("Email")
@@ -199,7 +207,7 @@ with tab2:
 
         success, msg = register_user(
             full_name=full_name.strip(),
-            phone=phone.strip(),
+            phone=phone.strip(),  # international accepted
             email=reg_email.strip(),
             password=reg_password,
         )
