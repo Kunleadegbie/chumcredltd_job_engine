@@ -2,9 +2,6 @@ import streamlit as st
 from datetime import datetime
 from config.supabase_client import supabase
 
-# -------------------------------------------------
-# PAGE CONFIG
-# -------------------------------------------------
 st.set_page_config(
     page_title="My Account – TalentIQ",
     page_icon="👤",
@@ -14,23 +11,41 @@ st.set_page_config(
 st.title("👤 My Account")
 
 # -------------------------------------------------
-# AUTH GUARD (STREAMLIT-CORRECT)
+# AUTH GUARD (must have tokens)
 # -------------------------------------------------
-if "user" not in st.session_state or not st.session_state.user:
-    st.error("Authentication error. Please log in again.")
-    st.stop()
-
-session_user = st.session_state.user
-
-auth_user_id = session_user.get("id")
-auth_email = session_user.get("email")
-
-if not auth_user_id or not auth_email:
+if (
+    "user" not in st.session_state
+    or not st.session_state.user
+    or not st.session_state.get("sb_access_token")
+    or not st.session_state.get("sb_refresh_token")
+):
     st.error("Authentication error. Please log in again.")
     st.stop()
 
 # -------------------------------------------------
-# FETCH USER PROFILE (USERS_APP)
+# RESTORE SUPABASE AUTH SESSION (THIS FIXES RLS = 0 ROWS)
+# -------------------------------------------------
+try:
+    supabase.auth.set_session(
+        st.session_state.sb_access_token,
+        st.session_state.sb_refresh_token
+    )
+except Exception:
+    st.error("Authentication error. Please log in again.")
+    st.stop()
+
+# -------------------------------------------------
+# Get identity (now reliable)
+# -------------------------------------------------
+auth_user = supabase.auth.get_user()
+if not auth_user or not auth_user.user:
+    st.error("Authentication error. Please log in again.")
+    st.stop()
+
+auth_user_id = auth_user.user.id
+
+# -------------------------------------------------
+# FETCH USER PROFILE (users_app)
 # -------------------------------------------------
 profile_resp = (
     supabase
@@ -74,17 +89,15 @@ subscription = subscription_resp.data[0]
 st.subheader("📊 Account Summary")
 
 col1, col2 = st.columns(2)
-
 with col1:
     st.metric("Plan", subscription["plan"])
     st.metric("Credits Available", subscription["credits"])
-
 with col2:
     st.metric("Status", subscription["subscription_status"])
     st.metric(
         "Subscription Expiry",
         datetime.fromisoformat(subscription["end_date"]).strftime("%d %b %Y")
-        if subscription["end_date"] else "N/A"
+        if subscription.get("end_date") else "N/A"
     )
 
 # -------------------------------------------------
@@ -92,13 +105,12 @@ with col2:
 # -------------------------------------------------
 st.divider()
 st.subheader("👤 Profile Information")
-
 st.text_input("Full Name", value=profile["full_name"], disabled=True)
 st.text_input("Email", value=profile["email"], disabled=True)
 st.text_input("Role", value=profile["role"], disabled=True)
 
 # -------------------------------------------------
-# CHANGE PASSWORD (AUTH SERVICE)
+# CHANGE PASSWORD (AUTH ONLY – now works because session is set)
 # -------------------------------------------------
 st.divider()
 st.subheader("🔐 Change Password")

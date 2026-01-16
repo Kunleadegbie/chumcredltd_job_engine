@@ -27,12 +27,8 @@ st.image("assets/talentiq_logo.png", width=280)
 st.markdown(
     """
     <style>
-        [data-testid="stSidebarNav"] {
-            display: none;
-        }
-        section[data-testid="stSidebar"] > div:first-child {
-            padding-top: 0rem;
-        }
+        [data-testid="stSidebarNav"] { display: none; }
+        section[data-testid="stSidebar"] > div:first-child { padding-top: 0rem; }
     </style>
     """,
     unsafe_allow_html=True
@@ -47,10 +43,24 @@ if "authenticated" not in st.session_state:
 if "user" not in st.session_state:
     st.session_state.user = None
 
+# ✅ store Supabase session tokens
+if "sb_access_token" not in st.session_state:
+    st.session_state.sb_access_token = None
+
+if "sb_refresh_token" not in st.session_state:
+    st.session_state.sb_refresh_token = None
+
+
 # ==========================================================
-# INTERNATIONAL PHONE VALIDATION
+# INTERNATIONAL PHONE VALIDATION (STEP 2B)
 # ==========================================================
 def is_valid_international_phone(phone: str) -> bool:
+    """
+    Accepts international phone numbers in E.164-like format.
+    Examples:
+    +447911123456
+    +14165551234
+    """
     if not phone:
         return False
     phone = phone.strip()
@@ -62,13 +72,26 @@ def is_valid_international_phone(phone: str) -> bool:
         return False
     return True
 
+
 # ==========================================================
-# IF LOGGED IN → SHOW CUSTOM SIDEBAR + REDIRECT
+# IF LOGGED IN → RESTORE SESSION + REDIRECT
 # ==========================================================
 if st.session_state.authenticated and st.session_state.user:
+    # ✅ Restore Supabase Auth session for RLS-protected pages
+    if st.session_state.sb_access_token and st.session_state.sb_refresh_token:
+        try:
+            supabase.auth.set_session(
+                st.session_state.sb_access_token,
+                st.session_state.sb_refresh_token
+            )
+        except Exception:
+            # If restore fails, user will be asked to login again on pages that need it
+            pass
+
     render_sidebar()
     st.switch_page("pages/2_Dashboard.py")
     st.stop()
+
 
 # ==========================================================
 # LOGIN / REGISTER UI
@@ -77,6 +100,7 @@ st.title("🔐 Welcome to Chumcred TalentIQ")
 st.caption("AI-powered tools for job seekers, career growth, and talent acceleration.")
 
 tab1, tab2 = st.tabs(["🔓 Sign In", "📝 Register"])
+
 
 # ==========================================================
 # LOGIN TAB
@@ -88,16 +112,36 @@ with tab1:
     password = st.text_input("Password", type="password", key="login_password")
 
     if st.button("Sign In"):
-        user = login_user(email, password)
+        result = login_user(email, password)
 
-        if user:
+        if result and result.get("user"):
+            u = result["user"]
+            sess = result.get("session") or {}
+
+            # ✅ Save user info
             st.session_state.authenticated = True
             st.session_state.user = {
-                "id": user.get("id"),
-                "email": user.get("email"),
-                "full_name": user.get("full_name"),
-                "role": user.get("role", "user"),
+                "id": u.get("id"),  # MUST be Supabase Auth UUID
+                "email": u.get("email"),
+                "full_name": u.get("full_name"),
+                "role": u.get("role", "user"),
+                "phone": u.get("phone"),
             }
+
+            # ✅ Save tokens for use on ALL pages
+            st.session_state.sb_access_token = sess.get("access_token")
+            st.session_state.sb_refresh_token = sess.get("refresh_token")
+
+            # ✅ Restore immediately in this run
+            if st.session_state.sb_access_token and st.session_state.sb_refresh_token:
+                try:
+                    supabase.auth.set_session(
+                        st.session_state.sb_access_token,
+                        st.session_state.sb_refresh_token
+                    )
+                except Exception:
+                    pass
+
             st.success("Login successful!")
             st.rerun()
         else:
@@ -125,8 +169,9 @@ with tab1:
             except Exception:
                 st.error("Unable to send reset email.")
 
+
 # ==========================================================
-# REGISTER TAB (FIXED – USERS_APP PROVISIONING)
+# REGISTER TAB
 # ==========================================================
 with tab2:
     st.subheader("Create Account")
@@ -146,7 +191,7 @@ with tab2:
             st.stop()
 
         if not is_valid_international_phone(phone):
-            st.error("Invalid phone number. Use international format.")
+            st.error("Invalid phone number. Use international format, e.g. +447911123456")
             st.stop()
 
         if not reg_email.strip():
@@ -161,47 +206,14 @@ with tab2:
             st.error("Passwords do not match.")
             st.stop()
 
-        # --------------------------------------------------
-        # STEP 1: CREATE AUTH USER
-        # --------------------------------------------------
-        success, msg, auth_user = register_user(
-            full_name,
-            phone,
-            reg_email,
-            reg_password
-        )
+        success, msg = register_user(full_name, phone, reg_email, reg_password)
 
-        if not success:
+        if success:
+            st.success(msg)
+            st.info("You can now sign in from the Sign In tab.")
+        else:
             st.error(msg)
-            st.stop()
 
-        auth_user_id = auth_user["id"]
-
-        # --------------------------------------------------
-        # STEP 2: CREATE users_app RECORD (CORRECT)
-        # --------------------------------------------------
-        profile_insert = (
-            supabase
-            .table("users_app")
-            .insert({
-                "id": auth_user_id,
-                "full_name": full_name,
-                "email": reg_email,
-                "role": "user",
-                "is_active": True
-            })
-            .execute()
-        )
-
-        if not profile_insert.data:
-            st.error(
-                "Account created, but profile provisioning failed. "
-                "Please contact support."
-            )
-            st.stop()
-
-        st.success("Account created successfully!")
-        st.info("You can now sign in from the Sign In tab.")
 
 # ==========================================================
 # FOOTER
