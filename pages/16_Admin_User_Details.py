@@ -4,6 +4,9 @@ import pandas as pd
 from config.supabase_client import supabase
 from components.sidebar import render_sidebar
 
+render_sidebar()
+
+
 st.set_page_config(page_title="Admin – User Details", page_icon="🛡️", layout="wide")
 
 st.markdown(
@@ -157,3 +160,4 @@ st.subheader("📄 Contact Information")
 st.text_input("Full Name", value=str(row.get("full_name") or ""), disabled=True)
 st.text_input("Email", value=str(row.get("email") or ""), disabled=True)
 st.text_input("Phone", value=str(row.get("phone") or ""), disabled=True)
+
