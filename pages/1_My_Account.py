@@ -1,14 +1,17 @@
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timezone
 from config.supabase_client import supabase
-from components.sidebar import render_sidebar
 
 # -------------------------------------------------
 # PAGE CONFIG
 # -------------------------------------------------
-st.set_page_config(page_title="My Account – TalentIQ", page_icon="👤", layout="centered")
+st.set_page_config(
+    page_title="My Account – TalentIQ",
+    page_icon="👤",
+    layout="centered"
+)
 
-# Hide Streamlit default multipage nav (so only your custom sidebar shows)
+# Hide Streamlit default multipage nav (so you use your custom sidebar everywhere)
 st.markdown(
     """
     <style>
@@ -19,28 +22,88 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Render your custom sidebar
-render_sidebar()
-
 st.title("👤 My Account")
+
+# -------------------------------------------------
+# SESSION RESTORE (RLS)
+# -------------------------------------------------
+def restore_supabase_session() -> bool:
+    at = st.session_state.get("sb_access_token")
+    rt = st.session_state.get("sb_refresh_token")
+    if at and rt:
+        try:
+            supabase.auth.set_session(at, rt)
+            return True
+        except Exception:
+            return False
+    return False
+
+
+def ensure_subscription_row(user_id: str):
+    """
+    Ensure user has a subscription row (FREEMIUM auto-credit if missing).
+    Uses known schema columns.
+    """
+    try:
+        sub = (
+            supabase.table("subscriptions")
+            .select("plan, credits, subscription_status, end_date")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if sub.data:
+            return sub.data[0]
+
+        now = datetime.now(timezone.utc)
+        payload = {
+            "user_id": user_id,
+            "plan": "FREEMIUM",
+            "credits": 50,
+            "amount": 0,
+            "subscription_status": "active",
+            "start_date": now.isoformat(),
+            "end_date": (now + timezone.utc.utcoffset(now)).isoformat(),  # fallback if needed
+        }
+        # Safer: just insert without depending on that fallback end_date line
+        payload["end_date"] = (now.replace(tzinfo=timezone.utc)).isoformat()
+        # But we really want 7 days:
+        from datetime import timedelta
+        payload["end_date"] = (now + timedelta(days=7)).isoformat()
+
+        ins = supabase.table("subscriptions").insert(payload).execute()
+        if ins.data:
+            # Return in the same shape as select
+            return {
+                "plan": ins.data[0].get("plan", "FREEMIUM"),
+                "credits": ins.data[0].get("credits", 50),
+                "subscription_status": ins.data[0].get("subscription_status", "active"),
+                "end_date": ins.data[0].get("end_date"),
+            }
+    except Exception:
+        return None
+
+    return None
+
+
+def parse_date_safe(value):
+    if not value:
+        return None
+    try:
+        s = str(value).replace("Z", "+00:00")
+        return datetime.fromisoformat(s)
+    except Exception:
+        return None
+
 
 # -------------------------------------------------
 # AUTH GUARD
 # -------------------------------------------------
-if "user" not in st.session_state or not st.session_state.user:
+if not st.session_state.get("user"):
     st.error("You must be logged in to view this page.")
     st.stop()
 
-# Restore Supabase session for RLS-protected reads
-access_token = st.session_state.get("sb_access_token")
-refresh_token = st.session_state.get("sb_refresh_token")
-if access_token and refresh_token:
-    try:
-        supabase.auth.set_session(access_token, refresh_token)
-    except Exception:
-        st.error("Authentication error. Please log in again.")
-        st.stop()
-else:
+if not restore_supabase_session():
     st.error("Authentication error. Please log in again.")
     st.stop()
 
@@ -53,7 +116,7 @@ if not session_email:
     st.stop()
 
 # -------------------------------------------------
-# FETCH USER PROFILE (ID → EMAIL fallback)
+# FETCH USER PROFILE (ID → EMAIL FALLBACK) — no duplicates
 # -------------------------------------------------
 profile = None
 
@@ -93,52 +156,70 @@ if not profile:
     st.stop()
 
 # -------------------------------------------------
-# FETCH SUBSCRIPTION
+# MUST CHANGE PASSWORD STATUS (from Auth user_metadata OR session flag)
 # -------------------------------------------------
+must_change = bool(st.session_state.get("force_pw_change"))
+
 try:
-    subscription_resp = (
+    current = supabase.auth.get_user()
+    auth_user = getattr(current, "user", None) or (current.get("user") if isinstance(current, dict) else None)
+    meta = {}
+    if auth_user:
+        meta = getattr(auth_user, "user_metadata", None) or {}
+    if meta.get("must_change_password") is True:
+        must_change = True
+except Exception:
+    # If this fails, we rely on session flag only
+    pass
+
+if must_change:
+    st.warning("🔐 You are using a temporary password. Please change your password now to continue.")
+
+# -------------------------------------------------
+# FETCH / ENSURE SUBSCRIPTION (auto-credit if missing)
+# -------------------------------------------------
+subscription = None
+try:
+    sub_resp = (
         supabase.table("subscriptions")
         .select("plan, credits, subscription_status, end_date")
         .eq("user_id", profile["id"])
         .limit(1)
         .execute()
     )
+    if sub_resp.data:
+        subscription = sub_resp.data[0]
 except Exception:
-    st.error("Authentication error. Please log in again.")
-    st.stop()
+    subscription = None
 
-if not subscription_resp.data:
-    st.warning("Subscription data not found.")
-    st.stop()
-
-subscription = subscription_resp.data[0]
-
-expiry_display = "N/A"
-try:
-    if subscription.get("end_date"):
-        expiry_display = datetime.fromisoformat(str(subscription["end_date"]).replace("Z", "+00:00")).strftime("%d %b %Y")
-except Exception:
-    expiry_display = str(subscription.get("end_date") or "N/A")
+if not subscription:
+    subscription = ensure_subscription_row(profile["id"])
 
 # -------------------------------------------------
 # ACCOUNT SUMMARY
 # -------------------------------------------------
 st.subheader("📊 Account Summary")
-col1, col2 = st.columns(2)
 
-with col1:
-    st.metric("Plan", subscription.get("plan", ""))
-    st.metric("Credits Available", int(subscription.get("credits", 0) or 0))
+if subscription:
+    end_dt = parse_date_safe(subscription.get("end_date"))
+    expiry_display = end_dt.strftime("%d %b %Y") if end_dt else "N/A"
 
-with col2:
-    st.metric("Status", subscription.get("subscription_status", ""))
-    st.metric("Subscription Expiry", expiry_display)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Plan", subscription.get("plan", ""))
+        st.metric("Credits Available", int(subscription.get("credits", 0) or 0))
+    with col2:
+        st.metric("Status", subscription.get("subscription_status", ""))
+        st.metric("Subscription Expiry", expiry_display)
+else:
+    st.warning("Subscription data not found.")
 
 # -------------------------------------------------
 # PROFILE INFORMATION
 # -------------------------------------------------
 st.divider()
 st.subheader("👤 Profile Information")
+
 st.text_input("Full Name", value=str(profile.get("full_name") or ""), disabled=True)
 st.text_input("Email", value=str(profile.get("email") or ""), disabled=True)
 st.text_input("Role", value=str(profile.get("role") or "user"), disabled=True)
@@ -152,21 +233,37 @@ st.subheader("🔐 Change Password")
 with st.form("change_password_form"):
     new_password = st.text_input("New Password", type="password")
     confirm_password = st.text_input("Confirm New Password", type="password")
-    submit = st.form_submit_button("Change Password")
+    submit = st.form_submit_button("Update Password")
 
     if submit:
         if not new_password or not confirm_password:
             st.error("All fields are required.")
-        elif new_password != confirm_password:
+            st.stop()
+
+        if new_password != confirm_password:
             st.error("Passwords do not match.")
-        elif len(new_password) < 8:
+            st.stop()
+
+        if len(new_password) < 8:
             st.error("Password must be at least 8 characters.")
-        else:
-            try:
-                res = supabase.auth.update_user({"password": new_password})
-                if res and res.user:
-                    st.success("Password updated successfully.")
-                else:
-                    st.error("Password update failed.")
-            except Exception:
-                st.error("Password update failed. Please log in again and retry.")
+            st.stop()
+
+        try:
+            # ✅ Update password AND clear must_change_password flag
+            res = supabase.auth.update_user(
+                {"password": new_password, "data": {"must_change_password": False}}
+            )
+
+            if res and getattr(res, "user", None):
+                st.session_state.force_pw_change = False
+                st.success("Password updated successfully.")
+
+                # Send user to dashboard after changing password
+                st.switch_page("pages/2_Dashboard.py")
+                st.stop()
+
+            st.error("Password update failed.")
+
+        except Exception:
+            st.error("Password update failed. Please log in again and retry.")
+            st.stop()

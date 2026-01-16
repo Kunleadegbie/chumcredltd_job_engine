@@ -8,8 +8,8 @@ from datetime import datetime, timezone, timedelta
 # ==========================================================
 sys.path.append(os.path.dirname(__file__))
 
-from components.sidebar import render_sidebar
 from config.supabase_client import supabase
+
 
 # ==========================================================
 # PAGE CONFIG
@@ -27,7 +27,7 @@ st.image("assets/talentiq_logo.png", width=280)
 st.markdown(
     """
     <style>
-        [data-testid="stSidebarNav"] { display: none; }
+        [data-testid="stSidebarNav"] { display: none !important; }
         section[data-testid="stSidebar"] > div:first-child { padding-top: 0rem; }
     </style>
     """,
@@ -37,20 +37,14 @@ st.markdown(
 # ==========================================================
 # SESSION INITIALIZATION
 # ==========================================================
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-
-if "user" not in st.session_state:
-    st.session_state.user = None
-
-if "sb_access_token" not in st.session_state:
-    st.session_state.sb_access_token = None
-
-if "sb_refresh_token" not in st.session_state:
-    st.session_state.sb_refresh_token = None
+st.session_state.setdefault("authenticated", False)
+st.session_state.setdefault("user", None)
+st.session_state.setdefault("sb_access_token", None)
+st.session_state.setdefault("sb_refresh_token", None)
+st.session_state.setdefault("force_pw_change", False)
 
 # ==========================================================
-# ADMIN EMAILS (prevents accidental role downgrade on first insert)
+# ADMIN EMAILS (prevents accidental role downgrade)
 # ==========================================================
 ADMIN_EMAILS = {
     "chumcred@gmail.com",
@@ -75,14 +69,12 @@ def is_valid_international_phone(phone: str) -> bool:
         return False
     if not phone[1:].isdigit():
         return False
-    if len(phone) < 9 or len(phone) > 16:
-        return False
-    return True
+    return 9 <= len(phone) <= 16
 
 
 def _extract_session_tokens(auth_res) -> tuple[str | None, str | None]:
     """
-    Supabase session can be a dict-like or an object with attributes.
+    Supabase session can be dict-like or object-like depending on sdk version.
     Return (access_token, refresh_token) safely.
     """
     sess = getattr(auth_res, "session", None)
@@ -90,18 +82,16 @@ def _extract_session_tokens(auth_res) -> tuple[str | None, str | None]:
     if not sess:
         return None, None
 
-    # dict-like
     if isinstance(sess, dict):
         return sess.get("access_token"), sess.get("refresh_token")
 
-    # object-like
-    access_token = getattr(sess, "access_token", None)
-    refresh_token = getattr(sess, "refresh_token", None)
-    return access_token, refresh_token
+    at = getattr(sess, "access_token", None)
+    rt = getattr(sess, "refresh_token", None)
+    return at, rt
 
 
 def restore_supabase_session() -> bool:
-    """Restore Supabase Auth session for RLS-protected pages."""
+    """Restore Supabase Auth session for RLS-protected reads/writes."""
     at = st.session_state.get("sb_access_token")
     rt = st.session_state.get("sb_refresh_token")
     if at and rt:
@@ -113,15 +103,26 @@ def restore_supabase_session() -> bool:
     return False
 
 
+def user_must_change_password(auth_user) -> bool:
+    """
+    Restored users were created with user_metadata.must_change_password = True.
+    New users should NOT have this flag.
+    """
+    try:
+        meta = getattr(auth_user, "user_metadata", None) or {}
+        return bool(meta.get("must_change_password"))
+    except Exception:
+        return False
+
+
 def ensure_users_app_row(auth_user_id: str, email: str, full_name: str):
     """
     Ensure there's a users_app row for this Auth user id.
-    Uses only fields already used across your pages: id, email, full_name, role.
-    - If row exists -> returns it.
-    - If not -> inserts a minimal row.
+    Uses only known fields: id, email, full_name, role.
     """
     email_clean = (email or "").strip().lower()
     role_default = "admin" if email_clean in ADMIN_EMAILS else "user"
+    full_name_clean = (full_name or email_clean or "User").strip()
 
     # 1) Try fetch by id
     try:
@@ -142,7 +143,7 @@ def ensure_users_app_row(auth_user_id: str, email: str, full_name: str):
         payload = {
             "id": auth_user_id,
             "email": email_clean,
-            "full_name": (full_name or email_clean or "User"),
+            "full_name": full_name_clean,
             "role": role_default,
         }
         ins = supabase.table("users_app").insert(payload).execute()
@@ -171,7 +172,7 @@ def ensure_users_app_row(auth_user_id: str, email: str, full_name: str):
 def ensure_subscription_row(user_id: str):
     """
     Ensure user has a subscription row. FREEMIUM = 50 credits, 7 days.
-    Uses only known columns from your subscriptions schema.
+    Does NOT overwrite existing subscription rows.
     """
     try:
         sub = (
@@ -198,103 +199,82 @@ def ensure_subscription_row(user_id: str):
         if ins.data:
             return ins.data[0]
     except Exception:
-        pass
+        return None
+
     return None
 
 
-def fetch_user_role(user_id: str) -> str:
-    """
-    Fetch role from users_app (source of truth).
-    If blocked by RLS or missing, fall back to 'user'.
-    """
-    try:
-        r = (
-            supabase.table("users_app")
-            .select("role")
-            .eq("id", user_id)
-            .limit(1)
-            .execute()
-        )
-        if r.data:
-            return (r.data[0].get("role") or "user")
-    except Exception:
-        pass
-    return "user"
-
-
 # ==========================================================
-# IF LOGGED IN → RESTORE SESSION + REDIRECT
+# IF ALREADY LOGGED IN: send to dashboard (unless forcing pw change)
 # ==========================================================
-if st.session_state.authenticated and st.session_state.user:
+if st.session_state.get("authenticated") and st.session_state.get("user"):
+    # Try restore session quietly
     restore_supabase_session()
-    render_sidebar()
+
+    # If we are forcing password change, go to My Account
+    if st.session_state.get("force_pw_change"):
+        st.switch_page("pages/1_My_Account.py")
+        st.stop()
+
+    # Otherwise go to dashboard
     st.switch_page("pages/2_Dashboard.py")
     st.stop()
-
 
 # ==========================================================
 # LOGIN / REGISTER UI
 # ==========================================================
-st.title("🔐 Welcome to Chumcred TalentIQ")
-st.caption("AI-powered tools for job seekers, career growth, and talent acceleration.")
-
-tab1, tab2 = st.tabs(["🔓 Sign In", "📝 Register"])
-
+st.title("Welcome to TalentIQ")
+tab1, tab2 = st.tabs(["Login", "Register"])
 
 # ==========================================================
-# LOGIN TAB (AUTH = Supabase)
+# LOGIN TAB
 # ==========================================================
 with tab1:
     st.subheader("Sign In")
-
     email = st.text_input("Email", key="login_email")
     password = st.text_input("Password", type="password", key="login_password")
 
-    if st.button("Sign In"):
-        email_clean = (email or "").strip().lower()
-        password_clean = (password or "").strip()
-
-        if not email_clean or not password_clean:
+    if st.button("Login"):
+        if not email.strip() or not password:
             st.error("Email and password are required.")
             st.stop()
 
         try:
             auth_res = supabase.auth.sign_in_with_password(
-                {"email": email_clean, "password": password_clean}
+                {"email": email.strip(), "password": password}
             )
 
             if not auth_res or not getattr(auth_res, "user", None):
                 st.error("Invalid email or password.")
                 st.stop()
 
-            # Save tokens (robust extraction)
-            access_token, refresh_token = _extract_session_tokens(auth_res)
-            st.session_state.sb_access_token = access_token
-            st.session_state.sb_refresh_token = refresh_token
+            # Save tokens safely
+            at, rt = _extract_session_tokens(auth_res)
+            st.session_state.sb_access_token = at
+            st.session_state.sb_refresh_token = rt
 
-            # Restore immediately (enables RLS reads in same run)
-            restore_supabase_session()
+            # Restore immediately for RLS reads
+            if not restore_supabase_session():
+                # Not fatal; but often indicates token mismatch
+                pass
 
             auth_user = auth_res.user
             auth_user_id = auth_user.id
-            auth_email = (auth_user.email or email_clean).strip().lower()
+            auth_email = auth_user.email
 
-            full_name = None
+            # Full name from metadata
             try:
-                full_name = (getattr(auth_user, "user_metadata", None) or {}).get("full_name")
+                full_name = (auth_user.user_metadata or {}).get("full_name") or auth_email
             except Exception:
-                full_name = None
+                full_name = auth_email
 
-            # Ensure users_app exists
-            profile = ensure_users_app_row(auth_user_id, auth_email, full_name or auth_email)
+            # Ensure users_app row exists + read role
+            profile = ensure_users_app_row(auth_user_id, auth_email, full_name)
             if not profile:
                 st.error("Login ok, but profile provisioning failed. Please contact admin.")
                 st.stop()
 
-            # Fetch role from users_app (source of truth)
-            role = fetch_user_role(profile.get("id") or auth_user_id)
-
-            # Ensure subscription exists
+            # Ensure subscription exists (FREEMIUM auto-credit if missing)
             ensure_subscription_row(profile["id"])
 
             # Save session user
@@ -303,16 +283,23 @@ with tab1:
                 "id": profile.get("id") or auth_user_id,
                 "email": profile.get("email") or auth_email,
                 "full_name": profile.get("full_name") or full_name or auth_email,
-                "role": role,
+                "role": profile.get("role", "user"),
             }
 
+            # ✅ Must-change-password enforcement (restored users only)
+            if user_must_change_password(auth_user):
+                st.session_state.force_pw_change = True
+                st.success("Login successful — please change your temporary password.")
+                st.switch_page("pages/1_My_Account.py")
+                st.stop()
+
+            st.session_state.force_pw_change = False
             st.success("Login successful!")
-            st.rerun()
+            st.switch_page("pages/2_Dashboard.py")
+            st.stop()
 
-        except Exception as e:
-            # IMPORTANT: show the real Supabase error to stop guesswork
-            st.error(f"Login error: {e}")
-
+        except Exception:
+            st.error("Login error: Invalid login credentials")
 
     # --------------------------------------------------
     # FORGOT PASSWORD (EMAIL ONLY)
@@ -331,41 +318,37 @@ with tab1:
             st.error("Please enter your email.")
         else:
             try:
-                supabase.auth.reset_password_email(reset_email.strip().lower())
+                supabase.auth.reset_password_email(reset_email.strip())
                 st.success("Password reset email sent. Please check your inbox.")
-            except Exception as e:
-                st.error(f"Unable to send reset email: {e}")
-
+            except Exception:
+                st.error("Unable to send reset email.")
 
 # ==========================================================
-# REGISTER TAB (AUTH + users_app + subscriptions)
+# REGISTER TAB
 # ==========================================================
 with tab2:
     st.subheader("Create Account")
 
-    full_name = st.text_input("Full Name")
+    full_name = st.text_input("Full Name", key="reg_full_name")
     phone = st.text_input(
         "Phone Number (International Format)",
-        placeholder="+447911123456"
+        placeholder="+447911123456",
+        key="reg_phone"
     )
-    reg_email = st.text_input("Email")
-    reg_password = st.text_input("Password", type="password")
-    confirm_password = st.text_input("Confirm Password", type="password")
+    reg_email = st.text_input("Email", key="reg_email")
+    reg_password = st.text_input("Password", type="password", key="reg_password")
+    confirm_password = st.text_input("Confirm Password", type="password", key="reg_confirm_password")
 
     if st.button("Register"):
-        full_name_clean = (full_name or "").strip()
-        phone_clean = (phone or "").strip()
-        reg_email_clean = (reg_email or "").strip().lower()
-
-        if not full_name_clean:
+        if not full_name.strip():
             st.error("Full Name is required.")
             st.stop()
 
-        if not is_valid_international_phone(phone_clean):
+        if not is_valid_international_phone(phone):
             st.error("Invalid phone number. Use international format, e.g. +447911123456")
             st.stop()
 
-        if not reg_email_clean:
+        if not reg_email.strip():
             st.error("Email is required.")
             st.stop()
 
@@ -378,32 +361,38 @@ with tab2:
             st.stop()
 
         try:
+            # ✅ New users should NOT be flagged must_change_password
             signup_res = supabase.auth.sign_up({
-                "email": reg_email_clean,
+                "email": reg_email.strip(),
                 "password": reg_password,
-                "options": {"data": {"full_name": full_name_clean, "phone": phone_clean}}
+                "options": {
+                    "data": {
+                        "full_name": full_name.strip(),
+                        "phone": phone.strip()
+                    }
+                }
             })
 
             if not signup_res or not getattr(signup_res, "user", None):
                 st.error("Registration failed.")
                 st.stop()
 
+            # Some setups return no session until email confirmation
             auth_user = signup_res.user
 
-            # Ensure users_app row exists
-            profile = ensure_users_app_row(auth_user.id, reg_email_clean, full_name_clean)
+            # Provision users_app immediately (non-RLS tables can still be written; if RLS blocks, it will fail safely)
+            profile = ensure_users_app_row(auth_user.id, reg_email.strip(), full_name.strip())
             if not profile:
                 st.error("Account created, but user profile provisioning failed.")
                 st.stop()
 
-            # Ensure subscription exists
+            # ✅ Auto-create FREEMIUM subscription (7 days) if missing
             ensure_subscription_row(profile["id"])
 
             st.success("Registration successful! You can now sign in.")
 
         except Exception as e:
             st.error(f"Registration error: {e}")
-
 
 st.write("---")
 st.caption("Powered by Chumcred Limited © 2025")
