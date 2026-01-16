@@ -1,7 +1,7 @@
 
 
 # ==========================================================
-# app.py — TalentIQ Authentication Entry Point (FIXED)
+# app.py — TalentIQ Authentication Entry Point (FINAL)
 # ==========================================================
 import streamlit as st
 import sys
@@ -90,43 +90,38 @@ with tab1:
 
     col1, col2 = st.columns([1, 2])
 
-    # ---------- LOGIN BUTTON ----------
     with col1:
         if st.button("Sign In"):
             result = login_user(email, password)
 
-            user = None
-            success = False
+            # ------------------------------
+            # EXPECTED: (success, user_dict)
+            # ------------------------------
 
-            # Normalize all possible return formats
-            if isinstance(result, dict):
-                user = result
-                success = True
+            result = login_user(email, password)
 
-            elif isinstance(result, tuple) and len(result) == 2:
-                a, b = result
-                if isinstance(a, dict):
-                    user = a
-                    success = True
-                elif isinstance(b, dict):
-                    user = b
-                    success = True
-                elif a is True and isinstance(b, dict):
-                    user = b
-                    success = True
+                user = None
+                success = False
 
-            if success and user:
-    # 🔐 Restore Supabase Auth Session
-    try:
-        supabase.auth.sign_in_with_password(
-            {
-                "email": user.get("email"),
-                "password": password,
-            }
-        )
-    except Exception:
-        pass  # Do not block login if session already exists
+# Normalize all possible return formats
+if isinstance(result, dict):
+    user = result
+    success = True
 
+elif isinstance(result, tuple):
+    if len(result) == 2:
+        a, b = result
+        if isinstance(a, dict):
+            user = a
+            success = True
+        elif isinstance(b, dict):
+            user = b
+            success = True
+        elif a is True and isinstance(b, dict):
+            user = b
+            success = True
+
+if success and user:
     st.session_state.authenticated = True
     st.session_state.user = {
         "id": user.get("id"),
@@ -134,19 +129,19 @@ with tab1:
         "full_name": user.get("full_name"),
         "role": user.get("role", "user"),
     }
-
     st.success("Login successful!")
     st.rerun()
+else:
+    st.error("Invalid email or password.")
+            
 
-            else:
-                st.error("Invalid email or password.")
-
-    # ---------- FORGOT PASSWORD TRIGGER ----------
     with col2:
         if st.button("Forgot password?", key="forgot_btn"):
             st.session_state.show_forgot = True
 
-    # ---------- FORGOT PASSWORD FLOW ----------
+    # ------------------------------
+    # FORGOT PASSWORD
+    # ------------------------------
     if st.session_state.show_forgot:
         st.info("Enter your email to receive a password reset link.")
         reset_email = st.text_input("Reset Email", key="reset_email")
