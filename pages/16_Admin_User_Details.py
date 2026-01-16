@@ -2,6 +2,10 @@ import streamlit as st
 from datetime import datetime
 import pandas as pd
 from config.supabase_client import supabase
+from components.sidebar import render_sidebar
+
+render_sidebar()
+
 
 st.set_page_config(page_title="Admin – User Details", page_icon="🛡️", layout="wide")
 

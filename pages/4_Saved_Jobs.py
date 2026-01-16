@@ -11,6 +11,11 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from config.supabase_client import supabase
 
+from components.sidebar import render_sidebar
+
+render_sidebar()
+
+
 # ======================================================
 # HIDE STREAMLIT SIDEBAR
 # ======================================================

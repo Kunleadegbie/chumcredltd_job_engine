@@ -1,6 +1,7 @@
 
+
 # ==========================================================
-# components/sidebar.py — GLOBAL, STATELESS SIDEBAR
+# components/sidebar.py — STABLE PER-PAGE SIDEBAR
 # ==========================================================
 
 import os
@@ -37,10 +38,10 @@ def render_sidebar() -> None:
         st.divider()
 
         # Core
+        safe_page_link("pages/1_My_Account.py", "👤 My Account")
         safe_page_link("pages/2_Dashboard.py", "📊 Dashboard")
         safe_page_link("pages/3_Job_Search.py", "🔍 Job Search")
         safe_page_link("pages/4_Saved_Jobs.py", "💾 Saved Jobs")
-        safe_page_link("pages/1_My_Account.py", "👤 My Account")
 
         st.divider()
 
@@ -74,6 +75,6 @@ def render_sidebar() -> None:
 
         st.divider()
 
-        if st.button("🚪 Logout"):
+        if st.button("🚪 Logout", key="logout_btn"):
             st.session_state.clear()
             st.switch_page("app.py")
