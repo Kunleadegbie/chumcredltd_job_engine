@@ -17,7 +17,10 @@ def _page_exists(page_path: str) -> bool:
         os.path.join(os.path.dirname(__file__), "..", page_path),
         os.path.join(os.path.dirname(__file__), page_path),
     ]
-    return any(os.path.exists(os.path.normpath(p)) for p in candidates)
+    for p in candidates:
+        if os.path.exists(os.path.normpath(p)):
+            return True
+    return False
 
 
 def safe_page_link(page_path: str, label: str) -> None:
@@ -29,7 +32,7 @@ def safe_page_link(page_path: str, label: str) -> None:
 
 
 # ----------------------------------------------------------
-# Sidebar Renderer (ALWAYS RENDER — CORRECT MODEL)
+# Sidebar Renderer (ALWAYS RENDER)
 # ----------------------------------------------------------
 def render_sidebar() -> None:
     user = st.session_state.get("user") or {}
@@ -106,4 +109,3 @@ def render_sidebar() -> None:
         if st.button("🚪 Logout"):
             st.session_state.clear()
             st.switch_page("app.py")
-)
