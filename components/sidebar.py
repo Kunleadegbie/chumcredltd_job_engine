@@ -1,17 +1,16 @@
 # ==========================================================
-# components/sidebar.py — Stable Custom Sidebar (Safe Links)
+# components/sidebar.py — FULL FEATURED, STABLE SIDEBAR
 # ==========================================================
 
 from __future__ import annotations
-
 import os
 import streamlit as st
 
 
+# ----------------------------------------------------------
+# Helpers
+# ----------------------------------------------------------
 def _page_exists(page_path: str) -> bool:
-    """
-    Check if a page file exists in common deployment layouts.
-    """
     candidates = [
         page_path,
         os.path.join(os.getcwd(), page_path),
@@ -22,26 +21,25 @@ def _page_exists(page_path: str) -> bool:
 
 
 def safe_page_link(page_path: str, label: str) -> None:
-    """
-    Render a link only if the target page exists.
-    Prevents sidebar crashes when files are renamed/removed.
-    """
     try:
         if _page_exists(page_path):
             st.page_link(page_path, label=label)
     except Exception:
-        # Sidebar must never crash the app
         pass
 
 
+# ----------------------------------------------------------
+# Sidebar Renderer (ONCE PER RUN)
+# ----------------------------------------------------------
 def render_sidebar() -> None:
-    """
-    Render the custom sidebar every time.
-    Do NOT gate with session_state flags, to avoid "sidebar disappears" bugs.
-    """
+    # 🔐 HARD GUARD — render sidebar only once per run
+    if st.session_state.get("_sidebar_rendered"):
+        return
+    st.session_state["_sidebar_rendered"] = True
+
     user = st.session_state.get("user") or {}
-    role = (user.get("role") or "user").strip().lower()
-    email = (user.get("email") or "").strip().lower()
+    role = (user.get("role") or "user").lower()
+    email = (user.get("email") or "").lower()
 
     admin_emails = {
         "chumcred@gmail.com",
@@ -50,7 +48,7 @@ def render_sidebar() -> None:
     }
 
     with st.sidebar:
-        # Logo (optional)
+        # Logo
         try:
             st.image("assets/talentiq_logo.png", width=220)
         except Exception:
@@ -61,7 +59,7 @@ def render_sidebar() -> None:
         st.divider()
 
         # -------------------------
-        # Core Pages
+        # Core
         # -------------------------
         safe_page_link("pages/1_My_Account.py", "👤 My Account")
         safe_page_link("pages/2_Dashboard.py", "📊 Dashboard")
@@ -92,7 +90,7 @@ def render_sidebar() -> None:
         safe_page_link("pages/14_Support_Hub.py", "🆘 Support Hub")
 
         # -------------------------
-        # Admin Section
+        # Admin Panel
         # -------------------------
         if role == "admin":
             st.divider()
@@ -102,19 +100,14 @@ def render_sidebar() -> None:
             safe_page_link("pages/13_Admin_Credit_Usage.py", "📊 Credit Usage")
             safe_page_link("pages/15_Admin_Users.py", "👥 Users Profile")
 
-            # Optional deeper admin tool
             if email in admin_emails:
                 safe_page_link("pages/16_Admin_User_Details.py", "🛡️ User Details")
 
         st.divider()
 
         # -------------------------
-        # Logout (unique per session)
+        # Logout (SAFE)
         # -------------------------
-        logout_key = f"logout_{st.session_state.get('sb_access_token', 'guest')}"
-        if st.button("🚪 Logout", key=logout_key):
+        if st.button("🚪 Logout", key="logout_once"):
             st.session_state.clear()
             st.switch_page("app.py")
-
-
-      
