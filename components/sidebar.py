@@ -2,6 +2,7 @@
 # ==========================================================
 # components/sidebar.py — STABLE PER-PAGE SIDEBAR (FIXED)
 # ==========================================================
+# SIDEBAR VERSION 2026-01-XX
 
 import os
 import uuid
