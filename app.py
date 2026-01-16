@@ -5,7 +5,43 @@
 
 import streamlit as st
 from config.supabase_client import supabase
-from services.utils import ensure_subscription_row
+from datetime import datetime, timedelta, timezone
+
+
+def ensure_subscription_row(user_id: str):
+    """
+    Ensure a FREEMIUM subscription exists for the user.
+    Creates one if missing. Safe to call multiple times.
+    """
+    try:
+        existing = (
+            supabase.table("subscriptions")
+            .select("id")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+
+        if existing.data:
+            return existing.data[0]
+
+        now = datetime.now(timezone.utc)
+        payload = {
+            "user_id": user_id,
+            "plan": "FREEMIUM",
+            "credits": 50,
+            "amount": 0,
+            "subscription_status": "active",
+            "start_date": now.isoformat(),
+            "end_date": (now + timedelta(days=7)).isoformat(),
+        }
+
+        supabase.table("subscriptions").insert(payload).execute()
+        return payload
+
+    except Exception:
+        # Never crash login because of subscription provisioning
+        return None
 
 # ----------------------------------------------------------
 # PAGE CONFIG
