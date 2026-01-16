@@ -1,11 +1,13 @@
-
 # ==========================================================
 # services/utils.py — STABLE + SAFE SUBSCRIPTION / PAYMENTS
-# (Based on your uploaded utils.py, with minimal safe fixes)
 # ==========================================================
 
 from datetime import datetime, timezone, timedelta
 from config.supabase_client import supabase
+
+# ==========================================================
+# PLANS (UPDATED PRICING)
+# ==========================================================
 
 # ==========================================================
 # PLANS (Subscription Pricing)
@@ -14,7 +16,7 @@ PLANS = {
     "FREEMIUM": {
         "price": 0,
         "credits": 50,
-        "duration_days": 7,   # ✅ 7 days
+        "duration_days": 7,   # testing window (change if you want 7/30)
         "label": "Freemium",
     },
     "BASIC": {
@@ -37,54 +39,24 @@ PLANS = {
     },
 }
 
-# ==========================================================
-# INTERNAL HELPERS
-# ==========================================================
-def _safe_single(query_exec_result):
-    """
-    PostgREST .single() throws if 0 rows.
-    We use limit(1) and then normalize to dict/None.
-    """
-    try:
-        data = query_exec_result.data
-        if isinstance(data, list):
-            return data[0] if data else None
-        return data
-    except Exception:
-        return None
-
-
-def _parse_dt(value):
-    """Parse timestamptz safely."""
-    if not value:
-        return None
-    try:
-        s = str(value).replace("Z", "+00:00")
-        return datetime.fromisoformat(s)
-    except Exception:
-        return None
 
 # ==========================================================
 # USER ROLE
 # ==========================================================
 def is_admin(user_id: str) -> bool:
-    """
-    ✅ FIX: Your app uses users_app (not users).
-    Old code was querying supabase.table("users") which likely doesn't exist
-    or doesn't store your app roles. :contentReference[oaicite:2]{index=2}
-    """
     try:
         res = (
-            supabase.table("users_app")
+            supabase.table("users")
             .select("role")
             .eq("id", user_id)
-            .limit(1)
+            .single()
             .execute()
         )
-        row = _safe_single(res) or {}
-        return (row.get("role") or "user") == "admin"
+        data = res.data or {}
+        return (data.get("role") or "user") == "admin"
     except Exception:
         return False
+
 
 # ==========================================================
 # SUBSCRIPTIONS
@@ -96,10 +68,10 @@ def get_subscription(user_id: str):
             supabase.table("subscriptions")
             .select("*")
             .eq("user_id", user_id)
-            .limit(1)
+            .single()
             .execute()
         )
-        return _safe_single(res)
+        return res.data
     except Exception:
         return None
 
@@ -110,25 +82,29 @@ def auto_expire_subscription(user_id: str):
     Safe to call on page load.
     """
     try:
-        res = (
+        sub = (
             supabase.table("subscriptions")
             .select("end_date, subscription_status")
             .eq("user_id", user_id)
-            .limit(1)
+            .single()
             .execute()
+            .data
         )
-        sub = _safe_single(res)
+
         if not sub:
             return
 
         if (sub.get("subscription_status") or "").lower() != "active":
             return
 
-        expiry = _parse_dt(sub.get("end_date"))
-        if not expiry:
+        end_date = sub.get("end_date")
+        if not end_date:
             return
 
+        end_str = str(end_date).replace("Z", "+00:00")
+        expiry = datetime.fromisoformat(end_str)
         now = datetime.now(timezone.utc)
+
         if expiry < now:
             supabase.table("subscriptions").update({
                 "subscription_status": "expired",
@@ -137,6 +113,7 @@ def auto_expire_subscription(user_id: str):
 
     except Exception:
         return
+
 
 # ==========================================================
 # CREDIT HELPERS (USED BY AI PAGES)
@@ -175,6 +152,7 @@ def deduct_credits(user_id: str, amount: int):
 # Backward-compat (some pages import deduct_credit by mistake)
 def deduct_credit(user_id: str, amount: int):
     return deduct_credits(user_id, amount)
+
 
 # ==========================================================
 # ADMIN CREDIT ADJUSTMENT (REVERSAL / CORRECTION)
@@ -229,6 +207,7 @@ def adjust_user_credits(user_id: str, delta: int, reason: str, admin_id: str):
 
     return new_balance
 
+
 # ==========================================================
 # APPLY PLAN (ADD CREDITS + EXTEND DATES, NEVER OVERWRITE)
 # ==========================================================
@@ -255,9 +234,15 @@ def apply_plan_to_subscription(user_id: str, plan: str):
         new_credits = current_credits + credits_to_add
 
         base = now
-        existing_end = _parse_dt(sub.get("end_date"))
-        if existing_end and existing_end > now:
-            base = existing_end
+        try:
+            end_date = sub.get("end_date")
+            if end_date:
+                end_str = str(end_date).replace("Z", "+00:00")
+                existing_end = datetime.fromisoformat(end_str)
+                if existing_end > now:
+                    base = existing_end
+        except Exception:
+            base = now
 
         new_end = base + timedelta(days=days)
 
