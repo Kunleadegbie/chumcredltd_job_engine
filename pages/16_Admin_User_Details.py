@@ -15,7 +15,7 @@ st.set_page_config(
 st.title("🛡️ Admin – User Details")
 
 # -------------------------------------------------
-# ADMIN AUTH GUARD (SAFE)
+# ADMIN GUARD (ROLE FIRST, EMAIL FALLBACK)
 # -------------------------------------------------
 if "user" not in st.session_state or not st.session_state.user:
     st.error("Unauthorized access.")
@@ -25,11 +25,10 @@ current_user = st.session_state.user
 current_email = (current_user.get("email") or "").strip().lower()
 current_role = (current_user.get("role") or "").strip().lower()
 
-# Fallback allowlist (keep your old logic, but prefer role)
 ADMIN_EMAILS = {
+    "chumcred@gmail.com",
     "admin@talentiq.com",
     "kunle@chumcred.com",
-    "chumcred@gmail.com",
 }
 
 if current_role != "admin" and current_email not in ADMIN_EMAILS:
@@ -37,7 +36,7 @@ if current_role != "admin" and current_email not in ADMIN_EMAILS:
     st.stop()
 
 # -------------------------------------------------
-# FETCH SUBSCRIPTIONS (NO RELATIONSHIP JOIN)
+# FETCH: SUBSCRIPTIONS (no joins)
 # -------------------------------------------------
 subs_resp = (
     supabase
@@ -46,102 +45,112 @@ subs_resp = (
     .execute()
 )
 
-if not subs_resp.data:
+subs_data = subs_resp.data or []
+if not subs_data:
     st.warning("No subscriptions found.")
     st.stop()
 
-subs_df = pd.DataFrame(subs_resp.data)
+subs_df = pd.DataFrame(subs_data)
 
 # -------------------------------------------------
-# FETCH USERS_APP (handle phone vs phone_number)
+# FETCH: USERS_APP (select * to avoid missing-column errors)
 # -------------------------------------------------
-def fetch_users_app():
-    """
-    Some deployments have phone, others phone_number.
-    We try phone first, then phone_number.
-    """
-    try:
-        r = supabase.table("users_app").select("id, email, phone, full_name, role").execute()
-        return r.data, "phone"
-    except Exception:
-        r = supabase.table("users_app").select("id, email, phone_number, full_name, role").execute()
-        return r.data, "phone_number"
+users_resp = (
+    supabase
+    .table("users_app")
+    .select("*")
+    .execute()
+)
 
-users_data, phone_field = fetch_users_app()
-
+users_data = users_resp.data or []
 if not users_data:
     st.warning("No users found in users_app.")
     st.stop()
 
 users_df = pd.DataFrame(users_data)
 
-# Normalize columns
-users_df["email"] = users_df.get("email", "").astype(str).str.strip()
-if phone_field not in users_df.columns:
-    users_df[phone_field] = ""
-users_df[phone_field] = users_df[phone_field].fillna("").astype(str).str.strip()
+# Ensure minimum fields exist
+for col in ["id", "email", "full_name", "role"]:
+    if col not in users_df.columns:
+        users_df[col] = ""
 
 # -------------------------------------------------
-# MERGE (NO FK REQUIRED)
+# NORMALIZE OPTIONAL PHONE FIELD (never query non-existent column)
 # -------------------------------------------------
-df = subs_df.merge(users_df, left_on="user_id", right_on="id", how="left")
+PHONE_CANDIDATES = ["phone", "phone_number", "telephone", "mobile", "tel", "contact"]
+existing_phone_cols = [c for c in PHONE_CANDIDATES if c in users_df.columns]
 
-# Rename for display consistency
-df = df.rename(columns={
-    "subscription_status": "status",
-    phone_field: "phone"
-})
+def pick_phone(row):
+    for c in existing_phone_cols:
+        v = row.get(c)
+        if v is not None and str(v).strip() != "":
+            return str(v).strip()
+    return ""
 
-# Clean up
-df["email"] = df["email"].fillna("").astype(str).str.strip()
-df["plan"] = df["plan"].fillna("").astype(str).str.strip()
-df["status"] = df["status"].fillna("").astype(str).str.strip()
+users_df["phone"] = users_df.apply(pick_phone, axis=1)
 
-# Drop rows where email is missing (prevents NaN selectbox issues)
-df = df[df["email"] != ""]
+# Clean email
+users_df["email"] = users_df["email"].fillna("").astype(str).str.strip()
+users_df = users_df[users_df["email"] != ""]  # remove blank emails (prevents selectbox crash)
 
-if df.empty:
-    st.warning("No user records with emails were found after merging subscriptions + users_app.")
+if users_df.empty:
+    st.warning("No users with valid emails were found in users_app.")
     st.stop()
 
 # -------------------------------------------------
-# FILTERS
+# MERGE subscriptions + users_app (no FK relationship required)
+# -------------------------------------------------
+df = subs_df.merge(users_df, left_on="user_id", right_on="id", how="left")
+
+# Normalize display fields
+df["email"] = df.get("email", "").fillna("").astype(str).str.strip()
+df["plan"] = df.get("plan", "").fillna("").astype(str).str.strip()
+df["subscription_status"] = df.get("subscription_status", "").fillna("").astype(str).str.strip()
+
+# Keep only rows with email present after merge
+df = df[df["email"] != ""]
+
+if df.empty:
+    st.warning("No merged records found. (Subscriptions exist, but no matching users_app records by ID.)")
+    st.info("Tip: Ensure users_app.id matches auth.users.id and subscriptions.user_id.")
+    st.stop()
+
+# -------------------------------------------------
+# FILTER UI
 # -------------------------------------------------
 st.subheader("🔍 Search & Filter")
 
-col1, col2, col3 = st.columns(3)
+c1, c2, c3 = st.columns(3)
 
-with col1:
+with c1:
     email_filter = st.text_input("Search by Email")
 
-with col2:
-    plan_values = sorted([p for p in df["plan"].dropna().unique().tolist() if p])
-    plan_filter = st.selectbox("Filter by Plan", ["All"] + plan_values)
+with c2:
+    plans = sorted([p for p in df["plan"].unique().tolist() if p])
+    plan_filter = st.selectbox("Filter by Plan", ["All"] + plans)
 
-with col3:
-    status_values = sorted([s for s in df["status"].dropna().unique().tolist() if s])
-    status_filter = st.selectbox("Filter by Status", ["All"] + status_values)
+with c3:
+    statuses = sorted([s for s in df["subscription_status"].unique().tolist() if s])
+    status_filter = st.selectbox("Filter by Status", ["All"] + statuses)
 
 filtered_df = df.copy()
 
 if email_filter:
-    filtered_df = filtered_df[
-        filtered_df["email"].str.contains(email_filter, case=False, na=False)
-    ]
+    filtered_df = filtered_df[filtered_df["email"].str.contains(email_filter, case=False, na=False)]
 
 if plan_filter != "All":
     filtered_df = filtered_df[filtered_df["plan"] == plan_filter]
 
 if status_filter != "All":
-    filtered_df = filtered_df[filtered_df["status"] == status_filter]
+    filtered_df = filtered_df[filtered_df["subscription_status"] == status_filter]
 
 st.dataframe(
-    filtered_df[["email", "plan", "credits", "status"]],
+    filtered_df[["email", "plan", "credits", "subscription_status"]],
     use_container_width=True
 )
 
 # -------------------------------------------------
-# SELECT USER TO VIEW PROFILE (SAFE)
+# SELECT USER (safe: never iloc[0] on empty)
 # -------------------------------------------------
 st.divider()
 st.subheader("👤 View User Profile")
@@ -152,12 +161,9 @@ if not options:
     st.info("No users match the selected filters. Adjust filters to view a profile.")
     st.stop()
 
-# If a previous selection is no longer available after filtering, default to first
-default_email = options[0]
-selected_email = st.selectbox("Select User", options, index=0)
+selected_email = st.selectbox("Select User", options)
 
-user_matches = filtered_df.loc[filtered_df["email"].astype(str) == str(selected_email)].copy()
-
+user_matches = filtered_df[filtered_df["email"].astype(str) == str(selected_email)]
 if user_matches.empty:
     st.warning("Selected user not found in filtered results. Please re-select a user.")
     st.stop()
@@ -169,36 +175,35 @@ user_row = user_matches.iloc[0]
 # -------------------------------------------------
 st.subheader("📊 Account Summary")
 
-col1, col2 = st.columns(2)
+c1, c2 = st.columns(2)
 
-with col1:
+with c1:
     st.metric("Plan", user_row.get("plan", ""))
     st.metric("Credits Available", int(user_row.get("credits", 0) or 0))
 
-with col2:
-    st.metric("Status", user_row.get("status", ""))
+with c2:
+    st.metric("Status", user_row.get("subscription_status", ""))
 
-    end_date = user_row.get("end_date")
     expiry_display = "N/A"
+    end_date = user_row.get("end_date")
     try:
         if end_date:
             expiry_display = datetime.fromisoformat(str(end_date).replace("Z", "+00:00")).strftime("%d %b %Y")
     except Exception:
         expiry_display = str(end_date) if end_date else "N/A"
-
     st.metric("Subscription Expiry", expiry_display)
 
 st.divider()
 st.subheader("📄 Contact Information")
 
-st.text_input("Email", value=str(user_row.get("email", "")), disabled=True)
-st.text_input("Phone Number", value=str(user_row.get("phone", "") or ""), disabled=True)
+st.text_input("Full Name", value=str(user_row.get("full_name", "") or ""), disabled=True)
+st.text_input("Email", value=str(user_row.get("email", "") or ""), disabled=True)
+st.text_input("Phone", value=str(user_row.get("phone", "") or ""), disabled=True)
 
-# Optional: show internal IDs for admin debugging
-with st.expander("🔎 Debug (Admin Only)"):
+with st.expander("🔎 Debug (Admin)"):
     st.write({
-        "user_id (subscriptions.user_id)": user_row.get("user_id"),
+        "subscriptions.user_id": user_row.get("user_id"),
         "users_app.id": user_row.get("id"),
         "role": user_row.get("role"),
-        "full_name": user_row.get("full_name"),
+        "available_phone_columns_in_users_app": existing_phone_cols
     })
