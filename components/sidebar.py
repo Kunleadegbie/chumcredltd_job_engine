@@ -106,6 +106,6 @@ def render_sidebar() -> None:
         # -------------------------
         # Logout
         # -------------------------
-        if st.button("🚪 Logout"):
+        if st.button("🚪 Logout", key="sidebar_logout"):
             st.session_state.clear()
             st.switch_page("app.py")
