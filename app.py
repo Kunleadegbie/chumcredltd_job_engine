@@ -2,6 +2,9 @@
 # ==========================================================
 # app.py — TalentIQ Authentication Entry Point (STABLE)
 # ==========================================================
+# ==========================================================
+# app.py — TalentIQ Authentication Entry Point (STABLE)
+# ==========================================================
 import streamlit as st
 import sys
 import os
@@ -11,8 +14,24 @@ import os
 # ==========================================================
 sys.path.append(os.path.dirname(__file__))
 
-from services.auth import login_user, register_user, send_password_reset_email
+from services.auth import login_user, register_user
 from components.sidebar import render_sidebar
+from config.supabase_client import supabase
+
+
+# ==========================================================
+# LOCAL PASSWORD RESET (OPTION A — SAFE)
+# ==========================================================
+def send_password_reset_email(email: str):
+    """
+    Email-only password reset using Supabase Auth.
+    Defined locally to avoid touching services.auth.
+    """
+    try:
+        supabase.auth.reset_password_for_email(email)
+        return True, "Password reset link sent to your email."
+    except Exception:
+        return False, "Unable to send reset email. Please verify the email address."
 
 
 # ==========================================================
@@ -62,7 +81,7 @@ if st.session_state.authenticated and st.session_state.user:
 
 
 # ==========================================================
-# LANDING / AUTH UI
+# LANDING / AUTH UI (RESTORED AESTHETIC)
 # ==========================================================
 st.image("assets/talentiq_logo.png", width=280)
 st.title("🔐 Welcome to Chumcred TalentIQ")
@@ -100,11 +119,7 @@ with tab1:
                 st.error("Invalid email or password.")
 
     with col2:
-        st.markdown(
-            "<a style='cursor:pointer; color:#1f77b4;'>Forgot password?</a>",
-            unsafe_allow_html=True,
-        )
-        if st.button("Reset password", key="forgot_btn"):
+        if st.button("Forgot password?", key="forgot_btn"):
             st.session_state.show_forgot = True
 
     # ------------------------------
@@ -118,7 +133,7 @@ with tab1:
             if not reset_email.strip():
                 st.error("Please enter your email.")
             else:
-                ok, msg = send_password_reset_email(reset_email)
+                ok, msg = send_password_reset_email(reset_email.strip())
                 if ok:
                     st.success(msg)
                     st.session_state.show_forgot = False
@@ -167,7 +182,7 @@ with tab2:
 
         success, msg = register_user(
             full_name=full_name.strip(),
-            phone=phone.strip(),   # international accepted
+            phone=phone.strip(),   # International accepted
             email=reg_email.strip(),
             password=reg_password,
         )
