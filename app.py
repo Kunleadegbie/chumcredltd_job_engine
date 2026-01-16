@@ -1,3 +1,4 @@
+
 # ==========================================================
 # app.py — TalentIQ Authentication Entry Point (STABLE)
 # ==========================================================
@@ -84,7 +85,7 @@ with tab_login:
         st.session_state.sb_access_token = session.access_token
         st.session_state.sb_refresh_token = session.refresh_token
 
-        # Fetch role
+        # Fetch role from users_app
         role_resp = (
             supabase.table("users_app")
             .select("id, role")
@@ -105,23 +106,21 @@ with tab_login:
         # Ensure FREEMIUM subscription exists
         ensure_subscription_row(user.id)
 
-        # 🔑 Reset sidebar before redirect
+        # Reset sidebar guard before redirect
         reset_sidebar_guard()
 
-        # Force password change?
-        # Check Supabase metadata directly
+        # --------------------------------------------------
+        # FORCE PASSWORD CHANGE (TEMP PASSWORD USERS)
+        # --------------------------------------------------
         meta = getattr(user, "user_metadata", {}) or {}
 
         if meta.get("must_change_password") is True:
-           st.session_state.force_pw_change = True
+            st.session_state.force_pw_change = True
+            st.success("Login successful — please change your temporary password.")
+            st.switch_page("pages/1_My_Account.py")
+            st.stop()
 
-       # Reset sidebar before redirect
-          st.session_state.pop("_sidebar_rendered", None)
-
-          st.success("Login successful — please change your temporary password.")
-          st.switch_page("pages/1_My_Account.py")
-          st.stop()
-
+        # Normal login
         st.session_state.force_pw_change = False
         st.success("Login successful!")
         st.switch_page("pages/2_Dashboard.py")
@@ -162,7 +161,7 @@ with tab_register:
                     },
                 }
             )
-        except Exception as e:
+        except Exception:
             st.error("Registration failed.")
             st.stop()
 
