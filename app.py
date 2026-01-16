@@ -4,10 +4,7 @@
 
 import streamlit as st
 from config.supabase_client import supabase
-from services.utils import (
-    user_must_change_password,
-    ensure_subscription_row,
-)
+from services.utils import ensure_subscription_row
 
 # ----------------------------------------------------------
 # PAGE CONFIG
@@ -112,11 +109,18 @@ with tab_login:
         reset_sidebar_guard()
 
         # Force password change?
-        if user_must_change_password(user):
-            st.session_state.force_pw_change = True
-            st.success("Login successful — please change your temporary password.")
-            st.switch_page("pages/1_My_Account.py")
-            st.stop()
+        # Check Supabase metadata directly
+        meta = getattr(user, "user_metadata", {}) or {}
+
+        if meta.get("must_change_password") is True:
+           st.session_state.force_pw_change = True
+
+       # Reset sidebar before redirect
+          st.session_state.pop("_sidebar_rendered", None)
+
+          st.success("Login successful — please change your temporary password.")
+          st.switch_page("pages/1_My_Account.py")
+          st.stop()
 
         st.session_state.force_pw_change = False
         st.success("Login successful!")
