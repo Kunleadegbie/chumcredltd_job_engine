@@ -9,7 +9,6 @@ from config.supabase_client import supabase  # kept as-is (even if not used)
 from services.utils import get_subscription, is_low_credit
 
 from components.ui import hide_streamlit_sidebar
-from components.sidebar import render_sidebar
 
 # NEW: use admin client for broadcast read tracking (persistent popup)
 try:
@@ -50,7 +49,7 @@ if not user:
     st.stop()
 
 # Render custom sidebar (safe after auth exists)
-render_sidebar()
+
 
 # ======================================================
 # USER CONTEXT

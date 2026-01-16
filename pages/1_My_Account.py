@@ -6,7 +6,6 @@ import streamlit as st
 from datetime import datetime, timezone, timedelta
 
 from config.supabase_client import supabase
-from components.sidebar import render_sidebar
 
 
 # --------------------------------------------------
@@ -31,8 +30,7 @@ st.markdown(
 
 # --------------------------------------------------
 # SIDEBAR (RENDER ONCE)
-# --------------------------------------------------
-render_sidebar()
+# -------------------------------------------------
 st.markdown("")  # 👈 REQUIRED
 
 # auth checks below
