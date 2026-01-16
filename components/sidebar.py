@@ -3,44 +3,38 @@
 # components/sidebar.py — Custom Sidebar (STABLE & SAFE)
 # ==========================================================
 
-
 import streamlit as st
 from components.analytics import render_analytics
 
 
 def render_sidebar():
     """
-    Renders the custom sidebar exactly once per page render.
-    Prevents duplicate sidebars and duplicate widget keys.
+    Renders the custom sidebar for every page render.
+    Do NOT use a persistent session_state guard for sidebar rendering,
+    because session_state persists across pages and will hide the sidebar.
     """
 
-    # ------------------------------------------------------
-    # Prevent duplicate sidebar rendering
-    # ------------------------------------------------------
+    # Analytics (safe to call)
     render_analytics()
 
-    if st.session_state.get("_sidebar_rendered"):
-        return
+    # Clean up legacy flag from older versions (prevents "missing icons")
+    if "_sidebar_rendered" in st.session_state:
+        st.session_state.pop("_sidebar_rendered", None)
 
-    st.session_state["_sidebar_rendered"] = True
+    user = st.session_state.get("user") or {}
+    role = (user.get("role") or "user").strip().lower()
+    email = (user.get("email") or "").strip().lower()
 
-    # ------------------------------------------------------
-    # Sidebar UI
-    # ------------------------------------------------------
+    admin_emails = {"chumcred@gmail.com", "admin@talentiq.com", "kunle@chumcred.com"}
+
     with st.sidebar:
-        # Logo
         st.image("assets/talentiq_logo.png", width=220)
-
         st.markdown("## Chumcred TalentIQ")
         st.caption("AI-Powered Career & Talent Intelligence")
         st.divider()
 
-        user = st.session_state.get("user", {}) or {}
-        role = user.get("role", "user")
-        email = user.get("email", "")
-
         # -------------------------
-        # Core Pages (USER)
+        # Core Pages
         # -------------------------
         st.page_link("pages/1_My_Account.py", label="👤 My Account")
         st.page_link("pages/2_Dashboard.py", label="📊 Dashboard")
@@ -65,7 +59,7 @@ def render_sidebar():
         st.divider()
 
         # -------------------------
-        # Subscription & Support
+        # Subscription / Support
         # -------------------------
         st.page_link("pages/10_subscription.py", label="💳 Subscription")
         st.page_link("pages/14_Support_Hub.py", label="🆘 Support Hub")
@@ -76,18 +70,13 @@ def render_sidebar():
         if role == "admin":
             st.divider()
             st.markdown("### 🛡️ Admin Panel")
-
             st.page_link("pages/12_Admin_Payments.py", label="💼 Payment Approvals")
             st.page_link("pages/9_Admin_Revenue.py", label="💰 Revenue Dashboard")
             st.page_link("pages/13_Admin_Credit_Usage.py", label="📊 Credit Usage")
-            st.page_link("pages/15_Admin_Users.py", label="👥 Users")
+            st.page_link("pages/15_Admin_Users.py", label="👥 Users Profile")
 
-            # Restricted admin detail view
-            if email in ["chumcred@gmail.com"]:
-                st.page_link(
-                    "pages/16_Admin_User_Details.py",
-                    label="🛡️ User Details"
-                )
+            if email in admin_emails:
+                st.page_link("pages/16_Admin_User_Details.py", label="🛡️ User Details")
 
         st.divider()
 
@@ -97,3 +86,4 @@ def render_sidebar():
         if st.button("🚪 Logout", key="logout_button"):
             st.session_state.clear()
             st.switch_page("app.py")
+)

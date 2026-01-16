@@ -6,13 +6,9 @@ from components.sidebar import render_sidebar
 # -------------------------------------------------
 # PAGE CONFIG
 # -------------------------------------------------
-st.set_page_config(
-    page_title="My Account – TalentIQ",
-    page_icon="👤",
-    layout="centered"
-)
+st.set_page_config(page_title="My Account – TalentIQ", page_icon="👤", layout="centered")
 
-# ✅ Hide Streamlit default multipage navigation
+# Hide Streamlit default multipage nav (so only your custom sidebar shows)
 st.markdown(
     """
     <style>
@@ -20,24 +16,24 @@ st.markdown(
         section[data-testid="stSidebar"] > div:first-child { padding-top: 0rem; }
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
-# ✅ Render your custom sidebar
+# Render your custom sidebar
 render_sidebar()
 
 st.title("👤 My Account")
 
 # -------------------------------------------------
-# AUTH + SESSION RESTORE
+# AUTH GUARD
 # -------------------------------------------------
 if "user" not in st.session_state or not st.session_state.user:
     st.error("You must be logged in to view this page.")
     st.stop()
 
+# Restore Supabase session for RLS-protected reads
 access_token = st.session_state.get("sb_access_token")
 refresh_token = st.session_state.get("sb_refresh_token")
-
 if access_token and refresh_token:
     try:
         supabase.auth.set_session(access_token, refresh_token)
@@ -57,7 +53,7 @@ if not session_email:
     st.stop()
 
 # -------------------------------------------------
-# FETCH USER PROFILE (ID → EMAIL FALLBACK)
+# FETCH USER PROFILE (ID → EMAIL fallback)
 # -------------------------------------------------
 profile = None
 
@@ -117,24 +113,22 @@ if not subscription_resp.data:
 
 subscription = subscription_resp.data[0]
 
-end_date_str = subscription.get("end_date")
 expiry_display = "N/A"
 try:
-    if end_date_str:
-        expiry_display = datetime.fromisoformat(str(end_date_str).replace("Z", "+00:00")).strftime("%d %b %Y")
+    if subscription.get("end_date"):
+        expiry_display = datetime.fromisoformat(str(subscription["end_date"]).replace("Z", "+00:00")).strftime("%d %b %Y")
 except Exception:
-    expiry_display = str(end_date_str) if end_date_str else "N/A"
+    expiry_display = str(subscription.get("end_date") or "N/A")
 
 # -------------------------------------------------
 # ACCOUNT SUMMARY
 # -------------------------------------------------
 st.subheader("📊 Account Summary")
-
 col1, col2 = st.columns(2)
 
 with col1:
     st.metric("Plan", subscription.get("plan", ""))
-    st.metric("Credits Available", subscription.get("credits", 0))
+    st.metric("Credits Available", int(subscription.get("credits", 0) or 0))
 
 with col2:
     st.metric("Status", subscription.get("subscription_status", ""))
@@ -145,10 +139,9 @@ with col2:
 # -------------------------------------------------
 st.divider()
 st.subheader("👤 Profile Information")
-
-st.text_input("Full Name", value=str(profile.get("full_name", "") or ""), disabled=True)
-st.text_input("Email", value=str(profile.get("email", "") or ""), disabled=True)
-st.text_input("Role", value=str(profile.get("role", "user") or "user"), disabled=True)
+st.text_input("Full Name", value=str(profile.get("full_name") or ""), disabled=True)
+st.text_input("Email", value=str(profile.get("email") or ""), disabled=True)
+st.text_input("Role", value=str(profile.get("role") or "user"), disabled=True)
 
 # -------------------------------------------------
 # CHANGE PASSWORD (AUTH ONLY)
@@ -157,7 +150,7 @@ st.divider()
 st.subheader("🔐 Change Password")
 
 with st.form("change_password_form"):
-    new_password = st.text_input("New Password", type="password", help="Minimum 8 characters")
+    new_password = st.text_input("New Password", type="password")
     confirm_password = st.text_input("Confirm New Password", type="password")
     submit = st.form_submit_button("Change Password")
 
