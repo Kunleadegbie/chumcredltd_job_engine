@@ -1,10 +1,10 @@
 
-
 # ==========================================================
-# components/sidebar.py — STABLE PER-PAGE SIDEBAR
+# components/sidebar.py — STABLE PER-PAGE SIDEBAR (FIXED)
 # ==========================================================
 
 import os
+import uuid
 import streamlit as st
 
 
@@ -37,7 +37,9 @@ def render_sidebar() -> None:
         st.caption("AI-Powered Career Intelligence")
         st.divider()
 
+        # -------------------------
         # Core
+        # -------------------------
         safe_page_link("pages/1_My_Account.py", "👤 My Account")
         safe_page_link("pages/2_Dashboard.py", "📊 Dashboard")
         safe_page_link("pages/3_Job_Search.py", "🔍 Job Search")
@@ -45,7 +47,9 @@ def render_sidebar() -> None:
 
         st.divider()
 
+        # -------------------------
         # AI Tools
+        # -------------------------
         st.markdown("### 🤖 AI Tools")
         safe_page_link("pages/3a_Match_Score.py", "📈 Match Score")
         safe_page_link("pages/3b_Skills.py", "🧠 Skills Extraction")
@@ -58,11 +62,15 @@ def render_sidebar() -> None:
 
         st.divider()
 
+        # -------------------------
         # Subscription / Support
+        # -------------------------
         safe_page_link("pages/10_subscription.py", "💳 Subscription")
         safe_page_link("pages/14_Support_Hub.py", "🆘 Support Hub")
 
-        # Admin
+        # -------------------------
+        # Admin Panel
+        # -------------------------
         if role == "admin":
             st.divider()
             st.markdown("### 🛡️ Admin Panel")
@@ -75,6 +83,10 @@ def render_sidebar() -> None:
 
         st.divider()
 
-        if st.button("🚪 Logout", key="logout_btn"):
+        # -------------------------
+        # Logout (UUID-safe, NEVER duplicates)
+        # -------------------------
+        logout_key = f"logout_{uuid.uuid4()}"
+        if st.button("🚪 Logout", key=logout_key):
             st.session_state.clear()
             st.switch_page("app.py")
