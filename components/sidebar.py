@@ -1,3 +1,4 @@
+if st.button("🚪 Logout"):
 
 # ==========================================================
 # components/sidebar.py — Stable Custom Sidebar (Safe Links)
@@ -123,7 +124,7 @@ def render_sidebar() -> None:
         st.divider()
 
         # -------------------------
-        # Logout from app
+        # Logout
         # -------------------------
         if st.button("🚪 Logout"):
             st.session_state.clear()
