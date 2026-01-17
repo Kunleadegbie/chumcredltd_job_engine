@@ -10,7 +10,6 @@ from services.utils import get_subscription, is_low_credit
 
 from components.sidebar import render_sidebar
 
-render_sidebar()
 
 from components.ui import hide_streamlit_sidebar
 
@@ -20,6 +19,14 @@ try:
 except Exception:
     supabase_srv = None
 
+
+auth_user = st.session_state.get("auth_user")
+
+if not auth_user:
+    st.error("Authentication error. Please log in again.")
+    st.stop()
+
+auth_user_id = auth_user["id"]  # ✅ THIS IS THE REAL ID
 
 # ======================================================
 # PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
@@ -35,7 +42,6 @@ st.set_page_config(
 # HIDE STREAMLIT SIDEBAR + RENDER CUSTOM SIDEBAR
 # ======================================================
 hide_streamlit_sidebar()
-st.session_state["_sidebar_rendered"] = False
 
 
 # ======================================================
@@ -59,7 +65,7 @@ if not user:
 # USER CONTEXT — FIX NAME DISPLAY ONLY
 # ======================================================
 user = st.session_state.get("user", {})
-user_id = st.session_state.user["id"]  # MUST be auth.users.id 
+user_id = auth_user_id  # MUST be auth.users.id 
 
 raw_name = user.get("full_name", "")
 email = user.get("email", "")
@@ -197,6 +203,7 @@ subscription = get_subscription(user_id)
 if subscription:
     st.session_state.user["credits"] = subscription.get("credits", 0)
 
+render_sidebar()
 
 if subscription:
     plan = subscription.get("plan", "None")
