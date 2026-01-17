@@ -48,6 +48,16 @@ if "user" not in st.session_state:
 if "show_forgot" not in st.session_state:
     st.session_state.show_forgot = False
 
+
+# ----------------------------------------------------------
+# AUTH GUARD — THIS IS THE FIX
+# ----------------------------------------------------------
+if st.session_state.get("authenticated") and st.session_state.get("user"):
+    render_sidebar()
+    st.switch_page("pages/2_Dashboard.py")
+    st.stop()
+
+
 # ==========================================================
 # PASSWORD RESET
 # ==========================================================
