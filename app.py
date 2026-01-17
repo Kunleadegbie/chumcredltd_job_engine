@@ -1,6 +1,5 @@
-
 # ==========================================================
-# app.py — AUTH ENTRY POINT (FINAL STABLE)
+# app.py — AUTH ENTRY POINT (FINAL STABLE — FIXED)
 # ==========================================================
 
 import streamlit as st
@@ -11,6 +10,7 @@ sys.path.append(os.path.dirname(__file__))
 
 from services.auth import login_user, register_user
 from config.supabase_client import supabase
+
 
 # ----------------------------------------------------------
 # Page config (FIRST Streamlit call)
@@ -58,10 +58,10 @@ tab_login, tab_register = st.tabs(["🔓 Sign In", "📝 Register"])
 # LOGIN TAB
 # ==========================================================
 with tab_login:
-    email = st.text_input("Email")
-    password = st.text_input("Password", type="password")
+    email = st.text_input("Email", key="login_email")
+    password = st.text_input("Password", type="password", key="login_password")
 
-    if st.button("Sign In"):
+    if st.button("Sign In", key="login_button"):
         result = login_user(email, password)
 
         user = None
@@ -118,16 +118,17 @@ with tab_login:
 # REGISTER TAB
 # ==========================================================
 with tab_register:
-    full_name = st.text_input("Full Name")
+    full_name = st.text_input("Full Name", key="reg_full_name")
     phone = st.text_input(
         "Phone (International format)",
         placeholder="+2348030000000 or +447900000000",
+        key="reg_phone",
     )
-    reg_email = st.text_input("Email")
-    reg_pw = st.text_input("Password", type="password")
-    confirm = st.text_input("Confirm Password", type="password")
+    reg_email = st.text_input("Email", key="reg_email")
+    reg_pw = st.text_input("Password", type="password", key="reg_password")
+    confirm = st.text_input("Confirm Password", type="password", key="reg_confirm")
 
-    if st.button("Register"):
+    if st.button("Register", key="register_button"):
         if not full_name or not phone or not reg_email:
             st.error("All fields are required.")
             st.stop()
