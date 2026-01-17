@@ -7,6 +7,7 @@ import streamlit.components.v1 as components
 from datetime import datetime
 from config.supabase_client import supabase  # kept as-is (even if not used)
 from services.utils import get_subscription, is_low_credit
+from config.supabase_client import supabase_admin
 
 
 from components.sidebar import render_sidebar
@@ -82,7 +83,18 @@ display_name = (
 # ======================================================
 # DEBUG (temporary)
 # ======================================================
-subscription = get_subscription(user_id)
+subscription = (
+    supabase_admin
+    .table("subscriptions")
+    .select("*")
+    .eq("user_id", user_id)
+    .limit(1)
+    .execute()
+    .data
+)
+
+subscription = subscription[0] if subscription else None
+
 
 st.write("DEBUG → user_id (auth):", user_id)
 st.write("DEBUG → subscription:", subscription)
