@@ -136,9 +136,6 @@ with tab_login:
                 "role": real_role,           # ✅ admin restored
             }
 
-            render_sidebar()
-            st.switch_page("pages/2_Dashboard.py")
-
         else:
             st.error("Invalid email or password.")
 
