@@ -54,11 +54,6 @@ if not user or not is_admin(user.get("id")):
     st.stop()
 
 
-# ======================================================
-# RENDER CUSTOM SIDEBAR (ONCE — VERY IMPORTANT)
-# ======================================================
-render_sidebar()
-
 
 # ======================================================
 # PAGE HEADER

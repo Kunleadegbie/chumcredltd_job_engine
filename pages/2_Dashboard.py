@@ -234,7 +234,6 @@ if not subscription:
 else:
     credits = int(subscription.get("credits", 0))
 
-render_sidebar()
 
 if subscription:
     plan = subscription.get("plan", "None")

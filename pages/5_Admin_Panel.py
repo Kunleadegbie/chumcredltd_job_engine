@@ -40,7 +40,7 @@ if user.get("role") != "admin":
     st.error("Access denied. Admins only.")
     st.stop()
 
-render_sidebar()
+
 
 st.title("🛠 Admin Panel")
 st.write("---")

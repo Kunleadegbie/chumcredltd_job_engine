@@ -32,7 +32,7 @@ st.set_page_config(page_title="Admin — Users", page_icon="👥", layout="wide"
 
 hide_streamlit_sidebar()
 st.session_state["_sidebar_rendered"] = False
-render_sidebar()
+
 
 # ======================================================
 # AUTH + ADMIN CHECK

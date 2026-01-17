@@ -44,7 +44,7 @@ if not st.session_state.get("authenticated"):
     st.switch_page("app.py")
     st.stop()
 
-render_sidebar()
+
 
 me = st.session_state.get("user") or {}
 admin_id = me.get("id")
