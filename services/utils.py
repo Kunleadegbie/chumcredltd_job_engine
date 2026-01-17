@@ -109,6 +109,46 @@ def get_subscription(user_id: str):
         return None
 
 # ==========================================================
+# AUTO EXPIRATION
+# ==========================================================
+
+from datetime import datetime, timezone
+
+def auto_expire_subscription(user_id: str):
+    try:
+        res = (
+            supabase
+            .table("subscriptions")
+            .select("end_date, subscription_status")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+
+        if not res.data:
+            return
+
+        sub = res.data[0]
+
+        if (sub.get("subscription_status") or "").lower() != "active":
+            return
+
+        end_date = sub.get("end_date")
+        if not end_date:
+            return
+
+        expiry = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+        if expiry < datetime.now(timezone.utc):
+            supabase.table("subscriptions").update({
+                "subscription_status": "expired",
+                "credits": 0,
+            }).eq("user_id", user_id).execute()
+
+    except Exception:
+        pass
+
+
+# ==========================================================
 # CREDIT HELPERS (USED BY AI PAGES)
 # ==========================================================
 def is_low_credit(subscription: dict, minimum_required: int = 20) -> bool:

@@ -61,6 +61,7 @@ if not user:
 # ======================================================
 # USER CONTEXT — FIX NAME DISPLAY ONLY
 # ======================================================
+
 user = st.session_state.get("user", {})
 user_id = st.session_state.user["id"]
 
