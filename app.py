@@ -103,13 +103,18 @@ with tab_login:
                 pass
 
             st.session_state.authenticated = True
+
+            # 🔐 Get the real Supabase Auth user (source of truth)
+            auth_session = supabase.auth.get_session()
+            auth_user = auth_session.user
+
+            st.session_state.authenticated = True
             st.session_state.user = {
-                "id": user.get("id"),
-                "email": user.get("email"),
+                "id": auth_user.id,              # ✅ auth.users.id (CORRECT)
+                "email": auth_user.email,
                 "full_name": user.get("full_name"),
                 "role": user.get("role", "user"),
-            }
-   
+             }
  
             render_sidebar()
             st.switch_page("pages/2_Dashboard.py")
