@@ -11,6 +11,7 @@ import os
 sys.path.append(os.path.dirname(__file__))
 
 from services.auth import login_user, register_user
+from components.sidebar import render_sidebar   # ✅ IMPORT FIRST
 from config.supabase_client import supabase
 
 
