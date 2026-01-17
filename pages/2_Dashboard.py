@@ -24,8 +24,6 @@ if not st.session_state.get("authenticated") or not st.session_state.get("user")
     st.error("Authentication error. Please log in again.")
     st.stop()
 
-user_id = st.session_state.user["id"]
-
 
 # ======================================================
 # PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
