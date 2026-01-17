@@ -11,9 +11,10 @@ from config.supabase_client import supabase_admin
 
 
 from components.sidebar import render_sidebar
-
-
 from components.ui import hide_streamlit_sidebar
+
+render_sidebar()
+
 
 # NEW: use admin client for broadcast read tracking (persistent popup)
 try:

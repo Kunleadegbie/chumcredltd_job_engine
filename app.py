@@ -1,5 +1,5 @@
 # ==========================================================
-# app.py — AUTH ENTRY POINT (STABLE VERSION)
+# app.py — AUTH ENTRY POINT (STABLE + ROLE FIXED)
 # ==========================================================
 
 import streamlit as st
@@ -94,35 +94,51 @@ with tab_login:
                     user = r
 
         if user:
-            # Restore Supabase auth session (safe)
+            # --------------------------------------------------
+            # Restore Supabase Auth session (SOURCE OF TRUTH)
+            # --------------------------------------------------
             try:
-                # 🔐 Sign in via Supabase Auth and CAPTURE the response
-                auth_resp = supabase.auth.sign_in_with_password(
-                   {"email": user.get("email"), "password": password}
-            )
-
-                auth_user = auth_resp.user  # ✅ THIS is the real auth.users row
-
-  
+                supabase.auth.sign_in_with_password(
+                    {"email": user.get("email"), "password": password}
+                )
             except Exception:
                 pass
 
-            st.session_state.authenticated = True
-
-            # 🔐 Get the real Supabase Auth user (source of truth)
             auth_session = supabase.auth.get_session()
-            auth_user = auth_session.user
+            if not auth_session or not auth_session.user:
+                st.error("Authentication error. Please log in again.")
+                st.stop()
 
+            auth_user = auth_session.user  # ✅ auth.users row
+
+            # --------------------------------------------------
+            # FETCH REAL ROLE FROM users_app (FIX)
+            # --------------------------------------------------
+            role_resp = (
+                supabase
+                .table("users_app")
+                .select("role")
+                .eq("id", auth_user.id)
+                .single()
+                .execute()
+            )
+
+            real_role = role_resp.data["role"] if role_resp.data else "user"
+
+            # --------------------------------------------------
+            # FINAL SESSION STATE (CLEAN)
+            # --------------------------------------------------
             st.session_state.authenticated = True
             st.session_state.user = {
-                "id": auth_user.id,              # ✅ auth.users.id (CORRECT)
+                "id": auth_user.id,          # ✅ auth.users.id
                 "email": auth_user.email,
                 "full_name": user.get("full_name"),
-                "role": user.get("role", "user"),
-             }
- 
+                "role": real_role,           # ✅ admin restored
+            }
+
             render_sidebar()
             st.switch_page("pages/2_Dashboard.py")
+
         else:
             st.error("Invalid email or password.")
 

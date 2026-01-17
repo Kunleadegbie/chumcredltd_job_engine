@@ -8,8 +8,8 @@ import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
-
 render_sidebar()
+
 
 from config.supabase_client import supabase
 from services.job_api import search_jobs

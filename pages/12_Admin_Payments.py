@@ -17,6 +17,9 @@ from services.utils import is_admin, PLANS
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
+render_sidebar()
+
+
 
 # ----------------------------------------------------------
 # PAGE CONFIG
