@@ -156,18 +156,11 @@ def _rollback_to_pending(payment_id: str):
         pass
 
 
-def _approve_payment_atomic(payment_id: str, admin_user_id: str):
-    """
-    TRUE ATOMIC APPROVAL:
-    - Re-read payment
-    - If already approved -> stop
-    - Conditional update: pending -> approved
-    - Verify status approved
-    - Credit user (additive)
-    - If credit fails -> rollback to pending
-    """
+def _approve_payment_atomic(payment_id: int, admin_id: str):
+    # 1️⃣ Load payment
     payment = (
-        supabase_admin.table("subscription_payments")
+        supabase_admin
+        .table("subscription_payments")
         .select("*")
         .eq("id", payment_id)
         .single()
@@ -176,53 +169,63 @@ def _approve_payment_atomic(payment_id: str, admin_user_id: str):
     )
 
     if not payment:
-        raise ValueError("Payment not found.")
+        raise Exception("Payment not found.")
 
-    status = (payment.get("status") or "").strip().lower()
-    if status == "approved":
-        raise ValueError("Payment already approved.")
-    if status != "pending":
-        raise ValueError(f"Cannot approve. Payment status is '{status}'.")
+    if payment["status"] != "pending":
+        raise Exception("Payment is not pending.")
 
-    user_id = payment.get("user_id")
-    plan = payment.get("plan")
+    user_id = payment["user_id"]
+    plan = payment["plan"]
 
-    if not user_id or plan not in PLANS:
-        raise ValueError("Invalid payment record (missing user_id or invalid plan).")
+    plan_cfg = PLANS.get(plan)
+    if not plan_cfg:
+        raise Exception("Invalid plan.")
 
-    # Conditional approve (prevents multi-crediting)
-    try:
-        supabase_admin.table("subscription_payments").update(
-            {"status": "approved", "approved_by": admin_user_id, "approved_at": _now_iso()}
-        ).eq("id", payment_id).eq("status", "pending").execute()
-    except Exception:
-        # Fallback if audit columns don't exist
-        supabase_admin.table("subscription_payments").update(
-            {"status": "approved"}
-        ).eq("id", payment_id).eq("status", "pending").execute()
+    credits_to_add = plan_cfg["credits"]
+    duration_days = plan_cfg["days"]
 
-    # Verify status actually became approved
-    verify = (
-        supabase_admin.table("subscription_payments")
-        .select("status")
-        .eq("id", payment_id)
-        .single()
+    now = datetime.now(timezone.utc)
+    end_date = now + timedelta(days=duration_days)
+
+    # 2️⃣ Upsert subscription (THIS IS THE FIX)
+    existing = (
+        supabase_admin
+        .table("subscriptions")
+        .select("*")
+        .eq("user_id", user_id)
+        .limit(1)
         .execute()
         .data
     )
-    v_status = (verify.get("status") or "").strip().lower() if verify else ""
-    if v_status != "approved":
-        raise ValueError("Could not approve payment (status did not change).")
 
-    # Credit user (additive). If fails -> rollback.
-    try:
-        _apply_plan_credits_additive(user_id, plan)
-    except Exception as e:
-        _rollback_to_pending(payment_id)
-        raise ValueError(f"Crediting failed (rolled back to pending): {e}")
+    if existing:
+        sub = existing[0]
+        new_credits = int(sub.get("credits", 0)) + credits_to_add
 
-    return True
+        supabase_admin.table("subscriptions").update({
+            "credits": new_credits,
+            "subscription_status": "active",
+            "start_date": sub.get("start_date") or now.isoformat(),
+            "end_date": end_date.isoformat(),
+            "updated_at": now.isoformat(),
+        }).eq("user_id", user_id).execute()
+    else:
+        supabase_admin.table("subscriptions").insert({
+            "user_id": user_id,
+            "plan": plan,
+            "credits": credits_to_add,
+            "subscription_status": "active",
+            "start_date": now.isoformat(),
+            "end_date": end_date.isoformat(),
+            "created_at": now.isoformat(),
+        }).execute()
 
+    # 3️⃣ Mark payment approved
+    supabase_admin.table("subscription_payments").update({
+        "status": "approved",
+        "approved_by": admin_id,
+        "approved_at": now.isoformat(),
+    }).eq("id", payment_id).execute()
 
 # ----------------------------------------------------------
 # UI
