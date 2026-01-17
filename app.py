@@ -54,14 +54,6 @@ st.session_state.setdefault("user", None)
 st.session_state.setdefault("show_forgot", False)
 
 
-# ----------------------------------------------------------
-# If already logged in → show sidebar & redirect
-# ----------------------------------------------------------
-if st.session_state.authenticated and st.session_state.user:
-    render_sidebar()
-    st.switch_page("pages/2_Dashboard.py")
-    st.stop()
-
 
 # ----------------------------------------------------------
 # Landing / Auth UI
@@ -130,11 +122,14 @@ with tab_login:
             # --------------------------------------------------
             st.session_state.authenticated = True
             st.session_state.user = {
-                "id": auth_user.id,          # ✅ auth.users.id
+                "id": auth_user.id,
                 "email": auth_user.email,
                 "full_name": user.get("full_name"),
-                "role": real_role,           # ✅ admin restored
+                "role": real_role,
             }
+
+            st.session_state["post_login_redirect"] = True
+            st.rerun()
 
         else:
             st.error("Invalid email or password.")

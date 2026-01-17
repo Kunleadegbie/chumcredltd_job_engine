@@ -1,19 +1,22 @@
 # ==============================================================
 # Dashboard.py — Fully Redesigned Professional Dashboard-final fix
 # ==============================================================
-
+from components.sidebar import render_sidebar
 import streamlit as st
+
+if not st.session_state.get("authenticated"):
+    st.switch_page("app.py")
+    st.stop()
+
+render_sidebar()
+
+
 import streamlit.components.v1 as components
 from datetime import datetime
 from config.supabase_client import supabase  # kept as-is (even if not used)
 from services.utils import get_subscription, is_low_credit
 from config.supabase_client import supabase_admin
-
-
-from components.sidebar import render_sidebar
 from components.ui import hide_streamlit_sidebar
-
-render_sidebar()
 
 
 # NEW: use admin client for broadcast read tracking (persistent popup)
