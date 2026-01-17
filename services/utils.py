@@ -87,23 +87,25 @@ def is_admin(user_id: str) -> bool:
         return False
 
 # ==========================================================
-# SUBSCRIPTIONS (CANONICAL SOURCE)
+# SUBSCRIPTIONS — SINGLE SOURCE OF TRUTH
 # ==========================================================
 def get_subscription(user_id: str):
     """
-    Return the user's subscription dict from the canonical
-    realtime.subscription table (used by admin + AI tools).
+    Return the user's subscription dict from realtime.subscription
+    (canonical table used by admin + AI tools).
     """
     try:
         res = (
-            supabase.table("subscription")   # ← realtime.subscription
+            supabase
+            .schema("realtime")            # ✅ THIS IS THE MISSING PIECE
+            .table("subscription")
             .select("*")
             .eq("user_id", user_id)
             .limit(1)
             .execute()
         )
         return _safe_single(res)
-    except Exception:
+    except Exception as e:
         return None
 
 # ==========================================================
