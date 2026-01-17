@@ -101,7 +101,7 @@ with tab_login:
                    {"email": user.get("email"), "password": password}
             )
 
-               auth_user = auth_resp.user  # ✅ THIS is the real auth.users row
+                auth_user = auth_resp.user  # ✅ THIS is the real auth.users row
 
   
             except Exception:
