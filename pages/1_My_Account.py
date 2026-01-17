@@ -8,7 +8,12 @@ from datetime import datetime, timezone, timedelta
 from config.supabase_client import supabase
 from components.sidebar import render_sidebar
 
+if not st.session_state.get("authenticated"):
+    st.switch_page("app.py")
+    st.stop()
+
 render_sidebar()
+
 
 # --------------------------------------------------
 # PAGE CONFIG (MUST BE FIRST)
