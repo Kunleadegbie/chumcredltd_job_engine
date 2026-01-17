@@ -1,3 +1,5 @@
+
+
 # ==========================================================
 # app.py — AUTH ENTRY POINT (FINAL STABLE VERSION)
 # ==========================================================
@@ -12,20 +14,9 @@ from services.auth import login_user, register_user
 from config.supabase_client import supabase
 
 
-# ----------------------------------------------------------
-# Password reset (email only)
-# ----------------------------------------------------------
-def send_password_reset_email(email: str):
-    try:
-        supabase.auth.reset_password_for_email(email)
-        return True, "Password reset link sent to your email."
-    except Exception:
-        return False, "Unable to send reset email. Please verify the email."
-
-
-# ----------------------------------------------------------
-# Page config (MUST be first Streamlit call)
-# ----------------------------------------------------------
+# ==========================================================
+# PAGE CONFIG (MUST BE FIRST)
+# ==========================================================
 st.set_page_config(
     page_title="Chumcred TalentIQ",
     page_icon="assets/talentiq_logo.png",
@@ -45,17 +36,41 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ----------------------------------------------------------
-# Session defaults
-# ----------------------------------------------------------
-st.session_state.setdefault("authenticated", False)
-st.session_state.setdefault("user", None)
-st.session_state.setdefault("show_forgot", False)
+# ==========================================================
+# SESSION DEFAULTS
+# ==========================================================
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+if "show_forgot" not in st.session_state:
+    st.session_state.show_forgot = False
 
 
-# ----------------------------------------------------------
-# Landing / Auth UI
-# ----------------------------------------------------------
+# ==========================================================
+# 🔐 AUTH GUARD — REDIRECT AFTER LOGIN
+# ==========================================================
+if st.session_state.authenticated and st.session_state.user:
+    st.switch_page("pages/2_Dashboard.py")
+    st.stop()
+
+
+# ==========================================================
+# PASSWORD RESET
+# ==========================================================
+def send_password_reset_email(email: str):
+    try:
+        supabase.auth.reset_password_for_email(email)
+        return True, "Password reset link sent to your email."
+    except Exception:
+        return False, "Unable to send reset email."
+
+
+# ==========================================================
+# LANDING UI
+# ==========================================================
 st.image("assets/talentiq_logo.png", width=280)
 st.title("🔐 Welcome to Chumcred TalentIQ")
 st.caption("AI-powered tools for job seekers, career growth, and talent acceleration.")
@@ -85,54 +100,50 @@ with tab_login:
 
         if not user:
             st.error("Invalid email or password.")
+        else:
+            # ---- Restore Supabase Auth Session (SOURCE OF TRUTH)
+            try:
+                supabase.auth.sign_in_with_password(
+                    {"email": email, "password": password}
+                )
+            except Exception:
+                pass
+
+            auth_session = supabase.auth.get_session()
+            if not auth_session or not auth_session.user:
+                st.error("Authentication failed. Please try again.")
+                st.stop()
+
+            auth_user = auth_session.user  # ✅ auth.users.id
+
+            # ---- Fetch role SAFELY (no crash if RLS blocks)
+            role = "user"
+            try:
+                role_resp = (
+                    supabase
+                    .table("users_app")
+                    .select("role")
+                    .eq("id", auth_user.id)
+                    .single()
+                    .execute()
+                )
+                if role_resp.data and role_resp.data.get("role"):
+                    role = role_resp.data["role"]
+            except Exception:
+                role = "user"
+
+            # ---- Final session state (CLEAN)
+            st.session_state.authenticated = True
+            st.session_state.user = {
+                "id": auth_user.id,           # ✅ ALWAYS auth.users.id
+                "email": auth_user.email,
+                "full_name": user.get("full_name"),
+                "role": role,
+            }
+
+            st.success("Login successful. Redirecting to dashboard…")
             st.stop()
 
-        # --------------------------------------------------
-        # Restore Supabase Auth session (SOURCE OF TRUTH)
-        # --------------------------------------------------
-        try:
-            supabase.auth.sign_in_with_password(
-                {"email": user.get("email"), "password": password}
-            )
-        except Exception:
-            pass
-
-        auth_session = supabase.auth.get_session()
-        if not auth_session or not auth_session.user:
-            st.error("Authentication error. Please log in again.")
-            st.stop()
-
-        auth_user = auth_session.user  # auth.users row
-
-        # --------------------------------------------------
-        # Fetch REAL role from users_app
-        # --------------------------------------------------
-        try:
-            role_resp = (
-                supabase
-                .table("users_app")
-                .select("role")
-                .eq("id", auth_user.id)
-                .single()
-                .execute()
-            )
-            real_role = role_resp.data["role"] if role_resp.data else "user"
-        except Exception:
-            real_role = "user"
-
-        # --------------------------------------------------
-        # Final session state
-        # --------------------------------------------------
-        st.session_state.authenticated = True
-        st.session_state.user = {
-            "id": auth_user.id,          # auth.users.id
-            "email": auth_user.email,
-            "full_name": user.get("full_name"),
-            "role": real_role,
-        }
-
-        # ONE rerun only — NO redirect here
-        st.rerun()
 
     # Forgot password
     if st.button("Forgot password?", key="forgot_pw_button"):
@@ -157,7 +168,7 @@ with tab_register:
 
     full_name = st.text_input("Full Name", key="reg_full_name")
     phone = st.text_input(
-        "Phone (International format, include country code)",
+        "Phone (International format)",
         placeholder="+2348030000000 or +447900000000",
         key="reg_phone",
     )
@@ -196,8 +207,8 @@ with tab_register:
             st.error(msg)
 
 
-# ----------------------------------------------------------
-# Footer
-# ----------------------------------------------------------
+# ==========================================================
+# FOOTER
+# ==========================================================
 st.write("---")
 st.caption("Powered by Chumcred Limited © 2025")
