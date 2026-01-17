@@ -20,13 +20,12 @@ except Exception:
     supabase_srv = None
 
 
-auth_user = st.session_state.get("auth_user")
-
-if not auth_user:
+if not st.session_state.get("authenticated") or not st.session_state.get("user"):
     st.error("Authentication error. Please log in again.")
     st.stop()
 
-auth_user_id = auth_user["id"]  # ✅ THIS IS THE REAL ID
+user_id = st.session_state.user["id"]
+
 
 # ======================================================
 # PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)

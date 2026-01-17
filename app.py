@@ -109,11 +109,6 @@ with tab_login:
                 "full_name": user.get("full_name"),
                 "role": user.get("role", "user"),
             }
-
-            st.session_state.auth_user = {
-                "id": user.get("id"),
-                "email": user.get("email"),
-            }
    
  
             render_sidebar()
