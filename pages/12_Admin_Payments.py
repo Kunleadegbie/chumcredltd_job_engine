@@ -174,18 +174,34 @@ def _approve_payment_atomic(payment_id: int, admin_id: str):
     if payment["status"] != "pending":
         raise Exception("Payment is not pending.")
 
-    user_id = payment["user_id"]
-    plan = payment["plan"]
+    # 🔑 FIX: Normalize user_id to auth.users.id
+user_row = (
+    supabase_admin
+    .table("users_app")
+    .select("id")
+    .eq("id", payment["user_id"])
+    .single()
+    .execute()
+    .data
+)
 
-    plan_cfg = PLANS.get(plan)
-    if not plan_cfg:
-        raise Exception("Invalid plan.")
+if not user_row:
+    raise Exception("User mapping not found.")
 
-    credits_to_add = plan_cfg["credits"]
-    duration_days = plan_cfg["days"]
+user_id = user_row["id"]
 
-    now = datetime.now(timezone.utc)
-    end_date = now + timedelta(days=duration_days)
+plan = payment["plan"]
+
+plan_cfg = PLANS.get(plan)
+if not plan_cfg:
+    raise Exception("Invalid plan.")
+
+credits_to_add = plan_cfg["credits"]
+duration_days = plan_cfg["days"]
+
+now = datetime.now(timezone.utc)
+end_date = now + timedelta(days=duration_days)
+
 
     # 2️⃣ Upsert subscription (THIS IS THE FIX)
     existing = (
