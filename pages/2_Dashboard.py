@@ -25,6 +25,9 @@ if not st.session_state.get("authenticated") or not st.session_state.get("user")
     st.error("Authentication error. Please log in again.")
     st.stop()
 
+# Force Streamlit to drop cached data
+st.cache_data.clear()
+
 
 # ======================================================
 # PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
@@ -210,17 +213,16 @@ if latest:
         st.divider()
 
 
-
-
 # ======================================================
-# LOAD SUBSCRIPTION (ALWAYS SOURCE OF TRUTH = DATABASE)
+# LOAD SUBSCRIPTION (DB IS SOURCE OF TRUTH)
 # ======================================================
-
 subscription = get_subscription(user_id)
 
-# 🔄 Sync session with latest DB credits
-if subscription:
-    st.session_state.user["credits"] = subscription.get("credits", 0)
+if not subscription:
+    st.error("No active subscription found.")
+    credits = 0
+else:
+    credits = int(subscription.get("credits", 0))
 
 render_sidebar()
 
