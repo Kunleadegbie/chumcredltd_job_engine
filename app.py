@@ -96,9 +96,14 @@ with tab_login:
         if user:
             # Restore Supabase auth session (safe)
             try:
-                supabase.auth.sign_in_with_password(
-                    {"email": user.get("email"), "password": password}
-                )
+                # 🔐 Sign in via Supabase Auth and CAPTURE the response
+                auth_resp = supabase.auth.sign_in_with_password(
+                   {"email": user.get("email"), "password": password}
+            )
+
+               auth_user = auth_resp.user  # ✅ THIS is the real auth.users row
+
+  
             except Exception:
                 pass
 
