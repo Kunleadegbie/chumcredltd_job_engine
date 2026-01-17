@@ -48,15 +48,6 @@ if "user" not in st.session_state:
 if "show_forgot" not in st.session_state:
     st.session_state.show_forgot = False
 
-
-# ==========================================================
-# 🔐 AUTH GUARD — REDIRECT AFTER LOGIN
-# ==========================================================
-if st.session_state.authenticated and st.session_state.user:
-    st.switch_page("pages/2_Dashboard.py")
-    st.stop()
-
-
 # ==========================================================
 # PASSWORD RESET
 # ==========================================================
@@ -141,7 +132,7 @@ with tab_login:
                 "role": role,
             }
 
-            st.success("Login successful. Redirecting to dashboard…")
+            
             st.switch_page("pages/2_Dashboard.py")
 
 

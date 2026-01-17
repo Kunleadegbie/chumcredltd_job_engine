@@ -2,14 +2,17 @@
 # ============================================================
 # 3_Job_Search.py — Global Job Search (Stable & Credit-Aware)
 # ============================================================
-
 import streamlit as st
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.sidebar import render_sidebar
-render_sidebar()
 
+if not st.session_state.get("authenticated"):
+    st.switch_page("app.py")
+    st.stop()
+
+render_sidebar()
 
 from config.supabase_client import supabase
 from services.job_api import search_jobs

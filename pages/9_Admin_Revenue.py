@@ -1,17 +1,23 @@
 # ==============================================================
 # pages/9_Admin_Revenue.py — ADMIN REVENUE DASHBOARD (FIXED)
 # ==============================================================
-
 import streamlit as st
 import sys
 import os
-
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-
 from components.ui import hide_streamlit_sidebar
-from components.sidebar import render_sidebar
 from config.supabase_client import supabase
 from services.utils import is_admin
+
+from components.sidebar import render_sidebar
+
+if not st.session_state.get("authenticated"):
+    st.switch_page("app.py")
+    st.stop()
+
+render_sidebar()
+
+
 
 
 # ======================================================

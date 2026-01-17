@@ -13,6 +13,13 @@ from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 from services.utils import PLANS
 
+if not st.session_state.get("authenticated"):
+    st.switch_page("app.py")
+    st.stop()
+
+render_sidebar()
+
+
 # Prefer admin client for INSERT (avoids RLS blocks)
 try:
     from config.supabase_client import supabase_admin as supabase_write  # service role

@@ -15,9 +15,17 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from config.supabase_client import supabase_admin
 from services.utils import is_admin, PLANS
 from components.ui import hide_streamlit_sidebar
+
 from components.sidebar import render_sidebar
 
+if not st.session_state.get("authenticated"):
+    st.switch_page("app.py")
+    st.stop()
+
 render_sidebar()
+
+
+
 
 
 

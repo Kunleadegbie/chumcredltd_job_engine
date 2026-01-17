@@ -12,9 +12,17 @@ from datetime import datetime, timezone, timedelta
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from components.ui import hide_streamlit_sidebar
-from components.sidebar import render_sidebar
 from services.utils import is_admin
 from config.supabase_client import supabase_admin as supabase  # service-role client
+
+from components.sidebar import render_sidebar
+
+if not st.session_state.get("authenticated"):
+    st.switch_page("app.py")
+    st.stop()
+
+render_sidebar()
+
 
 
 # ======================================================
