@@ -174,7 +174,7 @@ def _approve_payment_atomic(payment_id: int, admin_id: str):
     if payment["status"] != "pending":
         raise Exception("Payment is not pending.")
 
-    # 🔑 FIX: Normalize user_id to auth.users.id
+    # 🔑 Normalize user_id
     user_row = (
         supabase_admin
         .table("users_app")
@@ -195,8 +195,8 @@ def _approve_payment_atomic(payment_id: int, admin_id: str):
     if not plan_cfg:
         raise Exception("Invalid plan.")
 
-    credits_to_add = plan_cfg["credits"]
-    duration_days = plan_cfg["days"]
+    credits_to_add = int(plan_cfg["credits"])
+    duration_days = int(plan_cfg["days"])
 
     now = datetime.now(timezone.utc)
     end_date = now + timedelta(days=duration_days)
@@ -240,34 +240,6 @@ def _approve_payment_atomic(payment_id: int, admin_id: str):
         "approved_by": admin_id,
         "approved_at": now.isoformat(),
     }).eq("id", payment_id).execute()
-
-    # 🔑 FIX: Normalize user_id to auth.users.id
-user_row = (
-    supabase_admin
-    .table("users_app")
-    .select("id")
-    .eq("id", payment["user_id"])
-    .single()
-    .execute()
-    .data
-)
-
-if not user_row:
-    raise Exception("User mapping not found.")
-
-user_id = user_row["id"]
-
-plan = payment["plan"]
-
-plan_cfg = PLANS.get(plan)
-if not plan_cfg:
-    raise Exception("Invalid plan.")
-
-credits_to_add = plan_cfg["credits"]
-duration_days = plan_cfg["days"]
-
-now = datetime.now(timezone.utc)
-end_date = now + timedelta(days=duration_days)
 
 # ----------------------------------------------------------
 # UI
