@@ -269,6 +269,47 @@ duration_days = plan_cfg["days"]
 now = datetime.now(timezone.utc)
 end_date = now + timedelta(days=duration_days)
 
+
+    # 2️⃣ Upsert subscription (THIS IS THE FIX)
+    existing = (
+        supabase_admin
+        .table("subscriptions")
+        .select("*")
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+        .data
+    )
+
+    if existing:
+        sub = existing[0]
+        new_credits = int(sub.get("credits", 0)) + credits_to_add
+
+        supabase_admin.table("subscriptions").update({
+            "credits": new_credits,
+            "subscription_status": "active",
+            "start_date": sub.get("start_date") or now.isoformat(),
+            "end_date": end_date.isoformat(),
+            "updated_at": now.isoformat(),
+        }).eq("user_id", user_id).execute()
+    else:
+        supabase_admin.table("subscriptions").insert({
+            "user_id": user_id,
+            "plan": plan,
+            "credits": credits_to_add,
+            "subscription_status": "active",
+            "start_date": now.isoformat(),
+            "end_date": end_date.isoformat(),
+            "created_at": now.isoformat(),
+        }).execute()
+
+    # 3️⃣ Mark payment approved
+    supabase_admin.table("subscription_payments").update({
+        "status": "approved",
+        "approved_by": admin_id,
+        "approved_at": now.isoformat(),
+    }).eq("id", payment_id).execute()
+
 # ----------------------------------------------------------
 # UI
 # ----------------------------------------------------------
