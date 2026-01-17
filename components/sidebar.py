@@ -96,11 +96,15 @@ def handle_logout():
     except Exception:
         pass
 
-    st.session_state.clear(
+    st.session_state.clear()
     st.switch_page("app.py")
 
-   if st.button("🚪 Logout"):
+st.divider()
+
+if st.button("🚪 Logout"):
     handle_logout()
+
+
 
 
 
