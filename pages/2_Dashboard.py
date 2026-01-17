@@ -8,6 +8,7 @@ from datetime import datetime
 from config.supabase_client import supabase  # kept as-is (even if not used)
 from services.utils import get_subscription, is_low_credit
 
+
 from components.sidebar import render_sidebar
 
 
@@ -59,17 +60,33 @@ if not user:
 
 
 # ======================================================
-# USER CONTEXT — FIX NAME DISPLAY ONLY
+# USER CONTEXT — AUTH SOURCE OF TRUTH
 # ======================================================
 
 user = st.session_state.get("user", {})
-user_id = st.session_state.user["id"]
+auth_session = supabase.auth.get_session()
 
-st.write("DEBUG → user_id used by Dashboard:", user_id)
+if not auth_session or not auth_session.user:
+    st.error("Authentication error. Please log in again.")
+    st.stop()
+
+user_id = auth_session.user.id  # ✅ ALWAYS auth.users.id
+
+display_name = (
+    user.get("full_name")
+    or user.get("email")
+    or "User"
+)
+
+# ======================================================
+# DEBUG (temporary)
+# ======================================================
+st.write("DEBUG → auth.users.id:", user_id)
 
 subscription = get_subscription(user_id)
+st.write("DEBUG → subscription:", subscription)
 
-st.write("DEBUG → subscription fetched:", subscription)
+
 
 
 raw_name = user.get("full_name", "")
