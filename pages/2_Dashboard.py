@@ -62,7 +62,7 @@ if not user:
 # USER CONTEXT — FIX NAME DISPLAY ONLY
 # ======================================================
 user = st.session_state.get("user", {})
-user_id = auth_user_id  # MUST be auth.users.id 
+user_id = st.session_state.user["id"]
 
 raw_name = user.get("full_name", "")
 email = user.get("email", "")
