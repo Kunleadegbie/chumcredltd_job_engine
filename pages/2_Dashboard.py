@@ -65,6 +65,13 @@ if not user:
 user = st.session_state.get("user", {})
 user_id = st.session_state.user["id"]
 
+st.write("DEBUG → user_id used by Dashboard:", user_id)
+
+subscription = get_subscription(user_id)
+
+st.write("DEBUG → subscription fetched:", subscription)
+
+
 raw_name = user.get("full_name", "")
 email = user.get("email", "")
 
