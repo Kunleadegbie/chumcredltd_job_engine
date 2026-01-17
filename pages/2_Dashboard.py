@@ -60,17 +60,15 @@ if not user:
 
 
 # ======================================================
-# USER CONTEXT — AUTH SOURCE OF TRUTH
+# AUTH CONTEXT — SINGLE SOURCE OF TRUTH
 # ======================================================
+auth = supabase.auth.get_user()
 
-user = st.session_state.get("user", {})
-auth_session = supabase.auth.get_session()
-
-if not auth_session or not auth_session.user:
+if not auth or not auth.user:
     st.error("Authentication error. Please log in again.")
     st.stop()
 
-user_id = auth_session.user.id  # ✅ ALWAYS auth.users.id
+user_id = auth.user.id  # ✅ ONLY SOURCE OF USER ID
 
 display_name = (
     user.get("full_name")
@@ -81,11 +79,10 @@ display_name = (
 # ======================================================
 # DEBUG (temporary)
 # ======================================================
-st.write("DEBUG → auth.users.id:", user_id)
-
 subscription = get_subscription(user_id)
-st.write("DEBUG → subscription:", subscription)
 
+st.write("DEBUG → user_id (auth):", user_id)
+st.write("DEBUG → subscription:", subscription)
 
 
 
