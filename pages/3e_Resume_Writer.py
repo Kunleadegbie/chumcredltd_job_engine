@@ -16,6 +16,9 @@ from services.ai_engine import ai_generate_resume_rewrite
 from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from config.supabase_client import supabase
 
+render_sidebar()
+
+
 TOOL = "resume_writer"
 CREDIT_COST = 5
 

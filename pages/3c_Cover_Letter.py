@@ -16,6 +16,9 @@ from services.ai_engine import ai_generate_cover_letter
 from services.utils import get_subscription, auto_expire_subscription, deduct_credits
 from config.supabase_client import supabase
 
+render_sidebar()
+
+
 TOOL = "cover_letter"
 CREDIT_COST = 5
 

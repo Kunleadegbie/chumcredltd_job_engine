@@ -89,8 +89,21 @@ def render_sidebar() -> None:
  # -------------------------
         # Logout (UUID-safe, NEVER duplicates)
         # -------------------------
-        logout_key = f"logout_{uuid.uuid4()}"
-        if st.button("🚪 Logout", key=logout_key):
-            handle_logout()
 
-        st.switch_page("app.py")
+def handle_logout():
+    try:
+        supabase.auth.sign_out()
+    except Exception:
+        pass
+
+    st.session_state.clear(
+    st.switch_page("app.py")
+
+   if st.button("🚪 Logout"):
+    handle_logout()
+
+
+
+        
+
+

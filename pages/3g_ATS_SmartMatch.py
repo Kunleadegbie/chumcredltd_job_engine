@@ -17,6 +17,10 @@ from services.utils import get_subscription, auto_expire_subscription, deduct_cr
 from config.supabase_client import supabase
 
 
+render_sidebar()
+
+
+
 TOOL = "ats_smartmatch"
 CREDIT_COST = 10
 

@@ -18,6 +18,9 @@ from services.utils import (
 from config.supabase_client import supabase
 from services.ai_engine import ai_run
 
+render_sidebar()
+
+
 
 # ---------------------------------------------------------
 # PAGE CONFIG
