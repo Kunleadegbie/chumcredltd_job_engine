@@ -1,5 +1,5 @@
 # ==========================================================
-# app.py — AUTH ENTRY POINT (STABLE + ROLE FIXED)
+# app.py — AUTH ENTRY POINT (FINAL STABLE VERSION)
 # ==========================================================
 
 import streamlit as st
@@ -9,7 +9,6 @@ import os
 sys.path.append(os.path.dirname(__file__))
 
 from services.auth import login_user, register_user
-from components.sidebar import render_sidebar
 from config.supabase_client import supabase
 
 
@@ -54,7 +53,6 @@ st.session_state.setdefault("user", None)
 st.session_state.setdefault("show_forgot", False)
 
 
-
 # ----------------------------------------------------------
 # Landing / Auth UI
 # ----------------------------------------------------------
@@ -85,27 +83,31 @@ with tab_login:
                 if isinstance(r, dict):
                     user = r
 
-        if user:
-            # --------------------------------------------------
-            # Restore Supabase Auth session (SOURCE OF TRUTH)
-            # --------------------------------------------------
-            try:
-                supabase.auth.sign_in_with_password(
-                    {"email": user.get("email"), "password": password}
-                )
-            except Exception:
-                pass
+        if not user:
+            st.error("Invalid email or password.")
+            st.stop()
 
-            auth_session = supabase.auth.get_session()
-            if not auth_session or not auth_session.user:
-                st.error("Authentication error. Please log in again.")
-                st.stop()
+        # --------------------------------------------------
+        # Restore Supabase Auth session (SOURCE OF TRUTH)
+        # --------------------------------------------------
+        try:
+            supabase.auth.sign_in_with_password(
+                {"email": user.get("email"), "password": password}
+            )
+        except Exception:
+            pass
 
-            auth_user = auth_session.user  # ✅ auth.users row
+        auth_session = supabase.auth.get_session()
+        if not auth_session or not auth_session.user:
+            st.error("Authentication error. Please log in again.")
+            st.stop()
 
-            # --------------------------------------------------
-            # FETCH REAL ROLE FROM users_app (FIX)
-            # --------------------------------------------------
+        auth_user = auth_session.user  # auth.users row
+
+        # --------------------------------------------------
+        # Fetch REAL role from users_app
+        # --------------------------------------------------
+        try:
             role_resp = (
                 supabase
                 .table("users_app")
@@ -114,25 +116,23 @@ with tab_login:
                 .single()
                 .execute()
             )
-
             real_role = role_resp.data["role"] if role_resp.data else "user"
+        except Exception:
+            real_role = "user"
 
-            # --------------------------------------------------
-            # FINAL SESSION STATE (CLEAN)
-            # --------------------------------------------------
-            st.session_state.authenticated = True
-            st.session_state.user = {
-                "id": auth_user.id,
-                "email": auth_user.email,
-                "full_name": user.get("full_name"),
-                "role": real_role,
-            }
+        # --------------------------------------------------
+        # Final session state
+        # --------------------------------------------------
+        st.session_state.authenticated = True
+        st.session_state.user = {
+            "id": auth_user.id,          # auth.users.id
+            "email": auth_user.email,
+            "full_name": user.get("full_name"),
+            "role": real_role,
+        }
 
-            st.session_state["post_login_redirect"] = True
-            st.rerun()
-
-        else:
-            st.error("Invalid email or password.")
+        # ONE rerun only — NO redirect here
+        st.rerun()
 
     # Forgot password
     if st.button("Forgot password?", key="forgot_pw_button"):
