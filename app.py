@@ -142,7 +142,7 @@ with tab_login:
             }
 
             st.success("Login successful. Redirecting to dashboard…")
-            st.stop()
+            st.switch_page("pages/2_Dashboard.py")
 
 
     # Forgot password
