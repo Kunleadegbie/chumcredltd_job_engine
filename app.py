@@ -110,6 +110,12 @@ with tab_login:
                 "role": user.get("role", "user"),
             }
 
+            st.session_state.auth_user = {
+                "id": user.get("id"),
+                "email": user.get("email"),
+            }
+   
+ 
             render_sidebar()
             st.switch_page("pages/2_Dashboard.py")
         else:
