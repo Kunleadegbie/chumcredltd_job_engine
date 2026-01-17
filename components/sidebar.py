@@ -4,9 +4,11 @@
 # ==========================================================
 # SIDEBAR VERSION 2026-01-XX
 
+
 import os
 import uuid
 import streamlit as st
+from config.supabase_client import supabase
 
 
 def _page_exists(page_path: str) -> bool:
@@ -19,6 +21,18 @@ def safe_page_link(page_path: str, label: str) -> None:
             st.page_link(page_path, label=label)
     except Exception:
         pass
+
+
+def handle_logout():
+    try:
+        supabase.auth.sign_out()
+    except Exception:
+        pass
+
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+
+    st.switch_page("app.py")
 
 
 def render_sidebar() -> None:
@@ -89,5 +103,4 @@ def render_sidebar() -> None:
         # -------------------------
         logout_key = f"logout_{uuid.uuid4()}"
         if st.button("🚪 Logout", key=logout_key):
-            st.session_state.clear()
-            st.switch_page("app.py")
+            handle_logout()

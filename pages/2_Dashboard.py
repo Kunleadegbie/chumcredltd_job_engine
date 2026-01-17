@@ -95,12 +95,6 @@ subscription = (
 
 subscription = subscription[0] if subscription else None
 
-
-st.write("DEBUG → user_id (auth):", user_id)
-st.write("DEBUG → subscription:", subscription)
-
-
-
 raw_name = user.get("full_name", "")
 email = user.get("email", "")
 
