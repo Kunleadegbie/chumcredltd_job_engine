@@ -87,13 +87,16 @@ def is_admin(user_id: str) -> bool:
         return False
 
 # ==========================================================
-# SUBSCRIPTIONS
+# SUBSCRIPTIONS (CANONICAL SOURCE)
 # ==========================================================
 def get_subscription(user_id: str):
-    """Return the user's subscription dict or None."""
+    """
+    Return the user's subscription dict from the canonical
+    realtime.subscription table (used by admin + AI tools).
+    """
     try:
         res = (
-            supabase.table("subscriptions")
+            supabase.table("subscription")   # ← realtime.subscription
             .select("*")
             .eq("user_id", user_id)
             .limit(1)
@@ -102,41 +105,6 @@ def get_subscription(user_id: str):
         return _safe_single(res)
     except Exception:
         return None
-
-
-def auto_expire_subscription(user_id: str):
-    """
-    If subscription end_date passed, mark expired and set credits to 0.
-    Safe to call on page load.
-    """
-    try:
-        res = (
-            supabase.table("subscriptions")
-            .select("end_date, subscription_status")
-            .eq("user_id", user_id)
-            .limit(1)
-            .execute()
-        )
-        sub = _safe_single(res)
-        if not sub:
-            return
-
-        if (sub.get("subscription_status") or "").lower() != "active":
-            return
-
-        expiry = _parse_dt(sub.get("end_date"))
-        if not expiry:
-            return
-
-        now = datetime.now(timezone.utc)
-        if expiry < now:
-            supabase.table("subscriptions").update({
-                "subscription_status": "expired",
-                "credits": 0,
-            }).eq("user_id", user_id).execute()
-
-    except Exception:
-        return
 
 # ==========================================================
 # CREDIT HELPERS (USED BY AI PAGES)
