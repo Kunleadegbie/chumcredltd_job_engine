@@ -251,10 +251,10 @@ else:
     start_date = None
     end_date = None
 
-expiry_str = (
-    datetime.fromisoformat(end_date).strftime("%d %b %Y")
-    if end_date else "—"
-)
+if end_date:
+    expiry_str = datetime.fromisoformat(end_date).strftime("%d %b %Y")
+else:
+    expiry_str = "Never expires"
 
 
 # ======================================================
