@@ -1,5 +1,5 @@
 # ==========================================================
-# 12_Admin_Payments.py — FINAL, AUTH-ID ONLY (STABLE)
+# 12_Admin_Payments.py — FINAL, AUTH.USERS.ID ONLY (STABLE)
 # ==========================================================
 
 import streamlit as st
@@ -7,9 +7,9 @@ from datetime import datetime, timezone, timedelta
 from config.supabase_client import supabase_admin
 from components.sidebar import render_sidebar
 
-# ----------------------------------------------------------
+# ==========================================================
 # AUTH GUARD
-# ----------------------------------------------------------
+# ==========================================================
 if not st.session_state.get("authenticated"):
     st.switch_page("app.py")
     st.stop()
@@ -21,30 +21,12 @@ if not user or user.get("role") != "admin":
 
 render_sidebar()
 
-st.markdown(
-    """
-    <style>
-        /* Hide Streamlit default page navigation */
-        [data-testid="stSidebarNav"] {
-            display: none;
-        }
-
-        /* Remove extra top spacing Streamlit adds */
-        section[data-testid="stSidebar"] > div:first-child {
-            padding-top: 0rem;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-
 st.title("💼 Payment Approvals & Credit Management")
 st.write("---")
 
-# ----------------------------------------------------------
-# PLAN CONFIG (SOURCE OF TRUTH)
-# ----------------------------------------------------------
+# ==========================================================
+# PLAN CONFIG (SINGLE SOURCE OF TRUTH)
+# ==========================================================
 PLANS = {
     "FREEMIUM": {"credits": 50, "days": 14},
     "BASIC": {"credits": 500, "days": 90},
@@ -53,9 +35,9 @@ PLANS = {
     "ADMIN": {"credits": 100000, "days": 3650},
 }
 
-# ----------------------------------------------------------
+# ==========================================================
 # ATOMIC PAYMENT APPROVAL
-# ----------------------------------------------------------
+# ==========================================================
 def approve_payment_atomic(payment_id: int, admin_id: str):
     now = datetime.now(timezone.utc)
 
@@ -75,7 +57,7 @@ def approve_payment_atomic(payment_id: int, admin_id: str):
     if payment["status"] != "pending":
         raise Exception("Payment is not pending.")
 
-    user_id = payment["user_id"]  # ✅ auth.users.id
+    user_id = payment["user_id"]  # ✅ auth.users.id ONLY
     plan = payment["plan"]
 
     if plan not in PLANS:
@@ -124,9 +106,9 @@ def approve_payment_atomic(payment_id: int, admin_id: str):
         "approved_at": now.isoformat(),
     }).eq("id", payment_id).execute()
 
-# ----------------------------------------------------------
+# ==========================================================
 # LOAD PAYMENTS
-# ----------------------------------------------------------
+# ==========================================================
 show_all = st.checkbox("Show all payments (including approved)", value=False)
 
 query = (
@@ -146,9 +128,9 @@ if not payments:
     st.info("No payment records found.")
     st.stop()
 
-# ----------------------------------------------------------
+# ==========================================================
 # DISPLAY + APPROVAL UI
-# ----------------------------------------------------------
+# ==========================================================
 for p in payments:
     payment_id = p["id"]
     status = (p.get("status") or "").lower()
@@ -177,39 +159,24 @@ for p in payments:
 
     st.write("---")
 
-# ----------------------------------------------------------
-# MANUAL CREDIT CORRECTION (EMAIL-BASED, SAFE)
-# ----------------------------------------------------------
-st.write("## 🔧 Manual Credit Adjustment")
+# ==========================================================
+# MANUAL CREDIT ADJUSTMENT (EMAIL → AUTH.USERS.ID)
+# ==========================================================
+st.subheader("🔧 Manual Credit Adjustment")
 
 email = st.text_input("User Email (auth.users)")
-credits_delta = st.number_input("Credits to add/remove", step=1, value=0)
+credits_delta = st.number_input("Credits to add / remove", step=1, value=0)
 
 if st.button("Apply Credit Adjustment"):
     if not email or credits_delta == 0:
         st.error("Email and credit value required.")
         st.stop()
 
-    auth_user = (
-        supabase_admin
-        .auth.admin
-        .list_users()
-   users = (
-       supabase_admin
-       .table("users_app")
-       .select("id, full_name, email")
-       .execute()
-       .data
-   ) or []
+    auth_users = supabase_admin.auth.admin.list_users().users
+    target = next((u for u in auth_users if u.email == email), None)
 
-   user_map = {u["id"]: u for u in users}
-
-        .select("id, full_name, email")
-        .execute()
-
-    target = next((u for u in auth_user if u.email == email), None)
     if not target:
-        st.error("User not found in auth.")
+        st.error("User not found in auth.users.")
         st.stop()
 
     uid = target.id
@@ -245,8 +212,9 @@ if st.button("Apply Credit Adjustment"):
         }).execute()
 
     st.success("Credits updated successfully.")
+    st.rerun()
 
-    st.write("---")
-
-
+# ==========================================================
+# FOOTER
+# ==========================================================
 st.caption("Chumcred TalentIQ — Admin Panel © 2025")
