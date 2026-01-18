@@ -36,9 +36,23 @@ LAST_OVERRIDE_KEY = "ats_last_output_override"
 # ======================================================
 st.set_page_config(page_title="ATS SmartMatch™", page_icon="🧬", layout="wide")
 
-# Hide Streamlit default nav/sidebar
-hide_streamlit_sidebar()
-st.session_state["_sidebar_rendered"] = False
+st.markdown(
+    """
+    <style>
+        /* Hide Streamlit default page navigation */
+        [data-testid="stSidebarNav"] {
+            display: none;
+        }
+
+        /* Remove extra top spacing Streamlit adds */
+        section[data-testid="stSidebar"] > div:first-child {
+            padding-top: 0rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 
 # ======================================================

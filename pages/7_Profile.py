@@ -27,6 +27,24 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
 
 st.set_page_config(page_title="Profile", page_icon="👤")
 
+st.markdown(
+    """
+    <style>
+        /* Hide Streamlit default page navigation */
+        [data-testid="stSidebarNav"] {
+            display: none;
+        }
+
+        /* Remove extra top spacing Streamlit adds */
+        section[data-testid="stSidebar"] > div:first-child {
+            padding-top: 0rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
 # --------------------------
 # AUTH CHECK
 # --------------------------

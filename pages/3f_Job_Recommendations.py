@@ -33,6 +33,24 @@ if "authenticated" not in st.session_state or not st.session_state.authenticated
     st.switch_page("app.py")
     st.stop()
 
+st.markdown(
+    """
+    <style>
+        /* Hide Streamlit default page navigation */
+        [data-testid="stSidebarNav"] {
+            display: none;
+        }
+
+        /* Remove extra top spacing Streamlit adds */
+        section[data-testid="stSidebar"] > div:first-child {
+            padding-top: 0rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
 
 user = st.session_state.get("user") or {}
 user_id = user.get("id")
