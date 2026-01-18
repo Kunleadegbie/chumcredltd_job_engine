@@ -87,7 +87,7 @@ def render_sidebar() -> None:
         st.divider()
 
         if st.button("🚪 Logout"):
-        handle_logout()
+            handle_logout()
 
 
 
