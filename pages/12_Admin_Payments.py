@@ -194,8 +194,17 @@ if st.button("Apply Credit Adjustment"):
         supabase_admin
         .auth.admin
         .list_users()
-        .get("users", [])
-    )
+    users = (
+        supabase_admin
+        .table("users_app")
+        .select("id, full_name, email")
+        .execute()
+        .data
+    ) or []
+
+    user_map = {u["id"]: u for u in users}
+
+  )
 
     target = next((u for u in auth_user if u.email == email), None)
     if not target:
