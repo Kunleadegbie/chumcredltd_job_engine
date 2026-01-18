@@ -42,7 +42,7 @@ try:
     users = (
         supabase_admin
         .table("users_app")
-        .select("id, email, full_name, phone, role, created_at")
+        .select("id, email, full_name, role, created_at")
         .order("created_at", desc=True)
         .execute()
         .data
@@ -163,7 +163,6 @@ st.divider()
 display_cols = [
     "email",
     "full_name",
-    "phone",
     "role",
     "plan",
     "credits",
