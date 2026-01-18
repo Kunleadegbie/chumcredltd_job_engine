@@ -22,6 +22,24 @@ if not user or user.get("role") != "admin":
 
 render_sidebar()
 
+st.markdown(
+    """
+    <style>
+        /* Hide Streamlit default page navigation */
+        [data-testid="stSidebarNav"] {
+            display: none;
+        }
+
+        /* Remove extra top spacing Streamlit adds */
+        section[data-testid="stSidebar"] > div:first-child {
+            padding-top: 0rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
 st.title("📊 Credit Usage Dashboard")
 st.caption("System-wide credit allocation and balance overview")
 st.write("---")
