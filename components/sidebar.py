@@ -86,24 +86,31 @@ def render_sidebar() -> None:
 
         st.divider()
 
- # -------------------------
-        # Logout (UUID-safe, NEVER duplicates)
-        # -------------------------
 
+# ==========================================================
+# Logout handler — FINAL & STABLE
+# ==========================================================
 def handle_logout():
     try:
         supabase.auth.sign_out()
     except Exception:
         pass
 
+    # Clear ALL Streamlit session state
     st.session_state.clear()
+
+    # Hard redirect to login page
     st.switch_page("app.py")
+
 
 st.divider()
 
 if st.button("🚪 Logout"):
     handle_logout()
 
+
+
+ 
 
 
 
