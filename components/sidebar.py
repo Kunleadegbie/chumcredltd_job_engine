@@ -86,6 +86,10 @@ def render_sidebar() -> None:
 
         st.divider()
 
+        if st.button("🚪 Logout"):
+        handle_logout()
+
+
 
 # ==========================================================
 # Logout handler — FINAL & STABLE
@@ -103,10 +107,6 @@ def handle_logout():
     st.switch_page("app.py")
 
 
-st.divider()
-
-if st.button("🚪 Logout"):
-    handle_logout()
 
 
 
