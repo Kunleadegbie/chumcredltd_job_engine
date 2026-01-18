@@ -35,6 +35,24 @@ st.caption("Unified view of all platform users, subscriptions, and credits")
 
 st.divider()
 
+st.markdown(
+    """
+    <style>
+        /* Hide Streamlit default page navigation */
+        [data-testid="stSidebarNav"] {
+            display: none;
+        }
+
+        /* Remove extra top spacing Streamlit adds */
+        section[data-testid="stSidebar"] > div:first-child {
+            padding-top: 0rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
 # ==========================================================
 # LOAD USERS (SOURCE OF TRUTH = users_app)
 # ==========================================================
