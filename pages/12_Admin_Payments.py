@@ -172,7 +172,10 @@ if st.button("Apply Credit Adjustment"):
         st.error("Email and credit value required.")
         st.stop()
 
-    auth_users = supabase_admin.auth.admin.list_users().users
+    auth_users = supabase_admin.auth.admin.list_users()
+    if isinstance(auth_users, dict) and "users" in auth_users:
+        auth_users = auth_users["users"]
+
     target = next((u for u in auth_users if u.email == email), None)
 
     if not target:
