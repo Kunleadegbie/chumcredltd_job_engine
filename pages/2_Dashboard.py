@@ -379,6 +379,75 @@ TalentIQ helps you:
 
 
 # ======================================================
+# 👤 USER PROFILE (MOVED FROM MY ACCOUNT)
+# ======================================================
+with st.expander("👤 My Profile", expanded=False):
+    st.markdown("### Account Information")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.text_input(
+            "Full Name",
+            value=st.session_state.user.get("full_name", ""),
+            disabled=True,
+            key="profile_full_name",
+        )
+
+    with col2:
+        st.text_input(
+            "Email Address",
+            value=st.session_state.user.get("email", ""),
+            disabled=True,
+            key="profile_email",
+        )
+
+    # Optional phone (only if you store it)
+    phone = st.session_state.user.get("phone")
+    if phone:
+        st.text_input(
+            "Phone Number",
+            value=phone,
+            disabled=True,
+            key="profile_phone",
+        )
+
+
+# ======================================================
+# 🔐 CHANGE PASSWORD (MOVED FROM MY ACCOUNT)
+# ======================================================
+with st.expander("🔐 Change Password", expanded=False):
+    st.markdown("### Update Your Password")
+
+    new_pw = st.text_input(
+        "New Password",
+        type="password",
+        key="change_pw_new",
+    )
+
+    confirm_pw = st.text_input(
+        "Confirm New Password",
+        type="password",
+        key="change_pw_confirm",
+    )
+
+    if st.button("Update Password", key="update_password_btn"):
+        if not new_pw or not confirm_pw:
+            st.error("Both password fields are required.")
+            st.stop()
+
+        if new_pw != confirm_pw:
+            st.error("Passwords do not match.")
+            st.stop()
+
+        try:
+            supabase.auth.update_user({"password": new_pw})
+            st.success("✅ Password updated successfully.")
+        except Exception as e:
+            st.error("Unable to update password. Please try again.")
+
+
+# ======================================================
 # HOW TO USE THE APP
 # ======================================================
 with st.expander("📘 How to Use This App"):
