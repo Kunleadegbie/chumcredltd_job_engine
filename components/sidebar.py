@@ -43,7 +43,6 @@ def render_sidebar() -> None:
         # -------------------------
         # Core
         # -------------------------
-        safe_page_link("pages/1_My_Account.py", "👤 My Account")
         safe_page_link("pages/2_Dashboard.py", "📊 Dashboard")
         safe_page_link("pages/3_Job_Search.py", "🔍 Job Search")
         safe_page_link("pages/4_Saved_Jobs.py", "💾 Saved Jobs")
