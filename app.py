@@ -13,6 +13,32 @@ from services.auth import login_user, register_user
 from config.supabase_client import supabase
 
 
+import streamlit.components.v1 as components
+
+# ----------------------------------------------------------
+# 🔐 CONVERT URL HASH → QUERY PARAMS (CRITICAL FIX)
+# ----------------------------------------------------------
+components.html(
+    """
+    <script>
+    if (window.location.hash) {
+        const hash = window.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+        const query = new URLSearchParams(window.location.search);
+
+        for (const [key, value] of params.entries()) {
+            query.set(key, value);
+        }
+
+        window.location.replace(
+            window.location.pathname + "?" + query.toString()
+        );
+    }
+    </script>
+    """,
+    height=0,
+)
+
 # ----------------------------------------------------------
 # 🔐 HANDLE PASSWORD RECOVERY SESSION (CRITICAL)
 # ----------------------------------------------------------
