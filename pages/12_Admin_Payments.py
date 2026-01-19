@@ -178,7 +178,7 @@ for p in payments:
     st.write("---")
 
 # ==========================================================
-# MANUAL CREDIT ADJUSTMENT (EMAIL → AUTH.USERS.ID)
+# MANUAL CREDIT ADJUSTMENT (EMAIL → AUTH.USERS.ID)-LATEST
 # ==========================================================
 st.subheader("🔧 Manual Credit Adjustment")
 
