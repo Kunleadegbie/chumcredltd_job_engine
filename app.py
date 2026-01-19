@@ -30,6 +30,43 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+# ----------------------------------------------------------
+# 🔐 PASSWORD RECOVERY MODE (URL-BASED — REQUIRED)
+# ----------------------------------------------------------
+query_params = st.query_params
+recovery_type = query_params.get("type")
+
+if recovery_type == "recovery":
+    st.image("assets/talentiq_logo.png", width=220)
+    st.title("🔐 Reset Your Password")
+
+    new_pw = st.text_input("New Password", type="password", key="new_pw")
+    confirm_pw = st.text_input("Confirm New Password", type="password", key="confirm_pw")
+
+    if st.button("Update Password", key="update_pw_btn"):
+        if not new_pw or new_pw != confirm_pw:
+            st.error("Passwords do not match.")
+            st.stop()
+
+        try:
+            supabase.auth.update_user({"password": new_pw})
+
+            # clear URL params + logout
+            supabase.auth.sign_out()
+            st.query_params.clear()
+            st.session_state.clear()
+
+            st.success("Password updated successfully. Please log in.")
+            st.switch_page("app.py")
+
+        except Exception as e:
+            st.error("Failed to update password. Please try again.")
+
+    st.stop()
+
+
+
 # ----------------------------------------------------------
 # Session defaults
 # ----------------------------------------------------------
