@@ -1,3 +1,32 @@
+
+# ----------------------------------------------------------
+# PASSWORD RESET ROUTE (STREAMLIT-COMPATIBLE)
+# ----------------------------------------------------------
+path = st.query_params.get("page")
+
+if path == "reset":
+    st.title("🔐 Reset Your Password")
+
+    new_pw = st.text_input("New Password", type="password")
+    confirm_pw = st.text_input("Confirm New Password", type="password")
+
+    if st.button("Update Password"):
+        if not new_pw or new_pw != confirm_pw:
+            st.error("Passwords do not match.")
+            st.stop()
+
+        try:
+            supabase.auth.update_user({"password": new_pw})
+            supabase.auth.sign_out()
+            st.session_state.clear()
+            st.success("Password updated. Please log in.")
+            st.switch_page("app.py")
+        except Exception:
+            st.error("Failed to update password.")
+
+    st.stop()
+
+
 # ==========================================================
 # app.py — AUTH ENTRY POINT (FINAL, CLEAN, WORKING)
 # ==========================================================
