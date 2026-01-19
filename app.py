@@ -15,7 +15,7 @@ import streamlit.components.v1 as components
 
 
 # ==========================================================
-# PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
+# PAGE CONFIG (FIRST STREAMLIT CALL)
 # ==========================================================
 st.set_page_config(
     page_title="Chumcred TalentIQ",
@@ -35,7 +35,7 @@ st.markdown(
 
 
 # ==========================================================
-# 🔐 CONVERT URL HASH → QUERY PARAMS (SUPABASE FIX)
+# 🔐 CONVERT URL HASH → QUERY PARAMS (SUPABASE REQUIRED)
 # ==========================================================
 components.html(
     """
@@ -60,36 +60,32 @@ components.html(
 
 
 # ==========================================================
-# QUERY PARAMS (SINGLE SOURCE)
+# QUERY PARAMS (SINGLE SOURCE OF TRUTH)
 # ==========================================================
 params = st.query_params
 
 
 # ==========================================================
-# 🔐 SET RECOVERY SESSION (ONCE ONLY)
+# 🔐 PASSWORD RECOVERY FLOW (ONLY PLACE IT EXISTS)
 # ==========================================================
 if (
     params.get("type") == "recovery"
     and "access_token" in params
     and "refresh_token" in params
 ):
-    if not st.session_state.get("recovery_session_ready"):
+    # Set recovery session ONCE
+    if not st.session_state.get("recovery_ready"):
         try:
             supabase.auth.set_session(
                 params["access_token"],
                 params["refresh_token"],
             )
-            st.session_state["recovery_session_ready"] = True
-            st.rerun()  # REQUIRED ONCE
+            st.session_state["recovery_ready"] = True
         except Exception:
             st.error("Invalid or expired recovery link.")
             st.stop()
 
-
-# ==========================================================
-# 🔐 PASSWORD RESET PAGE (NEVER DISAPPEARS)
-# ==========================================================
-if params.get("type") == "recovery":
+    # --- RESET PASSWORD UI ---
     st.image("assets/talentiq_logo.png", width=220)
     st.title("🔐 Reset Your Password")
 
@@ -102,9 +98,10 @@ if params.get("type") == "recovery":
             st.stop()
 
         try:
+            # ✅ THIS WILL WORK NOW
             supabase.auth.update_user({"password": new_pw})
 
-            # Clean exit after success
+            # Clean exit
             supabase.auth.sign_out()
             st.session_state.clear()
             st.query_params.clear()
@@ -200,9 +197,9 @@ with tab_login:
         st.success("Login successful. Redirecting…")
         st.switch_page("pages/2_Dashboard.py")
 
-    # --------------------------------------------------
+    # ------------------------------
     # FORGOT PASSWORD
-    # --------------------------------------------------
+    # ------------------------------
     if st.button("Forgot password?"):
         st.session_state.show_forgot = True
 
