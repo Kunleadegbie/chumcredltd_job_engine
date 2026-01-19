@@ -293,10 +293,17 @@ for p in payments:
 
 # ==========================================================
 # MANUAL CREDIT ADJUSTMENT (EMAIL → auth.users.id)
-# - Debounce button to prevent repeated credits
-# - Shows summary before → after
+# - Persist success summary across reruns
 # ==========================================================
 st.subheader("🔧 Manual Credit Adjustment")
+
+# Show last adjustment summary (persists after rerun)
+if st.session_state.get("credit_adjustment_summary"):
+    st.success(st.session_state["credit_adjustment_summary"])
+    # Optional: allow clearing
+    if st.button("Clear message", key="clear_credit_adjustment_summary"):
+        st.session_state["credit_adjustment_summary"] = None
+        st.rerun()
 
 email = st.text_input("User Email (auth.users)", placeholder="e.g., student@domain.com")
 credits_delta = st.number_input("Credits to add / remove", step=1, value=0)
@@ -336,7 +343,6 @@ if apply_clicked:
                 st.stop()
 
             uid = target.id
-            now = _utcnow()
 
             existing = _get_subscription_by_user_id(uid)
 
@@ -355,8 +361,12 @@ if apply_clicked:
                     end_date_iso=None
                 )
 
-        st.success(f"Credits updated successfully: {before} → {after}")
-        # Unlock button again after rerun
+        # ✅ Persist message so it still shows after rerun
+        st.session_state["credit_adjustment_summary"] = (
+            f"Credits updated successfully for {email.strip()}: "
+            f"{before} → {after} (Δ {int(credits_delta):+})"
+        )
+
         st.session_state[adj_lock_key] = False
         st.rerun()
 
