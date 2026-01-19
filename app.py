@@ -1,4 +1,18 @@
 
+# ==========================================================
+# app.py — AUTH ENTRY POINT (FINAL, CLEAN, WORKING)
+# ==========================================================
+
+import streamlit as st
+import sys
+import os
+
+sys.path.append(os.path.dirname(__file__))
+
+from services.auth import login_user, register_user
+from config.supabase_client import supabase
+
+
 # ----------------------------------------------------------
 # PASSWORD RESET ROUTE (STREAMLIT-COMPATIBLE)
 # ----------------------------------------------------------
@@ -25,20 +39,6 @@ if path == "reset":
             st.error("Failed to update password.")
 
     st.stop()
-
-
-# ==========================================================
-# app.py — AUTH ENTRY POINT (FINAL, CLEAN, WORKING)
-# ==========================================================
-
-import streamlit as st
-import sys
-import os
-
-sys.path.append(os.path.dirname(__file__))
-
-from services.auth import login_user, register_user
-from config.supabase_client import supabase
 
 # ----------------------------------------------------------
 # PAGE CONFIG (MUST BE FIRST)
