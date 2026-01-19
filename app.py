@@ -183,7 +183,13 @@ with tab_login:
         reset_email = st.text_input("Enter your email to reset password")
         if st.button("Send reset link"):
             try:
-                supabase.auth.reset_password_for_email(reset_email)
+                supabase.auth.reset_password_for_email(
+                    reset_email,
+                    options={
+                        "redirect_to": "https://talentiq.chumcred.com/?type=recovery"
+                    }
+                  )
+
                 st.success("Password reset link sent to your email.")
                 st.session_state.show_forgot = False
             except Exception:
