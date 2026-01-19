@@ -14,6 +14,20 @@ from config.supabase_client import supabase
 
 
 # ----------------------------------------------------------
+# 🔐 HANDLE PASSWORD RECOVERY SESSION (CRITICAL)
+# ----------------------------------------------------------
+params = st.query_params
+
+if "access_token" in params and "refresh_token" in params:
+    try:
+        supabase.auth.set_session(
+            params["access_token"],
+            params["refresh_token"]
+        )
+    except Exception:
+        pass
+
+# ----------------------------------------------------------
 # PASSWORD RESET ROUTE (STREAMLIT-COMPATIBLE)
 # ----------------------------------------------------------
 path = st.query_params.get("page")
