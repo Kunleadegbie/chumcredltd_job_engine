@@ -45,6 +45,42 @@ st.session_state.setdefault("authenticated", False)
 st.session_state.setdefault("user", None)
 st.session_state.setdefault("show_forgot", False)
 
+
+
+# ----------------------------------------------------------
+# PASSWORD RECOVERY MODE (Supabase)
+# ----------------------------------------------------------
+auth_session = supabase.auth.get_session()
+
+if auth_session and auth_session.user:
+    recovery_type = getattr(auth_session, "flow_type", None)
+
+    # Supabase sets this during password recovery
+    if recovery_type == "recovery":
+        st.title("🔐 Reset Your Password")
+
+        new_pw = st.text_input("New Password", type="password")
+        confirm_pw = st.text_input("Confirm New Password", type="password")
+
+        if st.button("Update Password"):
+            if not new_pw or new_pw != confirm_pw:
+                st.error("Passwords do not match.")
+                st.stop()
+
+            try:
+                supabase.auth.update_user({"password": new_pw})
+                supabase.auth.sign_out()
+
+                st.success("Password updated successfully. Please log in again.")
+                st.session_state.clear()
+                st.switch_page("app.py")
+
+            except Exception as e:
+                st.error("Failed to update password.")
+
+        st.stop()
+
+
 # ----------------------------------------------------------
 # 🚀 REDIRECT IF LOGGED IN (NO SIDEBAR HERE)
 # ----------------------------------------------------------
