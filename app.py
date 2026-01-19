@@ -1,5 +1,5 @@
 # ==========================================================
-# app.py — AUTH ENTRY POINT (FINAL STABLE — FIXED)
+# app.py — AUTH ENTRY POINT (FINAL STABLE + PASSWORD RESET)
 # ==========================================================
 
 import streamlit as st
@@ -11,7 +11,6 @@ sys.path.append(os.path.dirname(__file__))
 from services.auth import login_user, register_user
 from config.supabase_client import supabase
 
-
 # ----------------------------------------------------------
 # Page config (FIRST Streamlit call)
 # ----------------------------------------------------------
@@ -21,18 +20,11 @@ st.set_page_config(
     layout="wide",
 )
 
+# Hide Streamlit default navigation
 st.markdown(
     """
     <style>
-        /* Hide Streamlit default page navigation */
-        [data-testid="stSidebarNav"] {
-            display: none;
-        }
-
-        /* Remove extra top spacing Streamlit adds */
-        section[data-testid="stSidebar"] > div:first-child {
-            padding-top: 0rem;
-        }
+        [data-testid="stSidebarNav"] { display: none; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -45,24 +37,22 @@ st.session_state.setdefault("authenticated", False)
 st.session_state.setdefault("user", None)
 st.session_state.setdefault("show_forgot", False)
 
-
-
 # ----------------------------------------------------------
-# PASSWORD RECOVERY MODE (Supabase)
+# 🔐 PASSWORD RECOVERY MODE (Supabase email link)
 # ----------------------------------------------------------
 auth_session = supabase.auth.get_session()
 
 if auth_session and auth_session.user:
-    recovery_type = getattr(auth_session, "flow_type", None)
+    flow_type = getattr(auth_session, "flow_type", None)
 
-    # Supabase sets this during password recovery
-    if recovery_type == "recovery":
+    if flow_type == "recovery":
+        st.image("assets/talentiq_logo.png", width=220)
         st.title("🔐 Reset Your Password")
 
-        new_pw = st.text_input("New Password", type="password")
-        confirm_pw = st.text_input("Confirm New Password", type="password")
+        new_pw = st.text_input("New Password", type="password", key="new_pw")
+        confirm_pw = st.text_input("Confirm New Password", type="password", key="confirm_pw")
 
-        if st.button("Update Password"):
+        if st.button("Update Password", key="update_pw_btn"):
             if not new_pw or new_pw != confirm_pw:
                 st.error("Passwords do not match.")
                 st.stop()
@@ -70,19 +60,18 @@ if auth_session and auth_session.user:
             try:
                 supabase.auth.update_user({"password": new_pw})
                 supabase.auth.sign_out()
-
-                st.success("Password updated successfully. Please log in again.")
                 st.session_state.clear()
+
+                st.success("Password updated successfully. Please log in.")
                 st.switch_page("app.py")
 
-            except Exception as e:
-                st.error("Failed to update password.")
+            except Exception:
+                st.error("Failed to update password. Please try again.")
 
         st.stop()
 
-
 # ----------------------------------------------------------
-# 🚀 REDIRECT IF LOGGED IN (NO SIDEBAR HERE)
+# 🚀 REDIRECT IF LOGGED IN
 # ----------------------------------------------------------
 if st.session_state.authenticated and st.session_state.user:
     st.switch_page("pages/2_Dashboard.py")
@@ -157,6 +146,22 @@ with tab_login:
         st.success("Login successful. Redirecting to dashboard…")
         st.switch_page("pages/2_Dashboard.py")
 
+    # --------------------------------------------------
+    # ✅ FORGOT PASSWORD (RESTORED)
+    # --------------------------------------------------
+    if st.button("Forgot password?", key="forgot_pw_button"):
+        st.session_state.show_forgot = True
+
+    if st.session_state.show_forgot:
+        reset_email = st.text_input("Reset Email", key="reset_email")
+        if st.button("Send reset link", key="send_reset_button"):
+            try:
+                supabase.auth.reset_password_for_email(reset_email)
+                st.success("Password reset link sent to your email.")
+                st.session_state.show_forgot = False
+            except Exception:
+                st.error("Unable to send reset email. Please verify the email.")
+
 # ==========================================================
 # REGISTER TAB
 # ==========================================================
@@ -193,5 +198,8 @@ with tab_register:
         else:
             st.error(msg)
 
+# ----------------------------------------------------------
+# Footer
+# ----------------------------------------------------------
 st.write("---")
 st.caption("Powered by Chumcred Limited © 2025")
