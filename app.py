@@ -1,6 +1,6 @@
 
 # ==========================================================
-# app.py — AUTH ENTRY POINT (FINAL, CLEAN, WORKING)
+# app.py — AUTH ENTRY POINT (FINAL, STABLE, RESET SAFE)
 # ==========================================================
 
 import streamlit as st
@@ -11,13 +11,32 @@ sys.path.append(os.path.dirname(__file__))
 
 from services.auth import login_user, register_user
 from config.supabase_client import supabase
-
-
 import streamlit.components.v1 as components
 
-# ----------------------------------------------------------
-# 🔐 CONVERT URL HASH → QUERY PARAMS (CRITICAL FIX)
-# ----------------------------------------------------------
+
+# ==========================================================
+# PAGE CONFIG (MUST BE FIRST STREAMLIT CALL)
+# ==========================================================
+st.set_page_config(
+    page_title="Chumcred TalentIQ",
+    page_icon="assets/talentiq_logo.png",
+    layout="wide",
+)
+
+# Hide Streamlit default navigation
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebarNav"] { display: none; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ==========================================================
+# 🔐 CONVERT URL HASH → QUERY PARAMS (SUPABASE FIX)
+# ==========================================================
 components.html(
     """
     <script>
@@ -39,92 +58,38 @@ components.html(
     height=0,
 )
 
-# ----------------------------------------------------------
-# 🔐 HANDLE PASSWORD RECOVERY SESSION (CRITICAL)
-# ----------------------------------------------------------
+
+# ==========================================================
+# QUERY PARAMS (SINGLE SOURCE)
+# ==========================================================
 params = st.query_params
 
-if "access_token" in params and "refresh_token" in params:
-    try:
-        supabase.auth.set_session(
-            params["access_token"],
-            params["refresh_token"]
-        )
-    except Exception:
-        pass
 
-# ----------------------------------------------------------
-# PASSWORD RESET ROUTE (STREAMLIT-COMPATIBLE)
-# ----------------------------------------------------------
-path = st.query_params.get("page")
-
-if path == "reset":
-    st.title("🔐 Reset Your Password")
-
-    new_pw = st.text_input("New Password", type="password")
-    confirm_pw = st.text_input("Confirm New Password", type="password")
-
-    if st.button("Update Password"):
-        if not new_pw or new_pw != confirm_pw:
-            st.error("Passwords do not match.")
-            st.stop()
-
-        try:
-            supabase.auth.update_user({"password": new_pw})
-            supabase.auth.sign_out()
-            st.session_state.clear()
-            st.success("Password updated. Please log in.")
-            st.switch_page("app.py")
-        except Exception:
-            st.error("Failed to update password.")
-
-    st.stop()
-
-params = st.query_params
-
+# ==========================================================
+# 🔐 SET RECOVERY SESSION (ONCE ONLY)
+# ==========================================================
 if (
     params.get("type") == "recovery"
     and "access_token" in params
     and "refresh_token" in params
 ):
-    # 🔐 Set Supabase session
-    supabase.auth.set_session(
-        params["access_token"],
-        params["refresh_token"]
-    )
-
-    # 🔁 FORCE ONE RELOAD (CRITICAL)
     if not st.session_state.get("recovery_session_ready"):
-        st.session_state["recovery_session_ready"] = True
-        st.rerun()
+        try:
+            supabase.auth.set_session(
+                params["access_token"],
+                params["refresh_token"],
+            )
+            st.session_state["recovery_session_ready"] = True
+            st.rerun()  # REQUIRED ONCE
+        except Exception:
+            st.error("Invalid or expired recovery link.")
+            st.stop()
 
 
-# ----------------------------------------------------------
-# PAGE CONFIG (MUST BE FIRST)
-# ----------------------------------------------------------
-st.set_page_config(
-    page_title="Chumcred TalentIQ",
-    page_icon="assets/talentiq_logo.png",
-    layout="wide",
-)
-
-# Hide Streamlit default navigation
-st.markdown(
-    """
-    <style>
-        [data-testid="stSidebarNav"] { display: none; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-# ----------------------------------------------------------
-# 🔐 PASSWORD RECOVERY (URL-BASED — SINGLE SOURCE OF TRUTH)
-# ----------------------------------------------------------
-query_params = st.query_params
-recovery_type = query_params.get("type")
-
-if recovery_type == "recovery":
+# ==========================================================
+# 🔐 PASSWORD RESET PAGE (NEVER DISAPPEARS)
+# ==========================================================
+if params.get("type") == "recovery":
     st.image("assets/talentiq_logo.png", width=220)
     st.title("🔐 Reset Your Password")
 
@@ -137,44 +102,47 @@ if recovery_type == "recovery":
             st.stop()
 
         try:
-            # Supabase uses the recovery tokens automatically
             supabase.auth.update_user({"password": new_pw})
 
-            # Clean up
+            # Clean exit after success
             supabase.auth.sign_out()
-            st.query_params.clear()
             st.session_state.clear()
+            st.query_params.clear()
 
             st.success("Password updated successfully. Please log in.")
-            st.switch_page("app.py")
+            st.stop()
 
-        except Exception as e:
-            st.error("Failed to update password. Please try again.")
+        except Exception:
+            st.error("Failed to update password. Please request a new reset link.")
 
     st.stop()
 
-# ----------------------------------------------------------
+
+# ==========================================================
 # SESSION DEFAULTS
-# ----------------------------------------------------------
+# ==========================================================
 st.session_state.setdefault("authenticated", False)
 st.session_state.setdefault("user", None)
 st.session_state.setdefault("show_forgot", False)
 
-# ----------------------------------------------------------
+
+# ==========================================================
 # REDIRECT IF LOGGED IN
-# ----------------------------------------------------------
+# ==========================================================
 if st.session_state.authenticated and st.session_state.user:
     st.switch_page("pages/2_Dashboard.py")
     st.stop()
 
-# ----------------------------------------------------------
+
+# ==========================================================
 # AUTH UI
-# ----------------------------------------------------------
+# ==========================================================
 st.image("assets/talentiq_logo.png", width=280)
 st.title("🔐 Welcome to Chumcred TalentIQ")
 st.caption("AI-powered tools for job seekers, career growth, and talent acceleration.")
 
 tab_login, tab_register = st.tabs(["🔓 Sign In", "📝 Register"])
+
 
 # ==========================================================
 # LOGIN TAB
@@ -232,9 +200,9 @@ with tab_login:
         st.success("Login successful. Redirecting…")
         st.switch_page("pages/2_Dashboard.py")
 
-    # ------------------------------
+    # --------------------------------------------------
     # FORGOT PASSWORD
-    # ------------------------------
+    # --------------------------------------------------
     if st.button("Forgot password?"):
         st.session_state.show_forgot = True
 
@@ -246,13 +214,13 @@ with tab_login:
                     reset_email,
                     options={
                         "redirect_to": "https://talentiq.chumcred.com/?type=recovery"
-                    }
-                  )
-
+                    },
+                )
                 st.success("Password reset link sent to your email.")
                 st.session_state.show_forgot = False
             except Exception:
                 st.error("Unable to send reset email.")
+
 
 # ==========================================================
 # REGISTER TAB
@@ -286,8 +254,9 @@ with tab_register:
         else:
             st.error(msg)
 
-# ----------------------------------------------------------
+
+# ==========================================================
 # FOOTER
-# ----------------------------------------------------------
+# ==========================================================
 st.write("---")
 st.caption("Powered by Chumcred Limited © 2025")
