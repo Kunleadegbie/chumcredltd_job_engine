@@ -80,6 +80,25 @@ if path == "reset":
 
     st.stop()
 
+params = st.query_params
+
+if (
+    params.get("type") == "recovery"
+    and "access_token" in params
+    and "refresh_token" in params
+):
+    # 🔐 Set Supabase session
+    supabase.auth.set_session(
+        params["access_token"],
+        params["refresh_token"]
+    )
+
+    # 🔁 FORCE ONE RELOAD (CRITICAL)
+    if not st.session_state.get("recovery_session_ready"):
+        st.session_state["recovery_session_ready"] = True
+        st.rerun()
+
+
 # ----------------------------------------------------------
 # PAGE CONFIG (MUST BE FIRST)
 # ----------------------------------------------------------
