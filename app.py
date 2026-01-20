@@ -1,6 +1,5 @@
-
 # ==========================================================
-# app.py — AUTH ENTRY POINT (RECOVERY SAFE, FINAL)
+# app.py — AUTH ENTRY POINT (FINAL, NO RESET LOGIC)
 # ==========================================================
 
 import streamlit as st
@@ -11,7 +10,6 @@ sys.path.append(os.path.dirname(__file__))
 
 from services.auth import login_user, register_user
 from config.supabase_client import supabase
-import streamlit.components.v1 as components
 
 
 # ==========================================================
@@ -38,120 +36,7 @@ st.markdown(
 
 
 # ==========================================================
-# 🔐 HASH → QUERY PARAMS (SUPABASE REQUIREMENT)
-# ==========================================================
-components.html(
-    """
-    <script>
-    if (window.location.hash) {
-        const hash = window.location.hash.substring(1);
-        const params = new URLSearchParams(hash);
-
-        const newUrl =
-            window.location.pathname +
-            "?" +
-            params.toString();
-
-        // 🔥 FORCE FULL HARD RELOAD
-        window.location.href = newUrl;
-    }
-    </script>
-    """,
-    height=0,
-)
-
-# ==========================================================
-# 🔐 PASSWORD RECOVERY MODE (LOCKED)
-# ==========================================================
-params = st.query_params
-
-if (
-    params.get("type") == "recovery"
-    and "access_token" in params
-    and "refresh_token" in params
-):
-    try:
-        supabase.auth.set_session(
-            params["access_token"],
-            params["refresh_token"],
-        )
-    except Exception:
-        st.error("Invalid or expired reset link.")
-        st.stop()
-
-    st.image("assets/talentiq_logo.png", width=220)
-    st.title("🔐 Reset Your Password")
-
-    new_pw = st.text_input("New Password", type="password")
-    confirm_pw = st.text_input("Confirm New Password", type="password")
-
-    if st.button("Update Password"):
-        if not new_pw or new_pw != confirm_pw:
-            st.error("Passwords do not match.")
-            st.stop()
-
-        supabase.auth.update_user({"password": new_pw})
-        supabase.auth.sign_out()
-        st.query_params.clear()
-        st.session_state.clear()
-
-        st.success("Password updated. Please sign in.")
-        st.stop()
-
-    st.stop()
-
-# ==========================================================
-# 🔐 PASSWORD RESET FLOW (HIGHEST PRIORITY)
-# ==========================================================
-if st.session_state.get("recovery_mode"):
-    required = {"access_token", "refresh_token"}
-
-    if not required.issubset(params.keys()):
-        st.error("Invalid or expired password reset link.")
-        st.stop()
-
-    if not st.session_state.get("recovery_ready"):
-        try:
-            supabase.auth.set_session(
-                params["access_token"],
-                params["refresh_token"],
-            )
-            st.session_state["recovery_ready"] = True
-        except Exception:
-            st.error("Invalid or expired recovery session.")
-            st.stop()
-
-    # ================= RESET UI =================
-    st.image("assets/talentiq_logo.png", width=220)
-    st.title("🔐 Reset Your Password")
-
-    new_pw = st.text_input("New Password", type="password")
-    confirm_pw = st.text_input("Confirm New Password", type="password")
-
-    if st.button("Update Password"):
-        if not new_pw or new_pw != confirm_pw:
-            st.error("Passwords do not match.")
-            st.stop()
-
-        try:
-            supabase.auth.update_user({"password": new_pw})
-
-            # CLEAN EXIT
-            supabase.auth.sign_out()
-            st.session_state.clear()
-            st.query_params.clear()
-
-            st.success("Password updated successfully. Please sign in.")
-            st.stop()
-
-        except Exception:
-            st.error("Failed to update password. Please request a new reset link.")
-
-    st.stop()  # 🚫 ABSOLUTE STOP — DO NOT FALL THROUGH
-
-
-# ==========================================================
-# SESSION DEFAULTS (ONLY AFTER RECOVERY)
+# SESSION DEFAULTS
 # ==========================================================
 st.session_state.setdefault("authenticated", False)
 st.session_state.setdefault("user", None)
@@ -196,9 +81,12 @@ with tab_login:
             st.error("Invalid email or password.")
             st.stop()
 
-        supabase.auth.sign_in_with_password(
-            {"email": email, "password": password}
-        )
+        try:
+            supabase.auth.sign_in_with_password(
+                {"email": email, "password": password}
+            )
+        except Exception:
+            pass
 
         auth_session = supabase.auth.get_session()
         if not auth_session or not auth_session.user:
@@ -228,20 +116,27 @@ with tab_login:
 
         st.switch_page("pages/2_Dashboard.py")
 
+    # ------------------------------
+    # FORGOT PASSWORD (EMAIL ONLY)
+    # ------------------------------
     if st.button("Forgot password?"):
         st.session_state.show_forgot = True
 
     if st.session_state.show_forgot:
         reset_email = st.text_input("Enter your email to reset password")
         if st.button("Send reset link"):
-            supabase.auth.reset_password_for_email(
-                reset_email,
-                options={
-                    "redirect_to": "https://talentiq.chumcred.com"
-                },
-            )
-            st.success("Password reset link sent.")
-            st.session_state.show_forgot = False
+            try:
+                supabase.auth.reset_password_for_email(
+                    reset_email,
+                    options={
+                        # Send users to the dedicated reset page (handled elsewhere)
+                        "redirect_to": "https://talentiq.chumcred.com/99_Reset_Password"
+                    },
+                )
+                st.success("Password reset link sent.")
+                st.session_state.show_forgot = False
+            except Exception:
+                st.error("Unable to send reset email.")
 
 
 # ==========================================================
