@@ -6,6 +6,10 @@
 # - Shows credit summary: 200 → 300
 # - Prevents repeated crediting on rapid clicks
 # - Better UX (spinners, disabled buttons, clear success states)
+#
+# ✅ NEW (Minor Change):
+# - Added "Decline" decision for subscription payments (Approve/Decline dropdown)
+# - Optional decline reason (requires DB column subscription_payments.decline_reason)
 # ==========================================================
 
 import streamlit as st
@@ -201,15 +205,56 @@ def approve_payment_atomic(payment_id: int, admin_id: str):
         "status": "approved",
         "approved_by": admin_id,
         "approved_at": now.isoformat(),
+        # Optional: if you also use this boolean in your schema, uncomment:
+        # "approved": True,
     }).eq("id", payment_id).execute()
 
     return before, after, plan
 
 
 # ==========================================================
+# ATOMIC PAYMENT DECLINE (NO CREDITS APPLIED)
+# NOTE: If you added the column, decline_reason will be saved.
+# If column doesn't exist, comment out decline_reason line below.
+# ==========================================================
+def decline_payment_atomic(payment_id: int, admin_id: str, reason: str = ""):
+    now = _utcnow()
+
+    payment = (
+        supabase_admin
+        .table("subscription_payments")
+        .select("*")
+        .eq("id", payment_id)
+        .single()
+        .execute()
+        .data
+    )
+
+    if not payment:
+        raise Exception("Payment not found.")
+
+    if (payment.get("status") or "").lower() != "pending":
+        raise Exception("Payment is not pending.")
+
+    payload = {
+        "status": "declined",
+        "approved_by": admin_id,     # reuse field as "actioned by"
+        "approved_at": now.isoformat(),
+        # Optional: if you also use this boolean in your schema, uncomment:
+        # "approved": False,
+    }
+
+    # ✅ Optional reason (requires column subscription_payments.decline_reason)
+    payload["decline_reason"] = (reason or "").strip()
+
+    supabase_admin.table("subscription_payments").update(payload).eq("id", payment_id).execute()
+    return payment.get("plan")
+
+
+# ==========================================================
 # LOAD PAYMENTS
 # ==========================================================
-show_all = st.checkbox("Show all payments (including approved)", value=False)
+show_all = st.checkbox("Show all payments (including approved/declined)", value=False)
 
 query = (
     supabase_admin
@@ -229,7 +274,7 @@ if not payments:
     st.stop()
 
 # ==========================================================
-# DISPLAY + APPROVAL UI
+# DISPLAY + APPROVAL/DECLINE UI
 # ==========================================================
 st.subheader("🧾 Payments Queue")
 
@@ -242,6 +287,7 @@ for p in payments:
 **User ID (auth):** `{p.get("user_id")}`  
 **Plan:** **{p.get("plan")}**  
 **Amount:** ₦{int(p.get("amount", 0) or 0):,}  
+**Credits (per plan):** {int(p.get("credits", 0) or 0):,}  
 **Reference:** `{p.get("payment_reference", "")}`  
 **Status:** `{p.get("status")}`
 """)
@@ -251,28 +297,55 @@ for p in payments:
         st.write("---")
         continue
 
+    if status == "declined":
+        st.warning("🚫 Declined.")
+        # Show reason if exists
+        if p.get("decline_reason"):
+            st.caption(f"Reason: {p.get('decline_reason')}")
+        st.write("---")
+        continue
+
     # per-payment UI state
-    btn_key = f"approve_{payment_id}"
-    lock_key = f"_lock_{btn_key}"
-    debounce_key = f"_debounce_{btn_key}"
+    submit_key = f"submit_decision_{payment_id}"
+    lock_key = f"_lock_{submit_key}"
+    debounce_key = f"_debounce_{submit_key}"
 
     if lock_key not in st.session_state:
         st.session_state[lock_key] = False
 
+    decision = st.selectbox(
+        "Decision",
+        ["Approve", "Decline"],
+        key=f"decision_{payment_id}",
+        disabled=st.session_state[lock_key],
+    )
+
+    reason = ""
+    if decision == "Decline":
+        reason = st.text_input(
+            "Decline reason (optional)",
+            key=f"decline_reason_{payment_id}",
+            placeholder="e.g., wrong amount, invalid proof, duplicate payment…",
+            disabled=st.session_state[lock_key],
+        )
+
     cols = st.columns([1, 2])
     with cols[0]:
-        approve_clicked = st.button(
-            "✅ Approve Payment",
-            key=btn_key,
+        submit_clicked = st.button(
+            "Submit Decision",
+            key=submit_key,
             disabled=st.session_state[lock_key],
             use_container_width=True
         )
 
     with cols[1]:
-        st.caption("Approves payment, activates subscription, and applies credits (one-time).")
+        if decision == "Approve":
+            st.caption("Approves payment, activates subscription, and applies credits (one-time).")
+        else:
+            st.caption("Declines payment (no credits applied).")
 
-    if approve_clicked:
-        # Debounce to prevent multi-click double approval
+    if submit_clicked:
+        # Debounce to prevent multi-click double processing
         if not _debounce(debounce_key, seconds=2.5):
             st.warning("Please wait… action already processing.")
             st.write("---")
@@ -280,11 +353,17 @@ for p in payments:
 
         st.session_state[lock_key] = True
         try:
-            with st.spinner("Approving payment and applying credits…"):
-                before, after, plan = approve_payment_atomic(payment_id, user["id"])
+            if decision == "Approve":
+                with st.spinner("Approving payment and applying credits…"):
+                    before, after, plan = approve_payment_atomic(payment_id, user["id"])
+                st.success(f"Payment approved successfully. Credits: {before} → {after} (Plan: {plan})")
+            else:
+                with st.spinner("Declining payment…"):
+                    plan = decline_payment_atomic(payment_id, user["id"], reason=reason)
+                st.success(f"Payment declined successfully. (Plan: {plan})")
 
-            st.success(f"Payment approved successfully. Credits: {before} → {after} (Plan: {plan})")
             st.rerun()
+
         except Exception as e:
             st.session_state[lock_key] = False
             st.error(str(e))
