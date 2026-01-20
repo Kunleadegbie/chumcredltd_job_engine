@@ -158,11 +158,11 @@ st.session_state.setdefault("show_forgot", False)
 # ----------------------------------------------------------
 # REDIRECT IF LOGGED IN
 # ----------------------------------------------------------
-if st.session_state.authenticated and st.session_state.user:
+if st.session_state.get("authenticated") and st.session_state.get("user"):
     st.switch_page("pages/2_Dashboard.py")
     st.stop()
 
-# ----------------------------------------------------------
+# ----------------- -----------------------------------------
 # AUTH UI
 # ----------------------------------------------------------
 st.image("assets/talentiq_logo.png", width=280)
