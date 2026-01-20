@@ -117,10 +117,7 @@ with tab_login:
         st.switch_page("pages/2_Dashboard.py")
        
 
-    # ------------------------------
-    # FORGOT PASSWORD (EMAIL ONLY)
-    # ------------------------------
-    # ------------------------------
+# ------------------------------
 # FORGOT PASSWORD (EMAIL ONLY)
 # ------------------------------
 if st.button("Forgot password?"):
