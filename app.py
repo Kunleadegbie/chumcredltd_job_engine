@@ -41,6 +41,7 @@ st.markdown(
 st.session_state.setdefault("authenticated", False)
 st.session_state.setdefault("user", None)
 st.session_state.setdefault("show_forgot", False)
+st.session_state.setdefault("reset_email_value", "")
 
 
 # ==========================================================
@@ -82,9 +83,7 @@ with tab_login:
             st.stop()
 
         try:
-            supabase.auth.sign_in_with_password(
-                {"email": email, "password": password}
-            )
+            supabase.auth.sign_in_with_password({"email": email, "password": password})
         except Exception:
             pass
 
@@ -115,52 +114,36 @@ with tab_login:
         }
 
         st.switch_page("pages/2_Dashboard.py")
-       
 
-# ------------------------------
-# FORGOT PASSWORD (EMAIL ONLY)
-# ------------------------------
-if st.button("Forgot password?"):
-    st.session_state.show_forgot = True
+    # ------------------------------
+    # FORGOT PASSWORD (EMAIL ONLY)
+    # ------------------------------
+    if st.button("Forgot password?"):
+        st.session_state.show_forgot = True
 
-if st.session_state.show_forgot:
-    reset_email = st.text_input("Enter your email to reset password", key="reset_email")
-
-    if st.button("Send reset link", key="send_reset_link"):
-        if not reset_email or "@" not in reset_email:
-            st.error("Enter a valid email address.")
-            st.stop()
-
-        try:
-            supabase.auth.reset_password_for_email(
-                reset_email,
-                options={
-                    # keep as your base domain for now; we’ll update after we confirm reset page URL
-                    "redirect_to": "https://talentiq.chumcred.com"
-                },
-            )
-            st.success("Password reset link sent to your email.")
-            st.session_state.show_forgot = False
-        except Exception as e:
-            st.error(f"Reset email failed: {e}")
-
-
-# ==========================================================
-# SEND RESET EMAIL LINK
-# ==========================================================
-if st.button("Send reset link"):
-    try:
-        resp = supabase.auth.reset_password_for_email(
-            reset_email,
-            options={
-                "redirect_to": "https://talentiq.chumcred.com"  # temporary
-            },
+    if st.session_state.show_forgot:
+        st.session_state.reset_email_value = st.text_input(
+            "Enter your email to reset password",
+            value=st.session_state.reset_email_value,
+            key="reset_email_input",
         )
-        st.success("Password reset link sent.")
-        st.session_state.show_forgot = False
-        st.write(resp)  # optional: helps confirm success response
-    except Exception as e:
-        st.error(f"Reset email failed: {e}")
+
+        if st.button("Send reset link", key="send_reset_link"):
+            email_to_reset = (st.session_state.reset_email_value or "").strip()
+
+            if not email_to_reset or "@" not in email_to_reset:
+                st.error("Enter a valid email address.")
+                st.stop()
+
+            try:
+                supabase.auth.reset_password_for_email(
+                    email_to_reset,
+                    options={"redirect_to": "https://talentiq.chumcred.com/reset_password"},
+                )
+                st.success("Password reset link sent to your email.")
+                st.session_state.show_forgot = False
+            except Exception as e:
+                st.error(f"Reset email failed: {e}")
 
 
 # ==========================================================
@@ -194,7 +177,6 @@ with tab_register:
             st.info("You can now sign in.")
         else:
             st.error(msg)
-
 
 
 # ==========================================================
