@@ -1,6 +1,6 @@
 
 # ==========================================================
-# app.py — AUTH ENTRY POINT (FINAL, STABLE, RESET SAFE)
+# app.py — AUTH ENTRY POINT (RECOVERY SAFE, FINAL)
 # ==========================================================
 
 import streamlit as st
@@ -15,7 +15,7 @@ import streamlit.components.v1 as components
 
 
 # ==========================================================
-# PAGE CONFIG (FIRST STREAMLIT CALL)
+# PAGE CONFIG (MUST BE FIRST)
 # ==========================================================
 st.set_page_config(
     page_title="Chumcred TalentIQ",
@@ -23,7 +23,10 @@ st.set_page_config(
     layout="wide",
 )
 
-# Hide Streamlit default navigation
+
+# ==========================================================
+# HIDE DEFAULT NAV
+# ==========================================================
 st.markdown(
     """
     <style>
@@ -35,7 +38,7 @@ st.markdown(
 
 
 # ==========================================================
-# 🔐 CONVERT URL HASH → QUERY PARAMS (SUPABASE REQUIRED)
+# 🔐 HASH → QUERY PARAMS (SUPABASE REQUIREMENT)
 # ==========================================================
 components.html(
     """
@@ -60,20 +63,28 @@ components.html(
 
 
 # ==========================================================
-# QUERY PARAMS (SINGLE SOURCE OF TRUTH)
+# QUERY PARAMS (GLOBAL)
 # ==========================================================
 params = st.query_params
 
 
 # ==========================================================
-# 🔐 PASSWORD RECOVERY FLOW (ONLY PLACE IT EXISTS)
+# 🔐 PASSWORD RECOVERY MODE (LOCKED)
 # ==========================================================
-if (
-    params.get("type") == "recovery"
-    and "access_token" in params
-    and "refresh_token" in params
-):
-    # Set recovery session ONCE
+if params.get("type") == "recovery":
+    st.session_state["recovery_mode"] = True
+
+
+# ==========================================================
+# 🔐 PASSWORD RESET FLOW (HIGHEST PRIORITY)
+# ==========================================================
+if st.session_state.get("recovery_mode"):
+    required = {"access_token", "refresh_token"}
+
+    if not required.issubset(params.keys()):
+        st.error("Invalid or expired password reset link.")
+        st.stop()
+
     if not st.session_state.get("recovery_ready"):
         try:
             supabase.auth.set_session(
@@ -82,10 +93,10 @@ if (
             )
             st.session_state["recovery_ready"] = True
         except Exception:
-            st.error("Invalid or expired recovery link.")
+            st.error("Invalid or expired recovery session.")
             st.stop()
 
-    # --- RESET PASSWORD UI ---
+    # ================= RESET UI =================
     st.image("assets/talentiq_logo.png", width=220)
     st.title("🔐 Reset Your Password")
 
@@ -98,25 +109,24 @@ if (
             st.stop()
 
         try:
-            # ✅ THIS WILL WORK NOW
             supabase.auth.update_user({"password": new_pw})
 
-            # Clean exit
+            # CLEAN EXIT
             supabase.auth.sign_out()
             st.session_state.clear()
             st.query_params.clear()
 
-            st.success("Password updated successfully. Please log in.")
+            st.success("Password updated successfully. Please sign in.")
             st.stop()
 
         except Exception:
             st.error("Failed to update password. Please request a new reset link.")
 
-    st.stop()
+    st.stop()  # 🚫 ABSOLUTE STOP — DO NOT FALL THROUGH
 
 
 # ==========================================================
-# SESSION DEFAULTS
+# SESSION DEFAULTS (ONLY AFTER RECOVERY)
 # ==========================================================
 st.session_state.setdefault("authenticated", False)
 st.session_state.setdefault("user", None)
@@ -124,7 +134,7 @@ st.session_state.setdefault("show_forgot", False)
 
 
 # ==========================================================
-# REDIRECT IF LOGGED IN
+# REDIRECT IF AUTHENTICATED
 # ==========================================================
 if st.session_state.authenticated and st.session_state.user:
     st.switch_page("pages/2_Dashboard.py")
@@ -161,16 +171,13 @@ with tab_login:
             st.error("Invalid email or password.")
             st.stop()
 
-        try:
-            supabase.auth.sign_in_with_password(
-                {"email": email, "password": password}
-            )
-        except Exception:
-            pass
+        supabase.auth.sign_in_with_password(
+            {"email": email, "password": password}
+        )
 
         auth_session = supabase.auth.get_session()
         if not auth_session or not auth_session.user:
-            st.error("Authentication error. Please log in again.")
+            st.error("Authentication error.")
             st.stop()
 
         auth_user = auth_session.user
@@ -194,29 +201,22 @@ with tab_login:
             "role": role,
         }
 
-        st.success("Login successful. Redirecting…")
         st.switch_page("pages/2_Dashboard.py")
 
-    # ------------------------------
-    # FORGOT PASSWORD
-    # ------------------------------
     if st.button("Forgot password?"):
         st.session_state.show_forgot = True
 
     if st.session_state.show_forgot:
         reset_email = st.text_input("Enter your email to reset password")
         if st.button("Send reset link"):
-            try:
-                supabase.auth.reset_password_for_email(
-                    reset_email,
-                    options={
-                        "redirect_to": "https://talentiq.chumcred.com/?type=recovery"
-                    },
-                )
-                st.success("Password reset link sent to your email.")
-                st.session_state.show_forgot = False
-            except Exception:
-                st.error("Unable to send reset email.")
+            supabase.auth.reset_password_for_email(
+                reset_email,
+                options={
+                    "redirect_to": "https://talentiq.chumcred.com"
+                },
+            )
+            st.success("Password reset link sent.")
+            st.session_state.show_forgot = False
 
 
 # ==========================================================
