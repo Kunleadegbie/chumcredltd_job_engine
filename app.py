@@ -138,8 +138,24 @@ with tab_login:
                 st.session_state.show_forgot = False
             except Exception:
                 st.error("Unable to send reset email.")
-                st.page_link("pages/reset_password.py", label="(TEST) Open Reset Password page")
+                
 
+# ==========================================================
+# SEND RESET EMAIL LINK
+# ==========================================================
+if st.button("Send reset link"):
+    try:
+        resp = supabase.auth.reset_password_for_email(
+            reset_email,
+            options={
+                "redirect_to": "https://talentiq.chumcred.com"  # temporary
+            },
+        )
+        st.success("Password reset link sent.")
+        st.session_state.show_forgot = False
+        st.write(resp)  # optional: helps confirm success response
+    except Exception as e:
+        st.error(f"Reset email failed: {e}")
 
 
 # ==========================================================
@@ -174,11 +190,6 @@ with tab_register:
         else:
             st.error(msg)
 
-
-import os
-st.write("Pages dir exists:", os.path.isdir("pages"))
-st.write("Pages files:", os.listdir("pages") if os.path.isdir("pages") else "NO PAGES FOLDER")
-st.write("Reset page exists:", os.path.isfile("pages/reset_password.py"))
 
 
 # ==========================================================
