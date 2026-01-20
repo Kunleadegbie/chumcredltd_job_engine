@@ -2,17 +2,23 @@
 # ============================================================
 # 3_Job_Search.py — Global Job Search (Stable & Credit-Aware)
 # ============================================================
+# ============================================================
+# 3_Job_Search.py — Global Job Search (Stable & Credit-Aware)
+# ============================================================
 import streamlit as st
 import sys, os
+from datetime import datetime, timezone
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
+# ---------------------------------------------------------
+# PAGE CONFIG (MUST BE FIRST STREAMLIT COMMAND)
+# ---------------------------------------------------------
+st.set_page_config(page_title="Job Search", page_icon="🔍", layout="wide")
+
+# Now safe to import/use anything that calls st.*
 from components.sidebar import render_sidebar
-
-if not st.session_state.get("authenticated"):
-    st.switch_page("app.py")
-    st.stop()
-
-render_sidebar()
+from components.ui import hide_streamlit_sidebar
 
 from config.supabase_client import supabase
 from services.job_api import search_jobs
@@ -23,54 +29,12 @@ from services.utils import (
     is_low_credit,
 )
 
-# ======================================================
-# HIDE STREAMLIT SIDEBAR
-# ======================================================
-from components.ui import hide_streamlit_sidebar
-
-# Hide Streamlit default navigation
-hide_streamlit_sidebar()
-
-st.session_state["_sidebar_rendered"] = False
-
-
-# Auth check
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
+# ---------------------------------------------------------
+# AUTH GUARD
+# ---------------------------------------------------------
+if not st.session_state.get("authenticated"):
     st.switch_page("app.py")
     st.stop()
-
-
-
-# ---------------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------------
-st.set_page_config(page_title="Job Search", page_icon="🔍")
-
-st.markdown(
-    """
-    <style>
-        /* Hide Streamlit default page navigation */
-        [data-testid="stSidebarNav"] {
-            display: none;
-        }
-
-        /* Remove extra top spacing Streamlit adds */
-        section[data-testid="stSidebar"] > div:first-child {
-            padding-top: 0rem;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-# ---------------------------------------------------------
-# AUTH CHECK
-# ---------------------------------------------------------
-if "authenticated" not in st.session_state or not st.session_state.authenticated:
-    st.switch_page("app.py")
-
-
 
 user = st.session_state.get("user")
 if not user:
@@ -80,29 +44,37 @@ if not user:
 user_id = user.get("id")
 
 # ---------------------------------------------------------
+# UI: Hide default nav + render sidebar
+# ---------------------------------------------------------
+hide_streamlit_sidebar()
+render_sidebar()
+
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebarNav"] { display: none; }
+        section[data-testid="stSidebar"] > div:first-child { padding-top: 0rem; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ---------------------------------------------------------
 # SUBSCRIPTION CHECK
 # ---------------------------------------------------------
-subscription = get_subscription(user_id)
 auto_expire_subscription(user_id)
+subscription = get_subscription(user_id)
 
-if not subscription or subscription.get("subscription_status") != "active":
+if not subscription or (subscription.get("subscription_status") or "").lower() != "active":
     st.error("❌ You need an active subscription to use Job Search.")
     st.stop()
 
 # ---------------------------------------------------------
-# SESSION STATE (CRITICAL FIX)
+# SESSION STATE
 # ---------------------------------------------------------
-if "job_search_results" not in st.session_state:
-    st.session_state.job_search_results = []
-
-if "job_search_meta" not in st.session_state:
-    st.session_state.job_search_meta = {}
-
-if "job_search_page" not in st.session_state:
-    st.session_state.job_search_page = 1
-
-
-
+st.session_state.setdefault("job_search_results", [])
+st.session_state.setdefault("job_search_meta", {})
+st.session_state.setdefault("job_search_page", 1)
 
 # ---------------------------------------------------------
 # PAGE TITLE
@@ -113,23 +85,14 @@ st.caption("Search worldwide job listings from multiple sources.")
 # ---------------------------------------------------------
 # SEARCH INPUTS
 # ---------------------------------------------------------
-query = st.text_input(
-    "Job Title (Required)",
-    placeholder="e.g., Data Analyst"
-)
-
-location = st.text_input(
-    "Location (Optional)",
-    placeholder="e.g., United Kingdom, Canada, Lagos, Remote"
-)
-
+query = st.text_input("Job Title (Required)", placeholder="e.g., Data Analyst")
+location = st.text_input("Location (Optional)", placeholder="e.g., United Kingdom, Canada, Lagos, Remote")
 remote_only = st.checkbox("🌍 Remote Jobs Only")
 
 # ---------------------------------------------------------
 # PAGINATION CONTROLS
 # ---------------------------------------------------------
 col_prev, col_next = st.columns([1, 1])
-
 with col_prev:
     if st.button("⬅ Previous Page") and st.session_state.job_search_page > 1:
         st.session_state.job_search_page -= 1
@@ -146,14 +109,11 @@ page = st.session_state.job_search_page
 # SEARCH BUTTON
 # ---------------------------------------------------------
 if st.button("🔎 Search Jobs"):
-
     if not query.strip():
         st.warning("Please enter a job title before searching.")
         st.stop()
 
-    # -----------------------------------------
-    # CREDIT CHECK (3 credits per search)
-    # -----------------------------------------
+    # Credit check (3 per search)
     if is_low_credit(subscription, minimum_required=3):
         st.error("❌ You do not have enough credits to run a job search.")
         st.stop()
@@ -165,9 +125,6 @@ if st.button("🔎 Search Jobs"):
 
     st.info("🔄 Searching jobs…")
 
-    # -----------------------------------------
-    # EXECUTE API SEARCH
-    # -----------------------------------------
     results = search_jobs(
         query=query,
         location=location,
@@ -180,29 +137,29 @@ if st.button("🔎 Search Jobs"):
         st.stop()
 
     if "error" in results:
-        st.error("API Error: " + results["error"])
+        st.error("API Error: " + str(results["error"]))
         st.stop()
 
-    # ✅ STORE RESULTS IN SESSION STATE
+    # Store results
     st.session_state.job_search_results = results.get("data", [])
     st.session_state.job_search_meta = results.get("meta", {})
+    st.session_state["last_job_search_ts"] = datetime.now(timezone.utc).isoformat()
+
+    # ✅ Refresh page so sidebar/balance updates immediately
+    st.rerun()
 
 # ---------------------------------------------------------
 # DISPLAY RESULTS (PERSISTENT)
 # ---------------------------------------------------------
 jobs = st.session_state.job_search_results
 
-if jobs:
-    st.subheader(f"📄 Results — Page {st.session_state.job_search_page}")
-else:
+if not jobs:
     st.info("Run a search to see job results.")
     st.stop()
 
-# ---------------------------------------------------------
-# DISPLAY JOB CARDS
-# ---------------------------------------------------------
-for job in jobs:
+st.subheader(f"📄 Results — Page {st.session_state.job_search_page}")
 
+for job in jobs:
     job_title = job.get("job_title", "Untitled Role")
     company = job.get("employer_name", "Unknown")
     job_id = job.get("job_id")
@@ -214,23 +171,19 @@ for job in jobs:
     location_str = f"{city}, {country}".strip(", ")
 
     st.markdown(f"""
-    ### **{job_title}**
-    **Company:** {company}  
-    **Location:** {location_str}  
+### **{job_title}**
+**Company:** {company}  
+**Location:** {location_str}  
 
-    {description}{'...' if len(description) == 350 else ''}
-    """)
+{description}{'...' if len(description) == 350 else ''}
+""")
 
-    # Apply Button
     if url and url != "#":
         st.markdown(
             f"<a href='{url}' target='_blank'><button style='padding:8px 18px;'>Apply Now</button></a>",
             unsafe_allow_html=True
         )
 
-    # -------------------------------------------------
-    # SAVE JOB (NON-DESTRUCTIVE)
-    # -------------------------------------------------
     if st.button("💾 Save Job", key=f"save_{job_id}"):
         try:
             supabase.table("saved_jobs").insert({
@@ -242,15 +195,10 @@ for job in jobs:
                 "url": url,
                 "description": description
             }).execute()
-
             st.success("✅ Job saved successfully!")
-
         except Exception as e:
             st.error(f"Failed to save job: {e}")
 
     st.write("---")
 
-# ---------------------------------------------------------
-# FOOTER
-# ---------------------------------------------------------
 st.caption("Chumcred TalentIQ © 2025")

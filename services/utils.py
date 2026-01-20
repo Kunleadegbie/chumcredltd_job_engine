@@ -107,10 +107,12 @@ def get_subscription(user_id: str):
 # CREDIT DEDUCTION
 # ==========================================================
 
+from config.supabase_client import supabase
+
 def deduct_credits(user_id: str, amount: int):
     """
-    Deduct credits atomically from public.subscriptions using RPC.
-    Returns (ok: bool, message: str)
+    Deduct credits atomically from subscriptions using DB RPC.
+    Returns (ok: bool, msg: str)
     """
     try:
         amount = int(amount)
@@ -124,13 +126,11 @@ def deduct_credits(user_id: str, amount: int):
 
         data = getattr(res, "data", None)
 
-        # Expected: [{"new_credits": 123}]
+        # Expected: [{"new_credits": 447}]
         if isinstance(data, list) and data and "new_credits" in data[0]:
-            return True, f"Credits deducted. New balance: {int(data[0]['new_credits'])}"
+            return True, f"✅ Credits deducted. New balance: {int(data[0]['new_credits'])}"
 
-        # Some clients return [] even on success
-        return True, "Credits deducted successfully."
-
+        return True, "✅ Credits deducted."
     except Exception as e:
         msg = str(e)
         if "Insufficient credits" in msg:
@@ -138,7 +138,6 @@ def deduct_credits(user_id: str, amount: int):
         if "No active subscription found" in msg:
             return False, "❌ No active subscription found. Please subscribe."
         return False, f"❌ Credit deduction failed: {msg}"
-
 
 
 # ==========================================================
