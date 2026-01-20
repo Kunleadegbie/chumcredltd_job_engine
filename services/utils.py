@@ -1,7 +1,6 @@
 
 # ==========================================================
 # services/utils.py — STABLE + SAFE SUBSCRIPTION / PAYMENTS
-# (Based on your uploaded utils.py, with minimal safe fixes)
 # ==========================================================
 
 from datetime import datetime, timezone, timedelta
@@ -11,40 +10,16 @@ from config.supabase_client import supabase
 # PLANS (Subscription Pricing)
 # ==========================================================
 PLANS = {
-    "FREEMIUM": {
-        "price": 0,
-        "credits": 50,
-        "duration_days": 7,   # ✅ 7 days
-        "label": "Freemium",
-    },
-    "BASIC": {
-        "price": 25000,
-        "credits": 500,
-        "duration_days": 90,
-        "label": "Basic",
-    },
-    "PRO": {
-        "price": 50000,
-        "credits": 1150,
-        "duration_days": 180,
-        "label": "Pro",
-    },
-    "PREMIUM": {
-        "price": 100000,
-        "credits": 2500,
-        "duration_days": 365,
-        "label": "Premium",
-    },
+    "FREEMIUM": {"price": 0, "credits": 50, "duration_days": 7, "label": "Freemium"},
+    "BASIC": {"price": 25000, "credits": 500, "duration_days": 90, "label": "Basic"},
+    "PRO": {"price": 50000, "credits": 1150, "duration_days": 180, "label": "Pro"},
+    "PREMIUM": {"price": 100000, "credits": 2500, "duration_days": 365, "label": "Premium"},
 }
 
 # ==========================================================
 # INTERNAL HELPERS
 # ==========================================================
 def _safe_single(query_exec_result):
-    """
-    PostgREST .single() throws if 0 rows.
-    We use limit(1) and then normalize to dict/None.
-    """
     try:
         data = query_exec_result.data
         if isinstance(data, list):
@@ -55,7 +30,6 @@ def _safe_single(query_exec_result):
 
 
 def _parse_dt(value):
-    """Parse timestamptz safely."""
     if not value:
         return None
     try:
@@ -64,15 +38,11 @@ def _parse_dt(value):
     except Exception:
         return None
 
+
 # ==========================================================
 # USER ROLE
 # ==========================================================
 def is_admin(user_id: str) -> bool:
-    """
-    ✅ FIX: Your app uses users_app (not users).
-    Old code was querying supabase.table("users") which likely doesn't exist
-    or doesn't store your app roles. :contentReference[oaicite:2]{index=2}
-    """
     try:
         res = (
             supabase.table("users_app")
@@ -85,6 +55,7 @@ def is_admin(user_id: str) -> bool:
         return (row.get("role") or "user") == "admin"
     except Exception:
         return False
+
 
 # ==========================================================
 # SUBSCRIPTIONS — SINGLE SOURCE OF TRUTH
@@ -103,12 +74,25 @@ def get_subscription(user_id: str):
     except Exception:
         return None
 
-# ==========================================================
-# CREDIT DEDUCTION
-# ==========================================================
 
-from config.supabase_client import supabase
+# ==========================================================
+# CREDIT HELPERS (USED BY AI PAGES)
+# ==========================================================
+def is_low_credit(subscription: dict, minimum_required: int = 20) -> bool:
+    if not subscription:
+        return True
+    try:
+        credits = int(subscription.get("credits", 0) or 0)
+    except Exception:
+        credits = 0
+    return credits < minimum_required
 
+
+# ==========================================================
+# ✅ CREDIT DEDUCTION (ONE SOURCE OF TRUTH)
+# Uses DB RPC: public.consume_credits(p_user_id uuid, p_amount int)
+# This avoids RLS issues and is atomic.
+# ==========================================================
 def deduct_credits(user_id: str, amount: int):
     """
     Deduct credits atomically from subscriptions using DB RPC.
@@ -119,10 +103,12 @@ def deduct_credits(user_id: str, amount: int):
         if amount <= 0:
             return False, "Invalid credit amount."
 
-        res = supabase.rpc(
-            "consume_credits",
-            {"p_user_id": user_id, "p_amount": amount}
-        ).execute()
+        res = (
+            supabase.rpc(
+                "consume_credits",
+                {"p_user_id": user_id, "p_amount": amount}
+            ).execute()
+        )
 
         data = getattr(res, "data", None)
 
@@ -130,7 +116,9 @@ def deduct_credits(user_id: str, amount: int):
         if isinstance(data, list) and data and "new_credits" in data[0]:
             return True, f"✅ Credits deducted. New balance: {int(data[0]['new_credits'])}"
 
+        # Some clients return []/None even when successful
         return True, "✅ Credits deducted."
+
     except Exception as e:
         msg = str(e)
         if "Insufficient credits" in msg:
@@ -140,12 +128,14 @@ def deduct_credits(user_id: str, amount: int):
         return False, f"❌ Credit deduction failed: {msg}"
 
 
+# Backward-compat (some pages import deduct_credit by mistake)
+def deduct_credit(user_id: str, amount: int):
+    return deduct_credits(user_id, amount)
+
+
 # ==========================================================
 # AUTO EXPIRATION
 # ==========================================================
-
-from datetime import datetime, timezone
-
 def auto_expire_subscription(user_id: str):
     try:
         res = (
@@ -181,51 +171,9 @@ def auto_expire_subscription(user_id: str):
 
 
 # ==========================================================
-# CREDIT HELPERS (USED BY AI PAGES)
-# ==========================================================
-def is_low_credit(subscription: dict, minimum_required: int = 20) -> bool:
-    if not subscription:
-        return True
-    try:
-        credits = int(subscription.get("credits", 0) or 0)
-    except Exception:
-        credits = 0
-    return credits < minimum_required
-
-
-def deduct_credits(user_id: str, amount: int):
-    """Subtract credits. Returns (success, message)."""
-    try:
-        sub = get_subscription(user_id)
-        if not sub:
-            return False, "No subscription found."
-
-        credits = int(sub.get("credits", 0) or 0)
-        if credits < amount:
-            return False, "Insufficient credits."
-
-        new_balance = credits - amount
-        supabase.table("subscriptions").update({
-            "credits": new_balance
-        }).eq("user_id", user_id).execute()
-
-        return True, f"{amount} credits deducted."
-    except Exception as e:
-        return False, f"Error deducting credits: {e}"
-
-
-# Backward-compat (some pages import deduct_credit by mistake)
-def deduct_credit(user_id: str, amount: int):
-    return deduct_credits(user_id, amount)
-
-# ==========================================================
 # ADMIN CREDIT ADJUSTMENT (REVERSAL / CORRECTION)
 # ==========================================================
 def adjust_user_credits(user_id: str, delta: int, reason: str, admin_id: str):
-    """
-    Adds/removes credits. Creates subscription row if missing.
-    Never overwrites existing credits.
-    """
     if delta == 0:
         raise ValueError("Adjustment value cannot be zero.")
 
@@ -258,7 +206,6 @@ def adjust_user_credits(user_id: str, delta: int, reason: str, admin_id: str):
             "credits": new_balance
         }).eq("user_id", user_id).execute()
 
-    # Optional audit (won't crash if table missing)
     try:
         supabase.table("credit_adjustments").insert({
             "user_id": user_id,
@@ -271,15 +218,11 @@ def adjust_user_credits(user_id: str, delta: int, reason: str, admin_id: str):
 
     return new_balance
 
+
 # ==========================================================
 # APPLY PLAN (ADD CREDITS + EXTEND DATES, NEVER OVERWRITE)
 # ==========================================================
 def apply_plan_to_subscription(user_id: str, plan: str):
-    """
-    Adds plan credits to current credits.
-    Extends end_date from later of now or existing end_date.
-    Ensures amount is set (prevents not-null constraint errors).
-    """
     if plan not in PLANS:
         raise ValueError("Invalid plan.")
 
@@ -330,10 +273,6 @@ def activate_subscription(user_id: str, plan: str):
 
 
 def activate_subscription_from_payment(payment: dict):
-    """
-    Older interface: expects payment dict with user_id & plan.
-    Adds credits (does NOT overwrite).
-    """
     user_id = payment.get("user_id")
     plan = payment.get("plan")
     if not user_id or not plan:
