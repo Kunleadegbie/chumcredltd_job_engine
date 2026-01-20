@@ -101,7 +101,7 @@ if "job_search_meta" not in st.session_state:
 if "job_search_page" not in st.session_state:
     st.session_state.job_search_page = 1
 
-st.rerun()
+
 
 
 # ---------------------------------------------------------
