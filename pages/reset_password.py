@@ -9,23 +9,19 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# FORCE HASH READ (JS ONLY PAGE — SAFE)
+# 1) Convert URL hash (#...) to query (?...) then reload
 # --------------------------------------------------
 components.html(
     """
     <script>
-        if (window.location.hash) {
-            const hash = window.location.hash.substring(1);
-            const params = new URLSearchParams(hash);
-            const query = new URLSearchParams(window.location.search);
+      // If tokens are in the hash, move them to query params and reload once.
+      if (window.location.hash && !window.location.search.includes("access_token=")) {
+        const hash = window.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
 
-            for (const [k, v] of params.entries()) {
-                query.set(k, v);
-            }
-
-            window.location.href =
-                window.location.pathname + "?" + query.toString();
-        }
+        const newUrl = window.location.pathname + "?" + params.toString();
+        window.location.replace(newUrl);
+      }
     </script>
     """,
     height=0,
@@ -34,30 +30,47 @@ components.html(
 params = st.query_params
 
 # --------------------------------------------------
-# VALIDATE RESET TOKENS
+# 2) Two-step load guard: do NOT fail on the first run
 # --------------------------------------------------
-if (
-    params.get("type") != "recovery"
-    or "access_token" not in params
-    or "refresh_token" not in params
-):
-    st.error("Invalid or expired password reset link.")
+st.session_state.setdefault("reset_bootstrap_done", False)
+
+has_access = "access_token" in params or "token" in params
+has_refresh = "refresh_token" in params
+
+# First pass: allow the JS redirect to complete
+if not (has_access and has_refresh):
+    if not st.session_state.reset_bootstrap_done:
+        st.session_state.reset_bootstrap_done = True
+        st.image("assets/talentiq_logo.png", width=220)
+        st.title("🔐 Reset Your Password")
+        st.info("Preparing your reset session… If this message stays, request a fresh reset link.")
+        st.stop()
+
+    # Second pass and still no tokens => truly invalid/expired
+    st.error("Invalid or expired password reset link. Please request a new reset link.")
     st.stop()
 
 # --------------------------------------------------
-# SET SESSION
+# 3) Validate recovery type (optional but recommended)
 # --------------------------------------------------
+if params.get("type") != "recovery":
+    st.error("Invalid reset link type. Please request a new reset link.")
+    st.stop()
+
+# --------------------------------------------------
+# 4) Set Supabase session using tokens
+# --------------------------------------------------
+access_token = params.get("access_token") or params.get("token")
+refresh_token = params.get("refresh_token")
+
 try:
-    supabase.auth.set_session(
-        params["access_token"],
-        params["refresh_token"],
-    )
+    supabase.auth.set_session(access_token, refresh_token)
 except Exception:
-    st.error("Recovery session expired.")
+    st.error("Recovery session expired. Please request a new reset link.")
     st.stop()
 
 # --------------------------------------------------
-# RESET UI
+# 5) Reset UI
 # --------------------------------------------------
 st.image("assets/talentiq_logo.png", width=220)
 st.title("🔐 Reset Your Password")
@@ -72,14 +85,13 @@ if st.button("Update Password"):
 
     try:
         supabase.auth.update_user({"password": new_pw})
-        supabase.auth.sign_out()
 
+        # Clean exit
+        supabase.auth.sign_out()
         st.query_params.clear()
         st.session_state.clear()
 
-        st.success("Password updated successfully.")
-        st.info("You can now sign in from the login page.")
+        st.success("Password updated successfully. Please sign in from the main page.")
         st.stop()
-
     except Exception:
-        st.error("Failed to update password.")
+        st.error("Failed to update password. Please request a new reset link.")
