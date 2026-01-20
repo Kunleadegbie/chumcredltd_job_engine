@@ -172,6 +172,12 @@ with tab_register:
             st.error(msg)
 
 
+import os
+st.write("Pages dir exists:", os.path.isdir("pages"))
+st.write("Pages files:", os.listdir("pages") if os.path.isdir("pages") else "NO PAGES FOLDER")
+st.write("Reset page exists:", os.path.isfile("pages/reset_password.py"))
+
+
 # ==========================================================
 # FOOTER
 # ==========================================================
