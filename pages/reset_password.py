@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 from config.supabase_client import supabase
 
 st.set_page_config(
@@ -9,85 +8,67 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# Move TOP-WINDOW hash (#access_token=...) -> query (?access_token=...)
-# Auto-attempt, plus a user-click fallback button (browser-safe).
+# 1) Convert URL hash (#access_token=...) to query (?access_token=...)
+#    using st.html (NOT iframed) so top-window navigation works.
 # --------------------------------------------------
-components.html(
+st.html(
     """
-    <div style="font-family: system-ui; padding: 8px 0;">
-      <button id="continueBtn" style="
-        padding:10px 14px; border-radius:10px; border:1px solid #ddd;
-        background:#fff; cursor:pointer;
-      ">
-        Continue to reset password
-      </button>
-      <div style="margin-top:8px; color:#666; font-size:13px;">
-        If nothing happens automatically, click the button above.
-      </div>
-    </div>
-
     <script>
-      function moveHashToQueryAndReload() {
+      (function () {
         try {
-          const topLoc = window.top.location;
-          const hash = (topLoc.hash || "").replace(/^#/, "");
-          if (!hash) return false;
+          const hasQuery = window.location.search && window.location.search.includes("access_token=");
+          const hash = (window.location.hash || "").replace(/^#/, "");
 
-          // If we already have tokens in query, do nothing
-          const search = topLoc.search || "";
-          if (search.includes("access_token=") && search.includes("refresh_token=")) return true;
+          // Only act if we have hash tokens and no query tokens yet
+          if (!hasQuery && hash) {
+            const params = new URLSearchParams(hash);
 
-          const params = new URLSearchParams(hash);
-          // Only proceed if it's really a recovery link
-          if (params.get("type") !== "recovery") return false;
-          if (!params.get("access_token") || !params.get("refresh_token")) return false;
+            // Make sure it's a recovery link with required tokens
+            if (params.get("type") === "recovery" &&
+                params.get("access_token") &&
+                params.get("refresh_token")) {
 
-          const newUrl = topLoc.pathname + "?" + params.toString();
-          // Redirect TOP window
-          window.top.location.replace(newUrl);
-          return true;
+              const newUrl = window.location.pathname + "?" + params.toString();
+              window.location.replace(newUrl);
+            }
+          }
         } catch (e) {
-          return false;
+          // no-op
         }
-      }
-
-      // Auto-attempt immediately
-      moveHashToQueryAndReload();
-
-      // User-gesture fallback (some browsers require this)
-      document.getElementById("continueBtn").addEventListener("click", function() {
-        moveHashToQueryAndReload();
-      });
+      })();
     </script>
     """,
-    height=110,
+    unsafe_allow_javascript=True,
 )
-
-params = st.query_params
 
 st.image("assets/talentiq_logo.png", width=220)
 st.title("🔐 Reset Your Password")
 
+params = st.query_params
+
 # --------------------------------------------------
-# Now validate query params (after hash->query redirect)
+# 2) Wait state (first load before JS conversion)
 # --------------------------------------------------
 if (
     params.get("type") != "recovery"
     or "access_token" not in params
     or "refresh_token" not in params
 ):
-    st.info("Preparing your reset session… If it stays here, click “Continue to reset password” above.")
+    st.info("Preparing your reset session… If this stays, request a fresh reset link.")
     st.stop()
 
 # --------------------------------------------------
-# Set session and show reset form
+# 3) Set Supabase session with tokens
 # --------------------------------------------------
 try:
     supabase.auth.set_session(params["access_token"], params["refresh_token"])
 except Exception:
-    st.error("Invalid or expired reset link. Please request a new reset link.")
+    st.error("Invalid or expired password reset link. Please request a new reset link.")
     st.stop()
 
+# --------------------------------------------------
+# 4) Reset form
+# --------------------------------------------------
 new_pw = st.text_input("New Password", type="password")
 confirm_pw = st.text_input("Confirm New Password", type="password")
 
@@ -98,9 +79,12 @@ if st.button("Update Password"):
 
     try:
         supabase.auth.update_user({"password": new_pw})
+
+        # Clean exit
         supabase.auth.sign_out()
         st.query_params.clear()
         st.session_state.clear()
+
         st.success("Password updated successfully. Please sign in from the main page.")
         st.stop()
     except Exception:
