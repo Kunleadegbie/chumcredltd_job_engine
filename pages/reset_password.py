@@ -7,6 +7,24 @@ st.set_page_config(
     layout="centered",
 )
 
+st.markdown(
+    """
+    <style>
+        /* Hide Streamlit default page navigation */
+        [data-testid="stSidebarNav"] {
+            display: none;
+        }
+
+        /* Remove extra top spacing Streamlit adds */
+        section[data-testid="stSidebar"] > div:first-child {
+            padding-top: 0rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
 # --------------------------------------------------
 # 1) Convert URL hash (#access_token=...) to query (?access_token=...)
 #    using st.html (NOT iframed) so top-window navigation works.
