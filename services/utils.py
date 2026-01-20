@@ -105,32 +105,45 @@ def get_subscription(user_id: str):
 
 # ==========================================================
 # CREDIT DEDUCTION
+
+
 # ==========================================================
 
-def consume_credits(user_id: str, amount: int, feature: str = "") -> int:
+def deduct_credits(user_id: str, amount: int):
     """
-    Deduct credits atomically in DB via RPC.
-    Returns the new credit balance.
+    Deduct credits from subscriptions atomically using DB RPC.
+    Returns (ok: bool, msg: str)
     """
-    res = (
-        supabase
-        .rpc("consume_credits", {
-            "p_user_id": user_id,
-            "p_amount": int(amount),
-            "p_feature": feature or None
-        })
-        .execute()
-    )
+    try:
+        amount = int(amount)
+        if amount <= 0:
+            return False, "Invalid credit amount."
 
-    data = getattr(res, "data", None) or res.data or None  # extra-safe
-    if isinstance(data, list) and data and "new_credits" in data[0]:
-        return int(data[0]["new_credits"])
-    if isinstance(data, dict) and "new_credits" in data:
-        return int(data["new_credits"])
+        res = (
+            supabase
+            .rpc("consume_credits", {"p_user_id": user_id, "p_amount": amount})
+            .execute()
+        )
 
-    # Fallback: just return -1 if parsing fails
-    return -1
+        data = getattr(res, "data", None)
+        if not data:
+            # Some supabase clients return [] even on success; handle carefully
+            return True, "Credits deducted successfully."
 
+        # Expected: [{"new_credits": 123}]
+        if isinstance(data, list) and len(data) > 0 and "new_credits" in data[0]:
+            return True, f"Credits deducted. New balance: {int(data[0]['new_credits'])}"
+
+        # Fallback (don’t fail user if parsing differs)
+        return True, "Credits deducted successfully."
+
+    except Exception as e:
+        msg = str(e)
+        if "Insufficient credits" in msg:
+            return False, "❌ Insufficient credits. Please top up."
+        if "No active subscription found" in msg:
+            return False, "❌ No active subscription found. Please subscribe."
+        return False, f"❌ Credit deduction failed: {msg}"
 
 # ==========================================================
 # AUTO EXPIRATION
