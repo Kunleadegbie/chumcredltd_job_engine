@@ -115,6 +115,7 @@ with tab_login:
         }
 
         st.switch_page("pages/2_Dashboard.py")
+       
 
     # ------------------------------
     # FORGOT PASSWORD (EMAIL ONLY)
@@ -137,6 +138,8 @@ with tab_login:
                 st.session_state.show_forgot = False
             except Exception:
                 st.error("Unable to send reset email.")
+                st.page_link("pages/reset_password.py", label="(TEST) Open Reset Password page")
+
 
 
 # ==========================================================
