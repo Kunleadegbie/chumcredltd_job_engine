@@ -104,6 +104,35 @@ def get_subscription(user_id: str):
         return None
 
 # ==========================================================
+# CREDIT DEDUCTION
+# ==========================================================
+
+def consume_credits(user_id: str, amount: int, feature: str = "") -> int:
+    """
+    Deduct credits atomically in DB via RPC.
+    Returns the new credit balance.
+    """
+    res = (
+        supabase
+        .rpc("consume_credits", {
+            "p_user_id": user_id,
+            "p_amount": int(amount),
+            "p_feature": feature or None
+        })
+        .execute()
+    )
+
+    data = getattr(res, "data", None) or res.data or None  # extra-safe
+    if isinstance(data, list) and data and "new_credits" in data[0]:
+        return int(data[0]["new_credits"])
+    if isinstance(data, dict) and "new_credits" in data:
+        return int(data["new_credits"])
+
+    # Fallback: just return -1 if parsing fails
+    return -1
+
+
+# ==========================================================
 # AUTO EXPIRATION
 # ==========================================================
 
