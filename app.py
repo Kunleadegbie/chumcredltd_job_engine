@@ -46,34 +46,59 @@ components.html(
     if (window.location.hash) {
         const hash = window.location.hash.substring(1);
         const params = new URLSearchParams(hash);
-        const query = new URLSearchParams(window.location.search);
 
-        for (const [key, value] of params.entries()) {
-            query.set(key, value);
-        }
+        const newUrl =
+            window.location.pathname +
+            "?" +
+            params.toString();
 
-        window.location.replace(
-            window.location.pathname + "?" + query.toString()
-        );
+        // 🔥 FORCE FULL HARD RELOAD
+        window.location.href = newUrl;
     }
     </script>
     """,
     height=0,
 )
 
-
-# ==========================================================
-# QUERY PARAMS (GLOBAL)
-# ==========================================================
-params = st.query_params
-
-
 # ==========================================================
 # 🔐 PASSWORD RECOVERY MODE (LOCKED)
 # ==========================================================
-if params.get("type") == "recovery":
-    st.session_state["recovery_mode"] = True
+params = st.query_params
 
+if (
+    params.get("type") == "recovery"
+    and "access_token" in params
+    and "refresh_token" in params
+):
+    try:
+        supabase.auth.set_session(
+            params["access_token"],
+            params["refresh_token"],
+        )
+    except Exception:
+        st.error("Invalid or expired reset link.")
+        st.stop()
+
+    st.image("assets/talentiq_logo.png", width=220)
+    st.title("🔐 Reset Your Password")
+
+    new_pw = st.text_input("New Password", type="password")
+    confirm_pw = st.text_input("Confirm New Password", type="password")
+
+    if st.button("Update Password"):
+        if not new_pw or new_pw != confirm_pw:
+            st.error("Passwords do not match.")
+            st.stop()
+
+        supabase.auth.update_user({"password": new_pw})
+        supabase.auth.sign_out()
+        st.query_params.clear()
+        st.session_state.clear()
+
+        st.success("Password updated. Please sign in.")
+        st.stop()
+
+    st.stop()
 
 # ==========================================================
 # 🔐 PASSWORD RESET FLOW (HIGHEST PRIORITY)
