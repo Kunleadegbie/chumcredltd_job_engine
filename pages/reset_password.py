@@ -12,6 +12,21 @@ st.title("🔐 Reset Your Password")
 
 params = st.query_params
 
+st.write("DEBUG query params:", dict(st.query_params))
+st.write("DEBUG full URL (from browser): please copy from address bar")
+
+import time
+
+params = st.query_params
+
+# Wait a moment for the browser to finish any redirects (Streamlit reruns fast)
+for _ in range(6):  # ~3 seconds total
+    if "access_token" in params and "refresh_token" in params:
+        break
+    time.sleep(0.5)
+    params = st.query_params
+
+
 # Expect PKCE redirect: ?code=...
 code = params.get("code")
 
