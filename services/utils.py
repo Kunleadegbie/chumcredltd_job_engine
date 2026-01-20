@@ -105,36 +105,30 @@ def get_subscription(user_id: str):
 
 # ==========================================================
 # CREDIT DEDUCTION
-
-
 # ==========================================================
 
 def deduct_credits(user_id: str, amount: int):
     """
-    Deduct credits from subscriptions atomically using DB RPC.
-    Returns (ok: bool, msg: str)
+    Deduct credits atomically from public.subscriptions using RPC.
+    Returns (ok: bool, message: str)
     """
     try:
         amount = int(amount)
         if amount <= 0:
             return False, "Invalid credit amount."
 
-        res = (
-            supabase
-            .rpc("consume_credits", {"p_user_id": user_id, "p_amount": amount})
-            .execute()
-        )
+        res = supabase.rpc(
+            "consume_credits",
+            {"p_user_id": user_id, "p_amount": amount}
+        ).execute()
 
         data = getattr(res, "data", None)
-        if not data:
-            # Some supabase clients return [] even on success; handle carefully
-            return True, "Credits deducted successfully."
 
         # Expected: [{"new_credits": 123}]
-        if isinstance(data, list) and len(data) > 0 and "new_credits" in data[0]:
+        if isinstance(data, list) and data and "new_credits" in data[0]:
             return True, f"Credits deducted. New balance: {int(data[0]['new_credits'])}"
 
-        # Fallback (don’t fail user if parsing differs)
+        # Some clients return [] even on success
         return True, "Credits deducted successfully."
 
     except Exception as e:
@@ -144,6 +138,8 @@ def deduct_credits(user_id: str, amount: int):
         if "No active subscription found" in msg:
             return False, "❌ No active subscription found. Please subscribe."
         return False, f"❌ Credit deduction failed: {msg}"
+
+
 
 # ==========================================================
 # AUTO EXPIRATION
