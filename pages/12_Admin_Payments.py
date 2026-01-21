@@ -2,19 +2,14 @@
 # 12_Admin_Payments.py — FINAL, AUTH.USERS.ID ONLY (STABLE+UX)
 # Fixes added:
 # - Safe auth.list_users() parsing (.users vs dict)
+# - Pagination + case-insensitive auth email lookup
 # - Debounce/double-click protection for approve + adjust credit
-# - Shows credit summary: 200 → 300
-# - Prevents repeated crediting on rapid clicks
-# - Better UX (spinners, disabled buttons, clear success states)
+# - Added Decline decision (Approve/Decline dropdown)
+# - Optional decline reason (safe retry if column missing)
 #
-# ✅ NEW (Minor Change):
-# - Added "Decline" decision for subscription payments (Approve/Decline dropdown)
-# - Optional decline reason (requires DB column subscription_payments.decline_reason)
-#
-# ✅ NEW (Bug Fix):
-# - Manual Credit Adjustment now finds auth.users by email reliably:
-#   - Handles pagination (list_users is paged)
-#   - Case-insensitive email matching
+# ✅ NEW (Your request):
+# - Show USER EMAIL + TRANSACTION DATE in each payment card
+# - Include EMAIL + DATE in approval/decline confirmation message
 # ==========================================================
 
 import streamlit as st
@@ -70,26 +65,41 @@ PLANS = {
 def _utcnow():
     return datetime.now(timezone.utc)
 
+def _fmt_dt(dt_value):
+    """
+    Formats dt for display. Supports:
+    - ISO strings
+    - datetime objects
+    - None
+    """
+    if not dt_value:
+        return "N/A"
+    if isinstance(dt_value, datetime):
+        return dt_value.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    if isinstance(dt_value, str):
+        # best-effort parse ISO, else return raw
+        try:
+            s = dt_value.replace("Z", "+00:00")
+            return datetime.fromisoformat(s).astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        except Exception:
+            return dt_value
+    return str(dt_value)
+
 def _safe_list_auth_users(page: int = 1, per_page: int = 200):
     """
-    Supabase python client varies across versions.
     Returns a plain list of auth users safely (ONE PAGE).
     """
     res = supabase_admin.auth.admin.list_users(page=page, per_page=per_page)
 
-    # Most common: object with .users
     if hasattr(res, "users") and isinstance(res.users, list):
         return res.users
 
-    # Sometimes: dict with "users"
     if isinstance(res, dict) and isinstance(res.get("users"), list):
         return res["users"]
 
-    # Sometimes: object with .data containing users
     if hasattr(res, "data") and isinstance(res.data, dict) and isinstance(res.data.get("users"), list):
         return res.data["users"]
 
-    # Fallback: if already list
     if isinstance(res, list):
         return res
 
@@ -97,9 +107,7 @@ def _safe_list_auth_users(page: int = 1, per_page: int = 200):
 
 def find_auth_user_by_email(email: str, per_page: int = 200, max_pages: int = 50):
     """
-    Find an auth user by email reliably:
-    - paginates through auth users
-    - case-insensitive comparison
+    Paginate through auth users to find a user by email (case-insensitive).
     """
     target = (email or "").strip().lower()
     if not target:
@@ -110,18 +118,34 @@ def find_auth_user_by_email(email: str, per_page: int = 200, max_pages: int = 50
         if not users:
             break
 
-        hit = next(
-            (u for u in users if (getattr(u, "email", "") or "").strip().lower() == target),
-            None
-        )
+        hit = next((u for u in users if (getattr(u, "email", "") or "").strip().lower() == target), None)
         if hit:
             return hit
 
-        # last page
         if len(users) < per_page:
             break
 
     return None
+
+def find_auth_email_by_user_id(user_id: str):
+    """
+    Best-effort: find auth email by auth.users.id.
+    Uses pagination to locate user. Returns 'Unknown' if not found quickly.
+    """
+    if not user_id:
+        return "Unknown"
+
+    uid = str(user_id).strip()
+    for page in range(1, 51):
+        users = _safe_list_auth_users(page=page, per_page=200)
+        if not users:
+            break
+        hit = next((u for u in users if str(getattr(u, "id", "")).strip() == uid), None)
+        if hit:
+            return (getattr(hit, "email", None) or "Unknown")
+        if len(users) < 200:
+            break
+    return "Unknown"
 
 def _get_subscription_by_user_id(user_id: str):
     rows = (
@@ -180,7 +204,7 @@ def _debounce(key: str, seconds: float = 2.0) -> bool:
 # ==========================================================
 # ATOMIC PAYMENT APPROVAL (USER_ID = auth.users.id ONLY)
 # ==========================================================
-def approve_payment_atomic(payment_id: int, admin_id: str):
+def approve_payment_atomic(payment_id: str, admin_id: str):
     now = _utcnow()
 
     payment = (
@@ -209,7 +233,6 @@ def approve_payment_atomic(payment_id: int, admin_id: str):
     duration_days = int(PLANS[plan]["days"])
     end_date = now + timedelta(days=duration_days)
 
-    # Current subscription (if any)
     existing = _get_subscription_by_user_id(user_id)
 
     if existing:
@@ -233,25 +256,21 @@ def approve_payment_atomic(payment_id: int, admin_id: str):
             end_date_iso=end_date.isoformat(),
         )
 
-    # Mark payment approved
     supabase_admin.table("subscription_payments").update({
         "status": "approved",
         "approved_by": admin_id,
         "approved_at": now.isoformat(),
-        # Optional: if you also use this boolean in your schema, uncomment:
-        # "approved": True,
     }).eq("id", payment_id).execute()
 
-    return before, after, plan
+    return before, after, plan, payment
 
 
 # ==========================================================
 # ATOMIC PAYMENT DECLINE (NO CREDITS APPLIED)
 # NOTE:
-# - decline_reason is optional; if the column doesn't exist,
-#   we retry without it to avoid breaking the page.
+# - decline_reason is optional; if column missing, retry without it
 # ==========================================================
-def decline_payment_atomic(payment_id: int, admin_id: str, reason: str = ""):
+def decline_payment_atomic(payment_id: str, admin_id: str, reason: str = ""):
     now = _utcnow()
 
     payment = (
@@ -272,27 +291,24 @@ def decline_payment_atomic(payment_id: int, admin_id: str, reason: str = ""):
 
     payload = {
         "status": "declined",
-        "approved_by": admin_id,     # reuse field as "actioned by"
+        "approved_by": admin_id,
         "approved_at": now.isoformat(),
-        # Optional: if you also use this boolean in your schema, uncomment:
-        # "approved": False,
     }
 
     reason = (reason or "").strip()
     if reason:
-        payload["decline_reason"] = reason  # optional column
+        payload["decline_reason"] = reason
 
     try:
         supabase_admin.table("subscription_payments").update(payload).eq("id", payment_id).execute()
     except Exception as e:
-        # If decline_reason column doesn't exist, retry without it (prevents bugs)
         if "decline_reason" in str(e).lower():
             payload.pop("decline_reason", None)
             supabase_admin.table("subscription_payments").update(payload).eq("id", payment_id).execute()
         else:
             raise
 
-    return payment.get("plan")
+    return payment.get("plan"), payment
 
 
 # ==========================================================
@@ -326,9 +342,15 @@ for p in payments:
     payment_id = p["id"]
     status = (p.get("status") or "").lower()
 
+    # NEW: resolve email + transaction date for display
+    payer_email = find_auth_email_by_user_id(p.get("user_id"))
+    txn_date = _fmt_dt(p.get("paid_on") or p.get("created_at") or p.get("approved_at"))
+
     st.markdown(f"""
 **Payment ID:** `{payment_id}`  
 **User ID (auth):** `{p.get("user_id")}`  
+**User Email:** `{payer_email}`  
+**Transaction Date:** `{txn_date}`  
 **Plan:** **{p.get("plan")}**  
 **Amount:** ₦{int(p.get("amount", 0) or 0):,}  
 **Credits (per plan):** {int(p.get("credits", 0) or 0):,}  
@@ -348,7 +370,6 @@ for p in payments:
         st.write("---")
         continue
 
-    # per-payment UI state
     submit_key = f"submit_decision_{payment_id}"
     lock_key = f"_lock_{submit_key}"
     debounce_key = f"_debounce_{submit_key}"
@@ -397,12 +418,25 @@ for p in payments:
         try:
             if decision == "Approve":
                 with st.spinner("Approving payment and applying credits…"):
-                    before, after, plan = approve_payment_atomic(payment_id, user["id"])
-                st.success(f"Payment approved successfully. Credits: {before} → {after} (Plan: {plan})")
+                    before, after, plan, payment_row = approve_payment_atomic(payment_id, user["id"])
+
+                email_for_msg = payer_email if payer_email != "Unknown" else find_auth_email_by_user_id(payment_row.get("user_id"))
+                date_for_msg = _fmt_dt(payment_row.get("paid_on") or payment_row.get("created_at") or _utcnow())
+
+                st.success(
+                    f"✅ Payment APPROVED — {email_for_msg} | {date_for_msg} | "
+                    f"Credits: {before} → {after} (Plan: {plan})"
+                )
             else:
                 with st.spinner("Declining payment…"):
-                    plan = decline_payment_atomic(payment_id, user["id"], reason=reason)
-                st.success(f"Payment declined successfully. (Plan: {plan})")
+                    plan, payment_row = decline_payment_atomic(payment_id, user["id"], reason=reason)
+
+                email_for_msg = payer_email if payer_email != "Unknown" else find_auth_email_by_user_id(payment_row.get("user_id"))
+                date_for_msg = _fmt_dt(payment_row.get("paid_on") or payment_row.get("created_at") or _utcnow())
+
+                st.success(
+                    f"🚫 Payment DECLINED — {email_for_msg} | {date_for_msg} (Plan: {plan})"
+                )
 
             st.rerun()
 
@@ -414,11 +448,9 @@ for p in payments:
 
 # ==========================================================
 # MANUAL CREDIT ADJUSTMENT (EMAIL → auth.users.id)
-# - Persist success summary across reruns
 # ==========================================================
 st.subheader("🔧 Manual Credit Adjustment")
 
-# Show last adjustment summary (persists after rerun)
 if st.session_state.get("credit_adjustment_summary"):
     st.success(st.session_state["credit_adjustment_summary"])
     if st.button("Clear message", key="clear_credit_adjustment_summary"):
@@ -453,7 +485,6 @@ if apply_clicked:
     st.session_state[adj_lock_key] = True
     try:
         with st.spinner("Searching auth.users and updating credits…"):
-            # ✅ FIX: paginated + case-insensitive auth lookup
             target = find_auth_user_by_email(email.strip())
 
             if not target:
