@@ -13,7 +13,7 @@ from config.supabase_client import supabase
 # PLANS (Subscription Pricing)
 # ==========================================================
 PLANS = {
-    "FREEMIUM": {"price": 0, "credits": 50, "duration_days": 14, "label": "Freemium"},
+    "FREEMIUM": {"price": 0, "credits": 50, "duration_days": 7, "label": "Freemium"},
     "BASIC": {"price": 25000, "credits": 500, "duration_days": 90, "label": "Basic"},
     "PRO": {"price": 50000, "credits": 1150, "duration_days": 180, "label": "Pro"},
     "PREMIUM": {"price": 100000, "credits": 2500, "duration_days": 365, "label": "Premium"},

@@ -52,7 +52,7 @@ st.write("---")
 # PLAN CONFIG (SINGLE SOURCE OF TRUTH)
 # ==========================================================
 PLANS = {
-    "FREEMIUM": {"credits": 50, "days": 14},
+    "FREEMIUM": {"credits": 50, "days": 7},
     "BASIC": {"credits": 500, "days": 90},
     "PRO": {"credits": 1150, "days": 180},
     "PREMIUM": {"credits": 2500, "days": 365},
