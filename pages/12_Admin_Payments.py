@@ -10,6 +10,11 @@
 # ✅ NEW (Minor Change):
 # - Added "Decline" decision for subscription payments (Approve/Decline dropdown)
 # - Optional decline reason (requires DB column subscription_payments.decline_reason)
+#
+# ✅ NEW (Bug Fix):
+# - Manual Credit Adjustment now finds auth.users by email reliably:
+#   - Handles pagination (list_users is paged)
+#   - Case-insensitive email matching
 # ==========================================================
 
 import streamlit as st
@@ -65,12 +70,12 @@ PLANS = {
 def _utcnow():
     return datetime.now(timezone.utc)
 
-def _safe_list_auth_users():
+def _safe_list_auth_users(page: int = 1, per_page: int = 200):
     """
     Supabase python client varies across versions.
-    This returns a plain list of auth users safely.
+    Returns a plain list of auth users safely (ONE PAGE).
     """
-    res = supabase_admin.auth.admin.list_users()
+    res = supabase_admin.auth.admin.list_users(page=page, per_page=per_page)
 
     # Most common: object with .users
     if hasattr(res, "users") and isinstance(res.users, list):
@@ -89,6 +94,34 @@ def _safe_list_auth_users():
         return res
 
     return []
+
+def find_auth_user_by_email(email: str, per_page: int = 200, max_pages: int = 50):
+    """
+    Find an auth user by email reliably:
+    - paginates through auth users
+    - case-insensitive comparison
+    """
+    target = (email or "").strip().lower()
+    if not target:
+        return None
+
+    for page in range(1, max_pages + 1):
+        users = _safe_list_auth_users(page=page, per_page=per_page)
+        if not users:
+            break
+
+        hit = next(
+            (u for u in users if (getattr(u, "email", "") or "").strip().lower() == target),
+            None
+        )
+        if hit:
+            return hit
+
+        # last page
+        if len(users) < per_page:
+            break
+
+    return None
 
 def _get_subscription_by_user_id(user_id: str):
     rows = (
@@ -214,8 +247,9 @@ def approve_payment_atomic(payment_id: int, admin_id: str):
 
 # ==========================================================
 # ATOMIC PAYMENT DECLINE (NO CREDITS APPLIED)
-# NOTE: If you added the column, decline_reason will be saved.
-# If column doesn't exist, comment out decline_reason line below.
+# NOTE:
+# - decline_reason is optional; if the column doesn't exist,
+#   we retry without it to avoid breaking the page.
 # ==========================================================
 def decline_payment_atomic(payment_id: int, admin_id: str, reason: str = ""):
     now = _utcnow()
@@ -244,10 +278,20 @@ def decline_payment_atomic(payment_id: int, admin_id: str, reason: str = ""):
         # "approved": False,
     }
 
-    # ✅ Optional reason (requires column subscription_payments.decline_reason)
-    payload["decline_reason"] = (reason or "").strip()
+    reason = (reason or "").strip()
+    if reason:
+        payload["decline_reason"] = reason  # optional column
 
-    supabase_admin.table("subscription_payments").update(payload).eq("id", payment_id).execute()
+    try:
+        supabase_admin.table("subscription_payments").update(payload).eq("id", payment_id).execute()
+    except Exception as e:
+        # If decline_reason column doesn't exist, retry without it (prevents bugs)
+        if "decline_reason" in str(e).lower():
+            payload.pop("decline_reason", None)
+            supabase_admin.table("subscription_payments").update(payload).eq("id", payment_id).execute()
+        else:
+            raise
+
     return payment.get("plan")
 
 
@@ -299,7 +343,6 @@ for p in payments:
 
     if status == "declined":
         st.warning("🚫 Declined.")
-        # Show reason if exists
         if p.get("decline_reason"):
             st.caption(f"Reason: {p.get('decline_reason')}")
         st.write("---")
@@ -345,7 +388,6 @@ for p in payments:
             st.caption("Declines payment (no credits applied).")
 
     if submit_clicked:
-        # Debounce to prevent multi-click double processing
         if not _debounce(debounce_key, seconds=2.5):
             st.warning("Please wait… action already processing.")
             st.write("---")
@@ -379,7 +421,6 @@ st.subheader("🔧 Manual Credit Adjustment")
 # Show last adjustment summary (persists after rerun)
 if st.session_state.get("credit_adjustment_summary"):
     st.success(st.session_state["credit_adjustment_summary"])
-    # Optional: allow clearing
     if st.button("Clear message", key="clear_credit_adjustment_summary"):
         st.session_state["credit_adjustment_summary"] = None
         st.rerun()
@@ -405,7 +446,6 @@ if apply_clicked:
         st.error("Email and a non-zero credit value are required.")
         st.stop()
 
-    # Debounce to prevent multiple rapid submissions
     if not _debounce(adj_debounce_key, seconds=2.5):
         st.warning("Please wait… adjustment already processing.")
         st.stop()
@@ -413,8 +453,8 @@ if apply_clicked:
     st.session_state[adj_lock_key] = True
     try:
         with st.spinner("Searching auth.users and updating credits…"):
-            auth_users = _safe_list_auth_users()
-            target = next((u for u in auth_users if getattr(u, "email", None) == email.strip()), None)
+            # ✅ FIX: paginated + case-insensitive auth lookup
+            target = find_auth_user_by_email(email.strip())
 
             if not target:
                 st.session_state[adj_lock_key] = False
@@ -440,7 +480,6 @@ if apply_clicked:
                     end_date_iso=None
                 )
 
-        # ✅ Persist message so it still shows after rerun
         st.session_state["credit_adjustment_summary"] = (
             f"Credits updated successfully for {email.strip()}: "
             f"{before} → {after} (Δ {int(credits_delta):+})"
