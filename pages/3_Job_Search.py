@@ -125,9 +125,23 @@ if st.button("🔎 Search Jobs"):
 
     st.info("🔄 Searching jobs…")
 
+    # ---------------------------------------------------------
+    # ✅ FIX (MINIMAL): Ensure location field affects search
+    # Some job APIs ignore separate "location" parameter and only
+    # filter based on the query text. So we safely inject location
+    # into the query when provided (without duplicating).
+    # ---------------------------------------------------------
+    query_clean = (query or "").strip()
+    location_clean = (location or "").strip()
+
+    query_for_api = query_clean
+    if location_clean:
+        if location_clean.lower() not in query_clean.lower():
+            query_for_api = f"{query_clean} {location_clean}"
+
     results = search_jobs(
-        query=query,
-        location=location,
+        query=query_for_api,
+        location=location_clean,
         page=page,
         remote=remote_only
     )
