@@ -1,4 +1,3 @@
-
 # ==========================================================
 # services/utils.py — STABLE + SAFE SUBSCRIPTION / PAYMENTS
 # Fix: remove duplicate deduct_credits() + enforce atomic deduction via RPC
@@ -35,11 +34,19 @@ def _safe_single(res):
 
 
 def _parse_dt(value):
+    """
+    ✅ FIX: Always return timezone-aware UTC datetime.
+    Supabase can return timestamps with/without timezone.
+    Naive datetimes break comparisons and silently stop expiry logic.
+    """
     if not value:
         return None
     try:
         s = str(value).replace("Z", "+00:00")
-        return datetime.fromisoformat(s)
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
     except Exception:
         return None
 
@@ -68,6 +75,11 @@ def is_admin(user_id: str) -> bool:
 # SUBSCRIPTIONS — SINGLE SOURCE OF TRUTH
 # ==========================================================
 def get_subscription(user_id: str):
+    """
+    ✅ FIX: Enforce expiry on read.
+    If end_date has passed, return credits=0 and status=expired,
+    and best-effort persist to DB.
+    """
     try:
         res = (
             supabase.table("subscriptions")
@@ -76,7 +88,29 @@ def get_subscription(user_id: str):
             .limit(1)
             .execute()
         )
-        return _safe_single(res)
+        row = _safe_single(res)
+        if not row:
+            return None
+
+        end_date = row.get("end_date")
+        expiry = _parse_dt(end_date) if end_date else None
+
+        if expiry and expiry <= _utcnow():
+            # Force effective state (prevents dashboard showing stale credits)
+            row["subscription_status"] = "expired"
+            row["credits"] = 0
+
+            # Best-effort persist (may be blocked by RLS; that's okay)
+            try:
+                supabase.table("subscriptions").update({
+                    "subscription_status": "expired",
+                    "credits": 0,
+                }).eq("user_id", user_id).execute()
+            except Exception:
+                pass
+
+        return row
+
     except Exception:
         return None
 
@@ -101,11 +135,42 @@ def deduct_credits(user_id: str, amount: int):
     IMPORTANT: user_id is kept for backward compatibility with your pages,
     but the RPC MUST enforce auth.uid() inside Postgres.
     Returns (ok: bool, msg: str)
+
+    ✅ FIX: Block spending immediately if subscription is expired (end_date passed),
+    and best-effort zero credits + mark expired.
     """
     try:
         amount = int(amount)
         if amount <= 0:
             return False, "Invalid credit amount."
+
+        # ✅ Enforce expiry before any consumption
+        try:
+            auto_expire_subscription(user_id)
+        except Exception:
+            pass
+
+        sub = get_subscription(user_id)
+        if not sub:
+            return False, "❌ No active subscription found. Please subscribe."
+
+        status = (sub.get("subscription_status") or "").lower()
+        if status != "active":
+            return False, "❌ Subscription expired or inactive. Please renew."
+
+        # Extra safety: even if status says active, end_date could already be past
+        end_date = sub.get("end_date")
+        expiry = _parse_dt(end_date) if end_date else None
+        if expiry and expiry <= _utcnow():
+            # Best-effort persist
+            try:
+                supabase.table("subscriptions").update({
+                    "subscription_status": "expired",
+                    "credits": 0,
+                }).eq("user_id", user_id).execute()
+            except Exception:
+                pass
+            return False, "❌ Subscription expired or inactive. Please renew."
 
         # ✅ Preferred (safe): RPC function uses auth.uid() internally
         res = supabase.rpc("consume_credits", {"p_amount": amount}).execute()
@@ -149,6 +214,7 @@ def auto_expire_subscription(user_id: str):
     """
     If your subscriptions table has strict RLS, this update may be blocked.
     That's okay; it won't break the app. (Credits logic is handled by RPC.)
+    ✅ FIX: expiry comparison now works reliably (timezone-aware parse).
     """
     try:
         res = (
@@ -173,7 +239,7 @@ def auto_expire_subscription(user_id: str):
         if not expiry:
             return
 
-        if expiry < _utcnow():
+        if expiry <= _utcnow():
             supabase.table("subscriptions").update({
                 "subscription_status": "expired",
                 "credits": 0,
