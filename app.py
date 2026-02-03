@@ -174,7 +174,7 @@ with tab_register:
 
         if success:
             st.success(msg)
-            st.info("You can now sign in.")
+            st.info("Verification email sent. Please check your inbox and Spam/Junk folder. Sign in after email confirmation.")
         else:
             st.error(msg)
 
