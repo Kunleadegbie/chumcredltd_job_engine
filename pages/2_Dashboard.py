@@ -12,7 +12,7 @@ render_sidebar()
 
 
 import streamlit.components.v1 as components
-from datetime import datetime
+from datetime import datetime, timezone
 from config.supabase_client import supabase  # kept as-is (even if not used)
 from services.utils import get_subscription, is_low_credit
 from config.supabase_client import supabase_admin
@@ -269,6 +269,41 @@ if end_date:
     expiry_str = datetime.fromisoformat(end_date).strftime("%d %b %Y")
 else:
     expiry_str = "Never expires"
+
+# ======================================================
+# AUTO-REFRESH AT EXPIRY (FORCE CREDITS=0 WITHOUT USER ACTION)
+# - Ensures this page re-runs right when end_date (UTC) is reached
+# - get_subscription() will then return credits=0 and status=expired
+# ======================================================
+try:
+    if end_date and (status or "").lower() == "active":
+        end_dt = datetime.fromisoformat(str(end_date).replace("Z", "+00:00"))
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
+
+        now_utc = datetime.now(timezone.utc)
+        seconds_to_expiry = (end_dt.astimezone(timezone.utc) - now_utc).total_seconds()
+
+        if seconds_to_expiry > 0:
+            # Refresh exactly at expiry (+1s buffer). Cap long waits to 10 mins refresh.
+            ms = int(min(seconds_to_expiry + 1, 600) * 1000)
+            components.html(
+                f"<script>setTimeout(() => window.location.reload(), {ms});</script>",
+                height=0,
+            )
+        else:
+            # Already expired: refresh once shortly so UI reflects credits=0
+            components.html(
+                "<script>setTimeout(() => window.location.reload(), 1000);</script>",
+                height=0,
+            )
+except Exception:
+    # Fallback: refresh every 5 minutes (keeps UI from staying stale)
+    components.html(
+        "<script>setTimeout(() => window.location.reload(), 300000);</script>",
+        height=0,
+    )
+
 
 
 # ======================================================
