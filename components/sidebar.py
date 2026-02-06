@@ -58,6 +58,7 @@ def render_sidebar() -> None:
         safe_page_link("pages/3c_Cover_Letter.py", "✍️ Cover Letter")
         safe_page_link("pages/3d_Eligibility.py", "✅ Eligibility Check")
         safe_page_link("pages/3e_Resume_Writer.py", "📄 Resume Writer")
+        safe_page_link("pages/3i_Tailor_CV_to_Job.py", "🧩 Tailor CV to Job")
         safe_page_link("pages/3f_Job_Recommendations.py", "🎯 Job Recommendations")
         safe_page_link("pages/3g_ATS_SmartMatch.py", "🧬 ATS SmartMatch")
         safe_page_link("pages/3h_InterviewIQ.py", "🧠 InterviewIQ™")
