@@ -46,6 +46,8 @@ def render_sidebar() -> None:
         safe_page_link("pages/2_Dashboard.py", "📊 Dashboard")
         safe_page_link("pages/3_Job_Search.py", "🔍 Job Search")
         safe_page_link("pages/4_Saved_Jobs.py", "💾 Saved Jobs")
+        safe_page_link("pages/16_Institution_Executive_Dashboard.py", "🏛️ Institution Dashboard")
+
 
         st.divider()
 
