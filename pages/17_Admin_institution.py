@@ -49,57 +49,35 @@ st.caption("Create institutions, manage license status, and assign institution m
 def _utcnow():
     return datetime.now(timezone.utc)
 
-def _has_license_status_column() -> bool:
+def _select_institutions(limit: int = 500):
     """
-    Probe whether institutions.license_status exists.
-    Safe: returns False if PostgREST errors with missing column.
+    Uses license_status if the column exists.
+    If not, gracefully falls back (no crash).
     """
     try:
         r = (
-            supabase_admin
-            .table("institutions")
-            .select("id,license_status")
-            .limit(1)
-            .execute()
-        )
-        # If the column doesn't exist, supabase client raises APIError
-        return True if getattr(r, "data", None) is not None else False
-    except Exception:
-        return False
-
-HAS_LICENSE_STATUS = _has_license_status_column()
-
-def _select_institutions(limit: int = 500):
-    """
-    Uses license_status if the column exists. If not, gracefully falls back.
-    """
-    if HAS_LICENSE_STATUS:
-        r = (
-            supabase_admin
-            .table("institutions")
+            supabase_admin.table("institutions")
             .select("id,name,institution_type,industry,website,created_at,license_status")
             .order("created_at", desc=True)
             .limit(limit)
             .execute()
         )
         return (r.data or []), True
-
-    r2 = (
-        supabase_admin
-        .table("institutions")
-        .select("id,name,institution_type,industry,website,created_at")
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
-    )
-    return (r2.data or []), False
+    except Exception:
+        r2 = (
+            supabase_admin.table("institutions")
+            .select("id,name,institution_type,industry,website,created_at")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return (r2.data or []), False
 
 def _find_user_app_by_email(email: str):
     if not email:
         return None
     r = (
-        supabase_admin
-        .table("users_app")
+        supabase_admin.table("users_app")
         .select("id,full_name,email,role")
         .ilike("email", email.strip())
         .limit(1)
@@ -110,8 +88,7 @@ def _find_user_app_by_email(email: str):
 
 def _list_members(institution_id: str, limit: int = 500):
     r = (
-        supabase_admin
-        .table("institution_members")
+        supabase_admin.table("institution_members")
         .select("id,institution_id,user_id,member_role,created_at")
         .eq("institution_id", institution_id)
         .order("created_at", desc=True)
@@ -141,10 +118,9 @@ with tab1:
         website = st.text_input("Website (optional)", placeholder="e.g., https://unilag.edu.ng")
     with c2:
         license_status = st.selectbox("License status", ["active", "trial", "suspended", "expired"], index=0)
-        if HAS_LICENSE_STATUS:
-            st.caption("Use **license_status** to control access without deleting accounts.")
-        else:
-            st.caption("ℹ️ Your DB does not have **institutions.license_status** yet. This will be ignored.")
+        st.caption("Use **license_status** to control access without deleting accounts.")
+
+    inst_rows, has_license_status = _select_institutions(limit=1)  # just to detect column existence
 
     if st.button("➕ Create Institution"):
         if not name.strip():
@@ -160,7 +136,7 @@ with tab1:
         }
 
         # Only include license_status if the column exists
-        if HAS_LICENSE_STATUS:
+        if has_license_status:
             payload["license_status"] = license_status
 
         try:
@@ -184,7 +160,7 @@ with tab1:
         st.subheader("Update license status")
 
         if not has_license_status:
-            st.warning("Your institutions table does not have **license_status** yet. Add the column to enable licensing.")
+            st.warning("Your institutions table does not have license_status yet. Run the SQL migration first.")
         else:
             inst_map = {f"{r.get('name','(no name)')} — {r.get('id')}": r.get("id") for r in inst_rows if r.get("id")}
             pick = st.selectbox("Select an institution", list(inst_map.keys()))
