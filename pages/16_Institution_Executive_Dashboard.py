@@ -48,6 +48,35 @@ st.markdown(
 
 st.title("🏛️ Institution Executive Dashboard")
 
+
+# =========================================================
+# ROLE GATING (Admin = global; Recruiter/Viewer = only own institution)
+# =========================================================
+def _get_my_institution_membership(uid: str):
+    rows = _safe_exec(
+        supabase_admin.table("institution_members")
+        .select("institution_id, member_role, created_at")
+        .eq("user_id", uid)
+        .order("created_at", desc=True)
+        .limit(1)
+    )
+    return rows[0] if rows else None
+
+# 1) Admin can see ALL institutions (dropdown remains)
+# 2) Non-admin must belong to an institution; restrict to only that institution
+member = None
+if user_role != "admin":
+    member = _get_my_institution_membership(user_id)
+    if not member:
+        st.error("❌ You are not assigned to any institution yet. Please contact TalentIQ Admin.")
+        st.stop()
+
+    # Force institution to the user's own institution only
+    selected_institution_id = member.get("institution_id")
+    st.caption("Access: Institution view (restricted).")
+else:
+    st.caption("Access: TalentIQ Admin view (all institutions).")
+
 # =========================================================
 # HELPERS
 # =========================================================
@@ -218,17 +247,22 @@ if not institutions_rows:
 # Admin can see ALL institutions
 institution_options = [(r["name"], r["id"]) for r in institutions_rows]
 
-selected_label = st.selectbox(
-    "Select Institution",
-    options=[f"{name} — {iid}" for (name, iid) in institution_options],
-    index=0,
-)
+if user_role == "admin":
+    selected_label = st.selectbox(
+        "Select Institution",
+        options=[f"{name} — {iid}" for (name, iid) in institution_options],
+        index=0,
+    )
 
-selected_institution_id = selected_label.split(" — ")[-1].strip()
-selected_institution_name = selected_label.split(" — ")[0].strip()
-
-st.caption(f"Showing KPIs for: **{selected_institution_name}**")
-
+    selected_institution_id = selected_label.split(" — ")[-1].strip()
+    selected_institution_name = selected_label.split(" — ")[0].strip()
+else:
+    # non-admin: selected_institution_id already forced by role gating block
+    # find the institution name for display
+    selected_institution_name = next(
+        (r.get("name") for r in institutions_rows if r.get("id") == selected_institution_id),
+        "My Institution"
+    )
 # =========================================================
 # KPI QUERIES (Step 3)
 # =========================================================
