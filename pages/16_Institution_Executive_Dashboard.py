@@ -160,7 +160,13 @@ total_candidates = len({a.get("candidate_user_id") for a in apps if a.get("candi
 
 # ✅ KPI scoring should be per-candidate (not per-application) to avoid inflating scores
 app_candidate_map = {a.get("id"): a.get("candidate_user_id") for a in apps if a.get("id")}
-candidate_scores = {}  # candidate_user_id -> best score within current filter window
+
+# Build helpful lookup for later (Step 4)
+app_by_id = {a.get("id"): a for a in apps if a.get("id")}
+job_post_by_id = {j.get("id"): j for j in job_posts if j.get("id")}
+
+candidate_scores = {}      # candidate_user_id -> best score within current filter window
+candidate_best_app = {}    # candidate_user_id -> best application_id (highest score)
 for aid, s in score_by_app.items():
     cid = app_candidate_map.get(aid)
     if not cid:
@@ -175,6 +181,7 @@ for aid, s in score_by_app.items():
     prev = candidate_scores.get(cid)
     if prev is None or val > prev:
         candidate_scores[cid] = val
+        candidate_best_app[cid] = aid
 
 scored_count = len(candidate_scores)
 score_vals = list(candidate_scores.values())
@@ -190,6 +197,98 @@ k2.metric("Applications", total_apps)
 k3.metric("Candidates", total_candidates)
 k4.metric("Avg Score", f"{avg_score:.1f}")
 k5.metric("Job-Ready % (≥70)", f"{job_ready_rate*100:.0f}%")
+
+st.write("---")
+
+# =========================================================
+# STEP 5 — INSTITUTION EMPLOYABILITY INDEX (Institution-Level)
+# - Single composite index (0–100) + optional delta vs previous window
+# =========================================================
+st.subheader("📌 Institutional Employability Index")
+
+# Coverage: how many candidates got scored in this window
+coverage = (scored_count / total_candidates) if total_candidates else 0.0
+
+# Composite (0–100):
+#  - 50% Average Score (0–100)
+#  - 30% Job-Ready Rate (0–100)
+#  - 20% Scoring Coverage (0–100)
+employability_index = (
+    0.50 * float(avg_score) +
+    0.30 * float(job_ready_rate * 100) +
+    0.20 * float(coverage * 100)
+) if total_candidates else 0.0
+
+# Optional: previous-window comparison (same length window immediately before)
+window_days = max(1, (end_date - start_date).days + 1)
+prev_end_dt = start_dt - timedelta(seconds=1)
+prev_start_dt = prev_end_dt - timedelta(days=window_days)
+
+prev_apps = _safe_exec(
+    lambda: supabase.table("institution_applications")
+        .select("id,candidate_user_id,created_at,institution_id")
+        .eq("institution_id", institution_id)
+        .gte("created_at", prev_start_dt.isoformat())
+        .lte("created_at", prev_end_dt.isoformat())
+        .execute()
+        .data,
+    default=[]
+) or []
+
+prev_app_ids = [a["id"] for a in prev_apps if a.get("id")]
+prev_total_candidates = len({a.get("candidate_user_id") for a in prev_apps if a.get("candidate_user_id")})
+
+prev_scores = []
+if prev_app_ids:
+    prev_scores = _safe_exec(
+        lambda: supabase.table("institution_candidate_scores")
+            .select("application_id,overall_score")
+            .in_("application_id", prev_app_ids)
+            .execute()
+            .data,
+        default=[]
+    ) or []
+
+prev_score_by_app = {s.get("application_id"): s for s in prev_scores if s.get("application_id")}
+prev_app_candidate_map = {a.get("id"): a.get("candidate_user_id") for a in prev_apps if a.get("id")}
+
+prev_candidate_scores = {}
+for aid, s in prev_score_by_app.items():
+    cid = prev_app_candidate_map.get(aid)
+    if not cid:
+        continue
+    sc = s.get("overall_score")
+    if sc is None:
+        continue
+    try:
+        val = float(sc)
+    except Exception:
+        continue
+    prev = prev_candidate_scores.get(cid)
+    if prev is None or val > prev:
+        prev_candidate_scores[cid] = val
+
+prev_scored_count = len(prev_candidate_scores)
+prev_score_vals = list(prev_candidate_scores.values())
+prev_avg_score = (sum(prev_score_vals) / len(prev_score_vals)) if prev_score_vals else 0.0
+prev_job_ready_rate = (sum(1 for x in prev_score_vals if x >= 70) / len(prev_score_vals)) if prev_score_vals else 0.0
+prev_coverage = (prev_scored_count / prev_total_candidates) if prev_total_candidates else 0.0
+
+prev_index = (
+    0.50 * float(prev_avg_score) +
+    0.30 * float(prev_job_ready_rate * 100) +
+    0.20 * float(prev_coverage * 100)
+) if prev_total_candidates else 0.0
+
+delta = employability_index - prev_index
+
+ix1, ix2, ix3, ix4 = st.columns([1, 1, 1, 1])
+ix1.metric("Employability Index", f"{employability_index:.1f}", delta=f"{delta:+.1f}")
+ix2.metric("Scoring Coverage", f"{coverage*100:.0f}%")
+ix3.metric("Scored Candidates", scored_count)
+ix4.metric("Total Candidates", total_candidates)
+
+st.caption("Index = 50% Avg Score + 30% Job-Ready Rate + 20% Scoring Coverage (within selected window).")
 
 st.write("---")
 
@@ -227,6 +326,100 @@ with c2:
         s = (a.get("status") or "unknown").lower()
         status_counts[s] = status_counts.get(s, 0) + 1
     st.bar_chart(status_counts)
+
+st.write("---")
+
+# =========================================================
+# STEP 4 — GRADUATE SCORING REPORT (User level)
+# - One row per candidate (best score within filter window)
+# =========================================================
+st.subheader("🎓 Graduate Scoring Report (Best Score per Candidate)")
+
+if not total_candidates:
+    st.info("No candidates found for this institution in the selected window.")
+else:
+    # Candidate profile lookup (users_app)
+    candidate_ids = list(candidate_scores.keys())
+
+    profiles = {}
+    if candidate_ids:
+        # chunk to avoid request limits
+        chunk_size = 200
+        for i in range(0, len(candidate_ids), chunk_size):
+            chunk = candidate_ids[i:i + chunk_size]
+            rows = _safe_exec(
+                lambda ch=chunk: supabase_admin.table("users_app")
+                    .select("id,full_name,email")
+                    .in_("id", ch)
+                    .execute()
+                    .data,
+                default=[]
+            ) or []
+            for r in rows:
+                if r.get("id"):
+                    profiles[r["id"]] = r
+
+    # Build report rows
+    report_rows = []
+    for cid, best_score in candidate_scores.items():
+        aid = candidate_best_app.get(cid)
+        arow = app_by_id.get(aid, {}) if aid else {}
+        score_row = score_by_app.get(aid, {}) if aid else {}
+
+        jp = job_post_by_id.get(arow.get("job_post_id"), {}) if arow else {}
+
+        prof = profiles.get(cid, {})
+        report_rows.append({
+            "candidate_name": prof.get("full_name") or "Unknown",
+            "candidate_email": prof.get("email") or "",
+            "candidate_user_id": cid,
+            "application_id": aid,
+            "job_post_id": arow.get("job_post_id"),
+            "job_title": jp.get("title") or "",
+            "application_status": arow.get("status") or "",
+            "applied_at": arow.get("created_at"),
+            "overall_score": best_score,
+            "job_ready": "YES" if float(best_score) >= 70 else "NO",
+            "subscores": score_row.get("subscores"),
+        })
+
+    # Report filters
+    f1, f2, f3 = st.columns([1, 1, 1])
+    with f1:
+        min_score = st.slider("Min score", 0, 100, 0)
+    with f2:
+        only_job_ready = st.checkbox("Only job-ready (≥70)", value=False)
+    with f3:
+        job_filter = st.selectbox(
+            "Filter by job post",
+            ["All"] + [f"{(j.get('title') or 'Untitled')} — {str(j.get('id'))[:8]}" for j in job_posts],
+        )
+
+    search_text = st.text_input("Search candidate (name/email)", placeholder="e.g., Adekunle, vc@unilag.edu.ng")
+
+    # Apply filters
+    filtered = []
+    selected_job_id = None
+    if job_filter != "All":
+        selected_job_id = job_filter.split("—")[-1].strip()  # short id
+    for r in report_rows:
+        if float(r.get("overall_score") or 0) < float(min_score):
+            continue
+        if only_job_ready and r.get("job_ready") != "YES":
+            continue
+        if selected_job_id:
+            # compare short id prefix
+            jp_id = str(r.get("job_post_id") or "")
+            if not jp_id.startswith(selected_job_id):
+                continue
+        if search_text.strip():
+            t = search_text.strip().lower()
+            if t not in (r.get("candidate_name") or "").lower() and t not in (r.get("candidate_email") or "").lower():
+                continue
+        filtered.append(r)
+
+    st.caption(f"Showing {len(filtered)} of {len(report_rows)} candidates (best score per candidate).")
+    st.dataframe(filtered, use_container_width=True)
 
 st.write("---")
 
