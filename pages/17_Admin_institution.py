@@ -1,3 +1,9 @@
+# ==========================================================
+# 17_Admin_institution.py — TalentIQ Admin | Institutions
+# - Safe against missing columns (license_status / is_active)
+# - Admin can create + view institutions
+# ==========================================================
+
 import streamlit as st
 import sys, os
 from datetime import datetime, timezone
@@ -7,22 +13,22 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 # ---------------------------------------------------------
 # PAGE CONFIG (MUST BE FIRST STREAMLIT COMMAND)
 # ---------------------------------------------------------
-st.set_page_config(page_title="Admin — Institutions", page_icon="🏛️", layout="wide")
+st.set_page_config(page_title="Admin - Institutions", page_icon="🏛️", layout="wide")
 
+# Now safe to import anything that calls st.*
 from components.sidebar import render_sidebar
 from components.ui import hide_streamlit_sidebar
-from config.supabase_client import supabase, supabase_admin
+from config.supabase_client import supabase_admin
 
-
-# =========================================================
-# AUTH GUARD (ADMIN ONLY)
-# =========================================================
+# ---------------------------------------------------------
+# AUTH GUARD
+# ---------------------------------------------------------
 if not st.session_state.get("authenticated"):
     st.switch_page("app.py")
     st.stop()
 
-user = st.session_state.get("user") or {}
-if (user.get("role") or "").lower() != "admin":
+user = st.session_state.get("user")
+if not user or (user.get("role") != "admin"):
     st.error("Admin access required.")
     st.stop()
 
@@ -39,180 +45,224 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.title("🏛️ Admin — Institutions & Roles")
-st.caption("Create institutions, manage license status, and assign institution members.")
+st.title("🏛️ Institutions (Admin)")
+st.caption("Create and manage institutions. This page is resilient to missing DB columns like license_status.")
+st.write("---")
 
 
-# =========================================================
+# ---------------------------------------------------------
 # HELPERS
-# =========================================================
+# ---------------------------------------------------------
 def _utcnow():
     return datetime.now(timezone.utc)
 
-def _exec(res):
-    # normalize supabase responses (avoid breaking UI)
+def _safe_select_institutions(limit: int = 500):
+    """
+    Returns: (rows, flags)
+    flags = {"has_license_status": bool, "has_is_active": bool}
+    """
+    base_cols = "id,name,institution_type,industry,website,created_at"
+
+    # Try license_status first
     try:
-        return res
+        rows = (
+            supabase_admin
+            .table("institutions")
+            .select(base_cols + ",license_status")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+            .data
+        ) or []
+        return rows, {"has_license_status": True, "has_is_active": False}
     except Exception:
-        return None
+        pass
 
-def _select_institutions(limit: int = 500):
-    """
-    Uses license_status if the column exists. If not, gracefully falls back.
-    """
-    r = supabase_admin.table("institutions").select(
-        "id,name,institution_type,industry,website,created_at,license_status"
-    ).order("created_at", desc=True).limit(limit).execute()
+    # Try is_active next
+    try:
+        rows = (
+            supabase_admin
+            .table("institutions")
+            .select(base_cols + ",is_active")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+            .data
+        ) or []
+        return rows, {"has_license_status": False, "has_is_active": True}
+    except Exception:
+        pass
 
-    # If column doesn't exist, PostgREST will error and data will be None
-    if getattr(r, "data", None) is None:
-        r2 = supabase_admin.table("institutions").select(
-            "id,name,institution_type,industry,website,created_at"
-        ).order("created_at", desc=True).limit(limit).execute()
-        return (r2.data or []), False
-
-    return (r.data or []), True
-
-def _find_user_app_by_email(email: str):
-    if not email:
-        return None
-    r = supabase_admin.table("users_app").select("id,full_name,email,role").ilike("email", email.strip()).limit(1).execute()
-    rows = r.data or []
-    return rows[0] if rows else None
-
-def _list_members(institution_id: str, limit: int = 500):
-    r = supabase_admin.table("institution_members").select(
-        "id,institution_id,user_id,member_role,created_at"
-    ).eq("institution_id", institution_id).order("created_at", desc=True).limit(limit).execute()
-    return r.data or []
+    # Fallback: base only
+    rows = (
+        supabase_admin
+        .table("institutions")
+        .select(base_cols)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+        .data
+    ) or []
+    return rows, {"has_license_status": False, "has_is_active": False}
 
 
-# =========================================================
-# TABS
-# =========================================================
-tab1, tab2 = st.tabs(["🏛️ Institutions", "👥 Institution Members"])
+def _insert_institution(payload: dict):
+    # Payload must only include real columns (caller will ensure)
+    supabase_admin.table("institutions").insert(payload).execute()
 
 
-# =========================================================
-# TAB 1: INSTITUTIONS
-# =========================================================
-with tab1:
-    st.subheader("Create a new institution")
+def _update_institution(inst_id: str, payload: dict):
+    if not payload:
+        return
+    supabase_admin.table("institutions").update(payload).eq("id", inst_id).execute()
 
-    c1, c2 = st.columns([1.6, 1.0])
+
+# ---------------------------------------------------------
+# LOAD INSTITUTIONS
+# ---------------------------------------------------------
+inst_rows, flags = _safe_select_institutions(limit=2000)
+
+has_license_status = flags["has_license_status"]
+has_is_active = flags["has_is_active"]
+
+# ---------------------------------------------------------
+# CREATE INSTITUTION
+# ---------------------------------------------------------
+with st.expander("➕ Create New Institution", expanded=False):
+    c1, c2 = st.columns([2, 1])
+
     with c1:
-        name = st.text_input("Institution name", placeholder="e.g., University of Lagos")
-        institution_type = st.selectbox("Institution type", ["institution", "employer", "training_provider"], index=0)
-        industry = st.text_input("Industry (optional)", placeholder="e.g., Education, Banking, Telecoms")
+        name = st.text_input("Institution Name *", placeholder="e.g., University of Lagos")
+        institution_type = st.selectbox(
+            "Institution Type",
+            ["institution", "employer", "training_provider", "other"],
+            index=0
+        )
+        industry = st.text_input("Industry (optional)", placeholder="e.g., Education, Finance, Technology")
         website = st.text_input("Website (optional)", placeholder="e.g., https://unilag.edu.ng")
-    with c2:
-        license_status = st.selectbox("License status", ["active", "trial", "suspended", "expired"], index=0)
-        st.caption("Use **license_status** to control access without deleting accounts.")
 
-    if st.button("➕ Create Institution"):
+    with c2:
+        # Show only if column exists
+        license_status_val = None
+        is_active_val = None
+
+        if has_license_status:
+            license_status_val = st.selectbox(
+                "License Status",
+                ["active", "inactive", "trial", "suspended"],
+                index=0
+            )
+
+        if has_is_active:
+            is_active_val = st.checkbox("Active", value=True)
+
+    if st.button("Create Institution", use_container_width=True):
         if not name.strip():
-            st.error("Institution name is required.")
+            st.error("Institution Name is required.")
             st.stop()
 
         payload = {
             "name": name.strip(),
             "institution_type": institution_type,
-            "industry": industry.strip() if industry else None,
-            "website": website.strip() if website else None,
-            "created_at": _utcnow().isoformat(),
+            "industry": (industry.strip() or None),
+            "website": (website.strip() or None),
+            # created_at is default now() in DB
         }
 
-        # only include license_status if the column exists in DB
-        # (if not, insert will still work without it)
-        payload["license_status"] = license_status
+        # Only add if column exists
+        if has_license_status and license_status_val is not None:
+            payload["license_status"] = license_status_val
+
+        if has_is_active and is_active_val is not None:
+            payload["is_active"] = bool(is_active_val)
 
         try:
-            res = supabase_admin.table("institutions").insert(payload).execute()
-            st.success("✅ Institution created successfully.")
+            _insert_institution(payload)
+            st.success("✅ Institution created.")
             st.rerun()
         except Exception as e:
-            st.error(f"Failed to create institution: {e}")
+            st.error(f"❌ Failed to create institution: {e}")
 
-    st.write("---")
-    st.subheader("All institutions")
 
-    inst_rows, has_license_status = _select_institutions()
+st.write("---")
 
-    if not inst_rows:
-        st.info("No institutions found yet.")
-    else:
-        st.dataframe(inst_rows, use_container_width=True, hide_index=True)
+# ---------------------------------------------------------
+# LIST + FILTERS
+# ---------------------------------------------------------
+st.subheader("📋 Institutions List")
 
-        st.write("---")
-        st.subheader("Update license status")
+f1, f2, f3 = st.columns([2, 1, 1])
+with f1:
+    q = st.text_input("Search by name", placeholder="Type to filter…")
+with f2:
+    type_filter = st.selectbox(
+        "Filter type",
+        ["All", "institution", "employer", "training_provider", "other"],
+        index=0
+    )
+with f3:
+    st.caption(f"Total: **{len(inst_rows)}**")
 
-        inst_map = {f"{r.get('name','(no name)')} — {r.get('id')}": r.get("id") for r in inst_rows if r.get("id")}
-        pick = st.selectbox("Select an institution", list(inst_map.keys()))
-        inst_id = inst_map[pick]
+filtered = inst_rows
 
-        new_status = st.selectbox("New license status", ["active", "trial", "suspended", "expired"], index=0)
+if q.strip():
+    qq = q.strip().lower()
+    filtered = [r for r in filtered if (r.get("name") or "").lower().find(qq) >= 0]
 
-        if st.button("💾 Save license status"):
+if type_filter != "All":
+    filtered = [r for r in filtered if (r.get("institution_type") or "") == type_filter]
+
+if not filtered:
+    st.info("No institutions match your filters.")
+    st.stop()
+
+# Display table-like cards (stable; no pandas dependency)
+for r in filtered[:300]:
+    inst_id = r.get("id")
+    st.markdown(f"### 🏛️ {r.get('name','(no name)')}")
+    st.write(
+        f"**ID:** `{inst_id}`  \n"
+        f"**Type:** `{r.get('institution_type')}`  \n"
+        f"**Industry:** {r.get('industry') or '-'}  \n"
+        f"**Website:** {r.get('website') or '-'}  \n"
+        f"**Created:** {r.get('created_at') or '-'}"
+    )
+
+    # Show optional fields only if present
+    if has_license_status and ("license_status" in r):
+        st.write(f"**License Status:** `{r.get('license_status')}`")
+
+    if has_is_active and ("is_active" in r):
+        st.write(f"**Active:** `{r.get('is_active')}`")
+
+    # Optional quick edit (only edits optional fields if they exist)
+    with st.expander("Edit (optional)", expanded=False):
+        upd = {}
+
+        if has_license_status and ("license_status" in r):
+            new_ls = st.selectbox(
+                "License Status",
+                ["active", "inactive", "trial", "suspended"],
+                index=["active", "inactive", "trial", "suspended"].index((r.get("license_status") or "active")),
+                key=f"ls_{inst_id}"
+            )
+            upd["license_status"] = new_ls
+
+        if has_is_active and ("is_active" in r):
+            new_active = st.checkbox("Active", value=bool(r.get("is_active")), key=f"act_{inst_id}")
+            upd["is_active"] = bool(new_active)
+
+        if st.button("Save Changes", key=f"save_{inst_id}"):
+            if not (has_license_status or has_is_active):
+                st.info("No editable license fields exist in your DB yet.")
+                st.stop()
             try:
-                # If license_status column doesn't exist, this will error — so we message clearly.
-                upd = supabase_admin.table("institutions").update({"license_status": new_status}).eq("id", inst_id).execute()
-                if getattr(upd, "data", None) is None:
-                    st.error("Your institutions table does not have license_status yet. Add the column, then retry.")
-                else:
-                    st.success("✅ License status updated.")
-                    st.rerun()
+                _update_institution(inst_id, upd)
+                st.success("✅ Updated.")
+                st.rerun()
             except Exception as e:
-                st.error(f"Failed to update license status: {e}")
-
-
-# =========================================================
-# TAB 2: MEMBERS
-# =========================================================
-with tab2:
-    st.subheader("Assign users to an institution")
-
-    inst_rows, _ = _select_institutions()
-    if not inst_rows:
-        st.info("Create an institution first.")
-        st.stop()
-
-    inst_map = {f"{r.get('name','(no name)')} — {r.get('id')}": r.get("id") for r in inst_rows if r.get("id")}
-    pick = st.selectbox("Select institution", list(inst_map.keys()))
-    institution_id = inst_map[pick]
-
-    st.write("")
-
-    email = st.text_input("User email (must exist in users_app)", placeholder="e.g., vc@unilag.edu.ng")
-    member_role = st.selectbox("Member role", ["admin", "recruiter", "viewer"], index=2)
-
-    if st.button("➕ Add member"):
-        target = _find_user_app_by_email(email)
-        if not target:
-            st.error("User not found in users_app for that email.")
-            st.stop()
-
-        user_id = target["id"]
-
-        try:
-            supabase_admin.table("institution_members").insert({
-                "institution_id": institution_id,
-                "user_id": user_id,
-                "member_role": member_role,
-                "created_at": _utcnow().isoformat(),
-            }).execute()
-            st.success(f"✅ Added {target.get('email')} as {member_role}.")
-            st.rerun()
-        except Exception as e:
-            # common case: unique constraint (already added)
-            st.error(f"Failed to add member: {e}")
+                st.error(f"❌ Update failed: {e}")
 
     st.write("---")
-    st.subheader("Current members")
 
-    members = _list_members(institution_id=institution_id)
-    if not members:
-        st.info("No members assigned yet.")
-    else:
-        st.dataframe(members, use_container_width=True, hide_index=True)
-
-st.caption("Chumcred TalentIQ — Admin Panel © 2025")
+st.caption("Chumcred TalentIQ — Admin © 2026")
