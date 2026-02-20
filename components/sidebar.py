@@ -83,6 +83,7 @@ def render_sidebar() -> None:
             safe_page_link("pages/9_Admin_Revenue.py", "💰 Revenue Dashboard")
             safe_page_link("pages/13_Admin_Credit_Usage.py", "📊 Credit Usage")
             safe_page_link("pages/15_Admin_Users.py", "👥 Users Profile")
+            safe_page_link("pages/17_Admin_institution.py", "🏛️ Institutions")
             if email in admin_emails:
                 safe_page_link("pages/16_Admin_User_Details.py", "🛡️ User Details")
 
