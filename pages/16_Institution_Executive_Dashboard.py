@@ -1,6 +1,7 @@
 import streamlit as st
 import sys, os
 from datetime import datetime, timezone, timedelta, date
+import io, csv
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
@@ -14,9 +15,9 @@ from components.sidebar import render_sidebar
 from components.ui import hide_streamlit_sidebar
 from config.supabase_client import supabase, supabase_admin  # use admin only when needed (admin role)
 
-# =========================================================
+# ---------------------------------------------------------
 # AUTH GUARD
-# =========================================================
+# ---------------------------------------------------------
 if not st.session_state.get("authenticated"):
     st.switch_page("app.py")
     st.stop()
@@ -25,6 +26,13 @@ user = st.session_state.get("user") or {}
 user_id = user.get("id")
 user_role = (user.get("role") or "").lower()
 
+if not user_id:
+    st.switch_page("app.py")
+    st.stop()
+
+# ---------------------------------------------------------
+# UI: Hide default nav + render sidebar
+# ---------------------------------------------------------
 hide_streamlit_sidebar()
 render_sidebar()
 
@@ -39,7 +47,6 @@ st.markdown(
 )
 
 st.title("🏛️ Institution Executive Dashboard")
-st.caption("Executive KPI cards, score distribution, pipeline charts, and employability index.")
 
 # =========================================================
 # HELPERS
@@ -47,256 +54,412 @@ st.caption("Executive KPI cards, score distribution, pipeline charts, and employ
 def _utcnow():
     return datetime.now(timezone.utc)
 
-def _safe_exec(fn, default=None):
+def _safe_exec(query):
     try:
-        res = fn()
-        return getattr(res, "data", default) if hasattr(res, "data") else (default if default is not None else [])
+        return query.execute().data or []
     except Exception:
-        return default if default is not None else []
-
-def _resolve_member_institution_id(member_user_id: str):
-    """
-    Find the institution_id for a logged-in institution member.
-    Supports both 'institution_members.user_id' and legacy column variants.
-    """
-    if not member_user_id:
-        return None
-
-    # Attempt 1: current schema (institution_members.user_id)
-    rows = _safe_exec(lambda: supabase.table("institution_members").select("institution_id").eq("user_id", member_user_id).limit(1).execute())
-    if rows:
-        return rows[0].get("institution_id")
-
-    # Attempt 2: legacy column name
-    rows = _safe_exec(lambda: supabase.table("institution_members").select("institution_id").eq("member_user_id", member_user_id).limit(1).execute())
-    if rows:
-        return rows[0].get("institution_id")
-
-    # Attempt 3: legacy column name
-    rows = _safe_exec(lambda: supabase.table("institution_members").select("institution_id").eq("profile_id", member_user_id).limit(1).execute())
-    if rows:
-        return rows[0].get("institution_id")
-
-    return None
-
-def _list_member_institution_ids(member_user_id: str):
-    """Return ALL institution_ids linked to this user_id (supports multi-membership)."""
-    if not member_user_id:
         return []
 
-    ids = []
+def _rows_to_csv_bytes(rows: list[dict], fieldnames: list[str] | None = None) -> bytes:
+    if not rows:
+        return b""
+    if not fieldnames:
+        # stable column order: keys from first row, then any extras
+        fieldnames = list(rows[0].keys())
+        for r in rows[1:]:
+            for k in r.keys():
+                if k not in fieldnames:
+                    fieldnames.append(k)
 
-    # Primary (current) schema: institution_members.user_id
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
+    w.writeheader()
+    for r in rows:
+        w.writerow({k: r.get(k) for k in fieldnames})
+    return buf.getvalue().encode("utf-8")
+
+
+def _escape_pdf_text(s: str) -> str:
+    # Escape characters for PDF text strings.
+    return (s or "").replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _build_simple_pdf_from_lines(lines_in: list[str]) -> bytes:
+    """Create a simple multi-page PDF containing the provided lines (UTC). No external dependencies."""
+    # A4 points: 595.28 x 841.89
+    PAGE_W, PAGE_H = 595.28, 841.89
+    LEFT, TOP = 50, 800
+    FONT_SIZE = 11
+    LEADING = 14
+    MAX_LINES = 52  # conservative for A4
+
+    # Split into pages
+    pages = [lines_in[i : i + MAX_LINES] for i in range(0, len(lines_in) or 1, MAX_LINES)]
+    if not pages:
+        pages = [[""]]
+
+    def make_content(page_lines: list[str]) -> bytes:
+        parts = []
+        parts.append("BT")
+        parts.append(f"/F1 {FONT_SIZE} Tf")
+        parts.append(f"{LEFT} {TOP} Td")
+        for i, line in enumerate(page_lines):
+            txt = _escape_pdf_text(line)
+            parts.append(f"({txt}) Tj")
+            if i != len(page_lines) - 1:
+                parts.append(f"0 -{LEADING} Td")
+        parts.append("ET")
+        stream = "\n".join(parts).encode("utf-8")
+        return stream
+
+    objects: list[bytes] = []
+
+    def add_obj(obj_bytes: bytes):
+        objects.append(obj_bytes)
+
+    # 1: catalog, 2: pages, next N: page, next N: content, last: font
+    n_pages = len(pages)
+    font_obj_num = 2 + n_pages + n_pages + 1  # after catalog/pages + pages + contents
+
+    # Catalog
+    add_obj(b"<< /Type /Catalog /Pages 2 0 R >>")
+
+    # Pages object with Kids
+    kids_refs = " ".join([f"{3+i} 0 R" for i in range(n_pages)])
+    add_obj(f"<< /Type /Pages /Kids [ {kids_refs} ] /Count {n_pages} >>".encode("utf-8"))
+
+    # Page objects
+    for i in range(n_pages):
+        content_num = 3 + n_pages + i
+        page_obj = (
+            f"<< /Type /Page /Parent 2 0 R "
+            f"/MediaBox [0 0 {PAGE_W} {PAGE_H}] "
+            f"/Resources << /Font << /F1 {font_obj_num} 0 R >> >> "
+            f"/Contents {content_num} 0 R >>"
+        )
+        add_obj(page_obj.encode("utf-8"))
+
+    # Content stream objects
+    for i in range(n_pages):
+        stream = make_content(pages[i])
+        obj = b"<< /Length " + str(len(stream)).encode("utf-8") + b" >>\nstream\n" + stream + b"\nendstream"
+        add_obj(obj)
+
+    # Font object
+    add_obj(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+
+    # Build PDF with xref
+    pdf = bytearray()
+    pdf.extend(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]  # object 0
+
+    for i, obj in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{i} 0 obj\n".encode("utf-8"))
+        pdf.extend(obj)
+        pdf.extend(b"\nendobj\n")
+
+    xref_pos = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects)+1}\n".encode("utf-8"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for off in offsets[1:]:
+        pdf.extend(f"{off:010d} 00000 n \n".encode("utf-8"))
+
+    pdf.extend(b"trailer\n")
+    pdf.extend(f"<< /Size {len(objects)+1} /Root 1 0 R >>\n".encode("utf-8"))
+    pdf.extend(b"startxref\n")
+    pdf.extend(f"{xref_pos}\n".encode("utf-8"))
+    pdf.extend(b"%%EOF\n")
+    return bytes(pdf)
+
+
+def build_pdf(sections: list[dict], filename_prefix: str = "institution_report") -> bytes:
+    """Build a lightweight PDF report from sections (title + rows)."""
+    now = _utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    lines_out: list[str] = ["TalentIQ Institutional Executive Report", f"Generated: {now}", ""]
+    for sec in sections or []:
+        title = (sec or {}).get("title") or "Section"
+        lines_out.append(str(title))
+        lines_out.append("-" * min(60, len(str(title)) + 6))
+        rows = (sec or {}).get("rows") or []
+        for r in rows:
+            if isinstance(r, dict):
+                for k, v in r.items():
+                    lines_out.append(f"{k}: {v}")
+            else:
+                lines_out.append(str(r))
+        lines_out.append("")
+    return _build_simple_pdf_from_lines(lines_out)
+
+
+def _resolve_member_institution_id(user_id: str) -> str | None:
+    rows = _safe_exec(
+        supabase_admin.table("institution_members")
+        .select("institution_id, member_role, created_at")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(1)
+    )
+    if not rows:
+        return None
+    return rows[0].get("institution_id")
+
+# =========================================================
+# DATA ACCESS: Admin view (global) — dropdown for any institution
+# =========================================================
+institutions_rows = _safe_exec(
+    supabase_admin.table("institutions").select("id, name, institution_type, industry, website, created_at").order("created_at", desc=True)
+)
+
+if not institutions_rows:
+    st.warning("No institutions found yet.")
+    st.stop()
+
+# Admin can see ALL institutions
+institution_options = [(r["name"], r["id"]) for r in institutions_rows]
+
+selected_label = st.selectbox(
+    "Select Institution",
+    options=[f"{name} — {iid}" for (name, iid) in institution_options],
+    index=0,
+)
+
+selected_institution_id = selected_label.split(" — ")[-1].strip()
+selected_institution_name = selected_label.split(" — ")[0].strip()
+
+st.caption(f"Showing KPIs for: **{selected_institution_name}**")
+
+# =========================================================
+# KPI QUERIES (Step 3)
+# =========================================================
+# KPI 1: Total job posts + open jobs
+jobs_rows = _safe_exec(
+    supabase_admin.table("institution_job_posts")
+    .select("id, institution_id, title, location, job_type, status, created_at")
+    .eq("institution_id", selected_institution_id)
+    .order("created_at", desc=True)
+    .limit(5000)
+)
+
+total_jobs = len(jobs_rows)
+open_jobs = len([j for j in jobs_rows if (j.get("status") or "").lower() == "open"])
+
+# KPI 2: Total applications
+apps_rows = _safe_exec(
+    supabase_admin.table("institution_applications")
+    .select("id, institution_id, job_post_id, candidate_user_id, status, created_at")
+    .eq("institution_id", selected_institution_id)
+    .order("created_at", desc=True)
+    .limit(5000)
+)
+
+total_applications = len(apps_rows)
+
+# KPI 3: Avg score + high scorers
+scores_rows = _safe_exec(
+    supabase_admin.table("institution_candidate_scores")
+    .select("id, application_id, overall_score, subscores, recommendations, created_at")
+    .order("created_at", desc=True)
+    .limit(10000)
+)
+
+# Build application_id -> institution_id mapping to filter scores for selected institution
+app_id_set = set([a["id"] for a in apps_rows if a.get("id")])
+
+scores_for_institution = []
+for s in scores_rows:
+    if s.get("application_id") in app_id_set:
+        scores_for_institution.append(s)
+
+if scores_for_institution:
+    avg_score = round(sum([float(s.get("overall_score", 0) or 0) for s in scores_for_institution]) / len(scores_for_institution), 2)
+    high_scorers = len([s for s in scores_for_institution if float(s.get("overall_score", 0) or 0) >= 80])
+else:
+    avg_score = 0
+    high_scorers = 0
+
+# =========================================================
+# KPI CARDS
+# =========================================================
+k1, k2, k3, k4, k5 = st.columns(5)
+k1.metric("Job Posts", total_jobs)
+k2.metric("Open Roles", open_jobs)
+k3.metric("Applications", total_applications)
+k4.metric("Avg Score", avg_score)
+k5.metric("High Scorers (≥80)", high_scorers)
+
+st.write("---")
+
+# =========================================================
+# CHART 1: Score distribution (bands)
+# =========================================================
+st.subheader("📊 Score Distribution")
+
+def score_band(v):
     try:
-        r = supabase.table("institution_members").select("institution_id").eq("user_id", member_user_id).execute()
-        rows = getattr(r, "data", None) or []
-        ids = [x.get("institution_id") for x in rows if x.get("institution_id")]
+        v = float(v)
     except Exception:
-        ids = []
+        v = 0
+    if v < 50:
+        return "0 - 49"
+    if v < 60:
+        return "50 - 59"
+    if v < 70:
+        return "60 - 69"
+    if v < 80:
+        return "70 - 79"
+    if v < 90:
+        return "80 - 89"
+    return "90 - 100"
 
-    # Legacy fallbacks (no harm if columns don't exist)
-    if not ids:
-        try:
-            r = supabase.table("institution_members").select("institution_id").eq("member_user_id", member_user_id).execute()
-            rows = getattr(r, "data", None) or []
-            ids = [x.get("institution_id") for x in rows if x.get("institution_id")]
-        except Exception:
-            pass
+bands = {}
+for s in scores_for_institution:
+    b = score_band(s.get("overall_score"))
+    bands[b] = bands.get(b, 0) + 1
 
-    if not ids:
-        try:
-            r = supabase.table("institution_members").select("institution_id").eq("profile_id", member_user_id).execute()
-            rows = getattr(r, "data", None) or []
-            ids = [x.get("institution_id") for x in rows if x.get("institution_id")]
-        except Exception:
-            pass
+band_order = ["0 - 49", "50 - 59", "60 - 69", "70 - 79", "80 - 89", "90 - 100"]
+dist_rows = [{"score_band": b, "count": bands.get(b, 0)} for b in band_order if bands.get(b, 0) > 0]
 
-    # Unique, keep order
-    seen = set()
-    out = []
-    for _id in ids:
-        if _id and _id not in seen:
-            seen.add(_id)
-            out.append(_id)
-    return out
+if dist_rows:
+    st.table(dist_rows)
+else:
+    st.info("No scores yet for this institution.")
 
-def _get_institutions_for_admin(limit=500):
-    return _safe_exec(
-        lambda: supabase_admin.table("institutions").select("id,name,institution_type,industry,website,created_at").order("created_at", desc=True).limit(limit).execute(),
-        default=[]
+st.write("---")
+
+# =========================================================
+# CHART 2: Top candidates
+# =========================================================
+st.subheader("🏅 Top Candidates")
+
+# Enrich applications with user profile
+users_rows = _safe_exec(
+    supabase_admin.table("users_app").select("id, full_name, email").limit(10000)
+)
+users_by_id = {u["id"]: u for u in users_rows if u.get("id")}
+
+# Map application_id -> application details
+apps_by_id = {a["id"]: a for a in apps_rows if a.get("id")}
+
+top_candidates = sorted(
+    scores_for_institution,
+    key=lambda x: float(x.get("overall_score", 0) or 0),
+    reverse=True
+)[:10]
+
+top_rows = []
+for s in top_candidates:
+    app = apps_by_id.get(s.get("application_id"), {})
+    cand_id = app.get("candidate_user_id")
+    u = users_by_id.get(cand_id, {})
+    top_rows.append({
+        "application_id": s.get("application_id"),
+        "candidate_name": u.get("full_name", "Unknown"),
+        "candidate_email": u.get("email", ""),
+        "overall_score": s.get("overall_score"),
+        "created_at": s.get("created_at"),
+    })
+
+if top_rows:
+    st.table(top_rows)
+else:
+    st.info("No candidates scored yet.")
+
+st.write("---")
+
+# =========================================================
+# RECENT APPLICATIONS
+# =========================================================
+st.subheader("🧾 Recent Applications")
+
+# Create job title map
+jobs_by_id = {j["id"]: j for j in jobs_rows if j.get("id")}
+
+recent_rows = []
+for a in apps_rows[:20]:
+    u = users_by_id.get(a.get("candidate_user_id"), {})
+    j = jobs_by_id.get(a.get("job_post_id"), {})
+    # find score
+    score = next((s for s in scores_for_institution if s.get("application_id") == a.get("id")), {})
+    recent_rows.append({
+        "application_id": a.get("id"),
+        "job_title": j.get("title", ""),
+        "candidate_name": u.get("full_name", "Unknown"),
+        "candidate_email": u.get("email", ""),
+        "status": a.get("status", ""),
+        "overall_score": score.get("overall_score", None),
+        "created_at": a.get("created_at"),
+    })
+
+if recent_rows:
+    st.table(recent_rows)
+else:
+    st.info("No applications yet.")
+
+st.write("---")
+
+# =========================================================
+# EXPORTS (CSV + PDF) — No external dependencies
+# =========================================================
+st.subheader("⬇️ Downloads")
+
+export_jobs_rows = jobs_rows if isinstance(jobs_rows, list) else []
+export_top_rows = top_rows if isinstance(top_rows, list) else []
+export_recent_rows = recent_rows if isinstance(recent_rows, list) else []
+export_dist_rows = dist_rows if isinstance(dist_rows, list) else []
+
+col_csv1, col_csv2, col_pdf = st.columns([1, 1, 1])
+
+with col_csv1:
+    st.download_button(
+        "Download Job Posts CSV",
+        data=_rows_to_csv_bytes(export_jobs_rows),
+        file_name=f"institution_job_posts_{selected_institution_id}.csv",
+        mime="text/csv",
+        use_container_width=True,
+        disabled=not bool(export_jobs_rows),
     )
 
-def _get_institution_name(institution_id: str):
-    if not institution_id:
-        return None
-    rows = _safe_exec(lambda: supabase.table("institutions").select("name").eq("id", institution_id).limit(1).execute(), default=[])
-    if rows:
-        return rows[0].get("name")
-    return None
+with col_csv2:
+    st.download_button(
+        "Download Applications CSV",
+        data=_rows_to_csv_bytes(export_recent_rows),
+        file_name=f"institution_applications_{selected_institution_id}.csv",
+        mime="text/csv",
+        use_container_width=True,
+        disabled=not bool(export_recent_rows),
+    )
 
+with col_pdf:
+    sections = [
+        {
+            "title": "Institution",
+            "rows": [{"Institution": selected_institution_name, "Institution ID": selected_institution_id}],
+        },
+        {
+            "title": "KPI Snapshot",
+            "rows": [{
+                "Total job posts": total_jobs,
+                "Open roles": open_jobs,
+                "Total applications": total_applications,
+                "Average score": avg_score,
+                "High scorers (>=80)": high_scorers,
+            }],
+        },
+        {"title": "Score Distribution", "rows": export_dist_rows[:50]},
+        {"title": "Top Candidates", "rows": export_top_rows[:25]},
+        {"title": "Recent Applications", "rows": export_recent_rows[:25]},
+    ]
 
-# =========================================================
-# INSTITUTION SCOPE (Member vs Admin)
-# =========================================================
-st.write("")
-
-# ADMIN VIEW: see all institutions and select any
-if user_role == "admin":
-    institutions_rows = _get_institutions_for_admin()
-
-    if not institutions_rows:
-        st.info("No institutions found yet.")
-        st.stop()
-
-    institutions_map = {f"{r.get('name','(no name)')} — {r.get('id')}": r.get("id") for r in institutions_rows if r.get("id")}
-    selected_institution_id = st.selectbox("Institution", list(institutions_map.keys()))
-    institution_id = institutions_map[selected_institution_id]
-
-else:
-    member_institution_ids = _list_member_institution_ids(user_id)
-
-    if not member_institution_ids:
-        st.error("You are logged in, but your account is not linked to any institution membership.")
-        st.info("Fix: ensure a row exists in institution_members that maps your user_id → institution_id.")
-        st.stop()
-
-    if len(member_institution_ids) == 1:
-        institution_id = member_institution_ids[0]
-    else:
-        # If user belongs to multiple institutions, allow selection (still restricted to memberships only)
-        rows = []
-        try:
-            q = supabase.table("institutions").select("id,name")
-            try:
-                q = q.in_("id", member_institution_ids)
-                r = q.execute()
-                rows = getattr(r, "data", None) or []
-            except Exception:
-                # Fallback: fetch all and filter client-side
-                r = supabase.table("institutions").select("id,name").execute()
-                all_rows = getattr(r, "data", None) or []
-                rows = [x for x in all_rows if x.get("id") in set(member_institution_ids)]
-        except Exception:
-            rows = []
-
-        if rows:
-            options = {f"{row.get('name','(no name)')} — {row['id']}": row["id"] for row in rows if row.get("id")}
-        else:
-            options = {str(_id): _id for _id in member_institution_ids}
-
-        selected_label = st.selectbox("Select Institution", list(options.keys()))
-        institution_id = options[selected_label]
-
-inst_name = _get_institution_name(institution_id)
-if inst_name:
-    st.subheader(f"📍 Institution: {inst_name}")
-else:
-    st.subheader("📍 Institution Dashboard")
+    pdf_bytes = build_pdf(sections, filename_prefix="institution_executive")
+    st.download_button(
+        "Download Executive PDF",
+        data=pdf_bytes,
+        file_name=f"institution_executive_{selected_institution_id}.pdf",
+        mime="application/pdf",
+        use_container_width=True,
+    )
 
 st.write("---")
 
-# =========================================================
-# KPI QUERIES (STEP 3/4/5 already embedded earlier)
-# NOTE: leaving your existing KPI logic untouched below
-# =========================================================
-
-# ---- KPI 1: Total applications
-kpi_apps = _safe_exec(
-    lambda: supabase_admin.rpc("kpi_total_applications", {"p_institution_id": institution_id}).execute(),
-    default=[]
-)
-
-# ---- KPI 2: Avg score
-kpi_avg = _safe_exec(
-    lambda: supabase_admin.rpc("kpi_avg_score", {"p_institution_id": institution_id}).execute(),
-    default=[]
-)
-
-# ---- KPI 3: Open job posts
-kpi_jobs = _safe_exec(
-    lambda: supabase_admin.rpc("kpi_open_job_posts", {"p_institution_id": institution_id}).execute(),
-    default=[]
-)
-
-# ---- KPI 4: Applications this month
-kpi_month = _safe_exec(
-    lambda: supabase_admin.rpc("kpi_applications_this_month", {"p_institution_id": institution_id}).execute(),
-    default=[]
-)
-
-# Render KPI cards
-c1, c2, c3, c4 = st.columns(4)
-with c1:
-    st.metric("Total Applications", int((kpi_apps[0].get("total") if kpi_apps else 0) or 0))
-with c2:
-    st.metric("Average Score", float((kpi_avg[0].get("avg_score") if kpi_avg else 0) or 0))
-with c3:
-    st.metric("Open Job Posts", int((kpi_jobs[0].get("open_posts") if kpi_jobs else 0) or 0))
-with c4:
-    st.metric("Applications (This Month)", int((kpi_month[0].get("count") if kpi_month else 0) or 0))
-
-st.write("---")
-
-# =========================================================
-# SCORE DISTRIBUTION (Histogram / Band counts)
-# =========================================================
-score_rows = _safe_exec(
-    lambda: supabase_admin.rpc("chart_score_distribution", {"p_institution_id": institution_id}).execute(),
-    default=[]
-)
-
-st.subheader("📊 Score Distribution")
-if not score_rows:
-    st.info("No score records found yet.")
-else:
-    st.dataframe(score_rows, use_container_width=True, hide_index=True)
-
-st.write("---")
-
-# =========================================================
-# PIPELINE (Applications by status)
-# =========================================================
-pipe_rows = _safe_exec(
-    lambda: supabase_admin.rpc("chart_pipeline_status", {"p_institution_id": institution_id}).execute(),
-    default=[]
-)
-
-st.subheader("🧭 Application Pipeline (Status)")
-if not pipe_rows:
-    st.info("No application pipeline data found.")
-else:
-    st.dataframe(pipe_rows, use_container_width=True, hide_index=True)
-
-st.write("---")
-
-# =========================================================
-# STEP 4: GRADUATE SCORING REPORT (User-level)
-# =========================================================
-st.subheader("🎓 Graduate Scoring Report")
-grad_rows = _safe_exec(
-    lambda: supabase_admin.rpc("report_graduate_scores", {"p_institution_id": institution_id}).execute(),
-    default=[]
-)
-
-if not grad_rows:
-    st.info("No graduate scores yet.")
-else:
-    st.dataframe(grad_rows, use_container_width=True, hide_index=True)
-
-st.write("---")
-
-# =========================================================
-# STEP 5: INSTITUTION EMPLOYABILITY INDEX
-# =========================================================
-st.subheader("📈 Institutional Employability Index")
-idx_rows = _safe_exec(
-    lambda: supabase_admin.rpc("kpi_employability_index", {"p_institution_id": institution_id}).execute(),
-    default=[]
-)
-
-if not idx_rows:
-    st.info("No index data yet.")
-else:
-    st.dataframe(idx_rows, use_container_width=True, hide_index=True)
-
-st.caption("Chumcred TalentIQ — Institution Module © 2026")
+st.caption("TalentIQ — Institutional Analytics © 2026")
