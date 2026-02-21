@@ -424,7 +424,20 @@ st.subheader("🔍 Top Candidates (by score)")
 # Optional: candidate identity fields (role gated)
 users_map = {}
 if can_view_pii:
-    cand_ids = {a.get("candidate_user_id") for a in (apps or []) if a.get("candidate_user_id")}
+    # --- SAFETY: ensure apps_rows exists for downstream blocks (exports/tables) ---
+  def _pick_list(*names):
+            for n in names:
+                    v = globals().get(n)
+                    if isinstance(v, list):
+                            return v
+            return []
+
+  apps_rows = _pick_list(
+              "apps_rows",
+              "applications_rows",
+              "applications",
+              "institution_applications_rows",
+    )
     users_map = _fetch_users_app_map(cand_ids)
 
 top_rows = []
@@ -490,7 +503,21 @@ else:
 # =========================================================
 st.subheader("⬇️ Downloads")
 
-export_jobs_rows = jobs_rows if isinstance(jobs_rows, list) else []
+# --- SAFETY: ensure jobs_rows exists for downstream blocks (exports/tables) ---
+def _pick_list(*names):
+    for n in names:
+        v = globals().get(n)
+        if isinstance(v, list):
+            return v
+    return []
+
+jobs_rows = _pick_list(
+    "jobs_rows",
+    "job_posts_rows",
+    "job_posts",
+    "posts_rows",
+    "institution_job_posts_rows",
+)
 export_top_rows = top_rows if isinstance(top_rows, list) else []
 export_recent_rows = recent_rows if isinstance(recent_rows, list) else []
 export_dist_rows = dist_rows if isinstance(dist_rows, list) else []
