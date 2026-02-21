@@ -36,9 +36,6 @@ if not user:
 user_id = user.get("id")
 user_role = (user.get("role") or "").lower()
 
-if st.button("💳 Manage Subscription"):
-    st.switch_page("pages/18_Institution_Subscription.py")
-
 # ---------------------------------------------------------
 # UI: Hide default nav + render sidebar
 # ---------------------------------------------------------
@@ -486,5 +483,9 @@ if recent_rows:
     st.dataframe(recent_rows, use_container_width=True, hide_index=True)
 else:
     st.info("No applications found.")
+
+if st.button("💳 Manage Subscription"):
+    st.switch_page("pages/18_Institution_Subscription.py")
+
 
 st.caption("Chumcred TalentIQ © 2025")
