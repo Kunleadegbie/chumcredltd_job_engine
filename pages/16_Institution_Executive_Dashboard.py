@@ -423,7 +423,9 @@ st.subheader("🔍 Top Candidates (by score)")
 # Optional: candidate identity fields (role gated)
 users_map = {}
 if can_view_pii:
-    cand_ids = {a.get("candidate_user_id") for a in (apps_rows or []) if a.get("candidate_user_id")}
+    cand_ids = {a.get("candidate_user_id") for a in (apps or []) if a.get("candidate_user_id")}
+          
+    
     users_map = _fetch_users_app_map(cand_ids)
 
 top_rows = []
