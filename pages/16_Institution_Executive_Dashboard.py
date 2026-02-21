@@ -420,25 +420,10 @@ st.write("---")
 # DRILL-DOWNS
 # =========================================================
 st.subheader("🔍 Top Candidates (by score)")
-
 # Optional: candidate identity fields (role gated)
 users_map = {}
 if can_view_pii:
-    # --- SAFETY: ensure apps_rows exists for downstream blocks (exports/tables) ---
-  def _pick_list(*names):
-            for n in names:
-                    v = globals().get(n)
-                    if isinstance(v, list):
-                            return v
-            return []
-
-  apps_rows = _pick_list(
-              "apps_rows",
-              "applications_rows",
-              "applications",
-    "institution_applications_rows",
-)
-    cand_ids = {a.get("candidate_user_id") for a in (apps or []) if a.get("candidate_user_id")}
+    cand_ids = {a.get("candidate_user_id") for a in (apps_rows or []) if a.get("candidate_user_id")}
     users_map = _fetch_users_app_map(cand_ids)
 
 top_rows = []
@@ -447,23 +432,14 @@ for a in apps:
     s = score_by_app.get(aid, {})
     if not s:
         continue
-
-    row = {
+    top_rows.append({
         "application_id": aid,
         "candidate_user_id": a.get("candidate_user_id"),
         "job_post_id": a.get("job_post_id"),
         "status": a.get("status"),
         "created_at": a.get("created_at"),
         "overall_score": s.get("overall_score"),
-    }
-
-    # ✅ Add identity fields (name/email) only if allowed
-    if can_view_pii:
-        u = users_map.get(a.get("candidate_user_id")) or {}
-        row["candidate_name"] = u.get("full_name")
-        row["candidate_email"] = u.get("email")
-
-    top_rows.append(row)
+    })
 
 top_rows = sorted(top_rows, key=lambda r: float(r.get("overall_score") or 0), reverse=True)[:50]
 if top_rows:
@@ -471,100 +447,19 @@ if top_rows:
 else:
     st.info("No scored candidates available for this filter.")
 
-
 st.subheader("🧾 Recent Applications")
-
-recent_rows = []
-for a in apps[:100]:
-    row = {
-        "application_id": a.get("id"),
-        "candidate_user_id": a.get("candidate_user_id"),
-        "job_post_id": a.get("job_post_id"),
-        "status": a.get("status"),
-        "created_at": a.get("created_at"),
-        "score": (score_by_app.get(a.get("id"), {}) or {}).get("overall_score"),
-    }
-
-    # ✅ Add identity fields (name/email) only if allowed
-    if can_view_pii:
-        u = users_map.get(a.get("candidate_user_id")) or {}
-        row["candidate_name"] = u.get("full_name")
-        row["candidate_email"] = u.get("email")
-
-    recent_rows.append(row)
+recent_rows = [{
+    "application_id": a.get("id"),
+    "candidate_user_id": a.get("candidate_user_id"),
+    "job_post_id": a.get("job_post_id"),
+    "status": a.get("status"),
+    "created_at": a.get("created_at"),
+    "score": (score_by_app.get(a.get("id"), {}) or {}).get("overall_score")
+} for a in apps[:100]]
 
 if recent_rows:
     st.dataframe(recent_rows, use_container_width=True, hide_index=True)
 else:
     st.info("No applications found.")
-
-# =========================================================
-# EXPORTS (CSV + PDF) — No external dependencies
-# (2 CSV + 1 PDF)
-# =========================================================
-st.subheader("⬇️ Downloads")
-
-export_jobs_rows = jobs_rows if isinstance(jobs_rows, list) else []
-export_top_rows = top_rows if isinstance(top_rows, list) else []
-export_recent_rows = recent_rows if isinstance(recent_rows, list) else []
-export_dist_rows = dist_rows if isinstance(dist_rows, list) else []
-
-col_csv1, col_csv2, col_pdf = st.columns([1, 1, 1])
-
-with col_csv1:
-    st.download_button(
-        "Download Job Posts CSV",
-        data=_rows_to_csv_bytes(export_jobs_rows),
-        file_name=f"institution_job_posts_{selected_institution_id}.csv",
-        mime="text/csv",
-        use_container_width=True,
-        disabled=not bool(export_jobs_rows),
-    )
-
-with col_csv2:
-    st.download_button(
-        "Download Applications CSV",
-        data=_rows_to_csv_bytes(export_recent_rows),
-        file_name=f"institution_applications_{selected_institution_id}.csv",
-        mime="text/csv",
-        use_container_width=True,
-        disabled=not bool(export_recent_rows),
-    )
-
-with col_pdf:
-    sections = [
-        {
-            "title": "Institution",
-            "rows": [{"Institution": selected_institution_name, "Institution ID": selected_institution_id}],
-        },
-        {
-            "title": "KPI Snapshot",
-            "rows": [{
-                "Total job posts": total_jobs,
-                "Open roles": open_jobs,
-                "Total applications": total_applications,
-                "Average score": avg_score,
-                "High scorers (>=80)": high_scorers,
-            }],
-        },
-        {"title": "Score Distribution", "rows": export_dist_rows[:50]},
-        {"title": "Top Candidates", "rows": export_top_rows[:25]},
-        {"title": "Recent Applications", "rows": export_recent_rows[:25]},
-    ]
-
-    pdf_bytes = build_pdf(sections, filename_prefix="institution_executive")
-    st.download_button(
-        "Download Executive PDF",
-        data=pdf_bytes,
-        file_name=f"institution_executive_{selected_institution_id}.pdf",
-        mime="application/pdf",
-        use_container_width=True,
-    )
-
-st.write("---")
-
-if st.button("💳 Manage Subscription"):
-    st.switch_page("pages/18_Institution_Subscription.py")
-
 
 st.caption("Chumcred TalentIQ © 2025")
