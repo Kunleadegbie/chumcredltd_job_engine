@@ -436,8 +436,8 @@ if can_view_pii:
               "apps_rows",
               "applications_rows",
               "applications",
-              "institution_applications_rows",
-    )
+    "institution_applications_rows",
+)
     cand_ids = {a.get("candidate_user_id") for a in (apps or []) if a.get("candidate_user_id")}
     users_map = _fetch_users_app_map(cand_ids)
 
