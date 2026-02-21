@@ -250,27 +250,25 @@ def _bucket_score(score: float) -> str:
         return "80–89"
     return "90+"
 
-def _fetch_users_app_map(user_ids: set):
-    """Fetch {id: {id,full_name,email}} for a set of users_app IDs."""
-    if not user_ids:
-        return {}
-    try:
-        r = (
-            supabase_admin.table("users_app")
-            .select("id,full_name,email")
-            .in_("id", list(user_ids))
-            .limit(5000)
-            .execute()
-        )
-        rows = r.data or []
-        return {row.get("id"): row for row in rows if row.get("id")}
-    except Exception:
-        return {}
-
 def _can_view_candidate_details(user_role: str, member_role: str) -> bool:
     if (user_role or "").lower() == "admin":
         return True
     return (member_role or "").lower() in ("admin", "recruiter")
+
+
+def _fetch_users_app_map(user_ids):
+    """
+    Returns {user_id: {"full_name":..., "email":...}} for users_app.
+    Safe: returns {} if list is empty.
+    """
+    ids = [i for i in (user_ids or []) if i]
+    if not ids:
+        return {}
+
+    # Supabase PostgREST "in_" supports list of UUIDs
+    r = supabase_admin.table("users_app").select("id,full_name,email").in_("id", ids).execute()
+    rows = r.data or []
+    return {row.get("id"): {"full_name": row.get("full_name"), "email": row.get("email")} for row in rows if row.get("id")}
 
 # =========================================================
 # =========================================================
@@ -341,6 +339,9 @@ else:
     can_view_pii = _can_view_candidate_details(user_role, member_role)
 
 st.caption(f"Viewing as: **{('Admin' if user_role=='admin' else member_role.title())}** | Institution: **{inst_name}**")
+# used for exports/labels (downloads)
+selected_inst_name = inst_name
+selected_inst_id = institution_id
 
 # FILTERS
 # =========================================================
@@ -495,11 +496,16 @@ st.write("---")
 # DRILL-DOWNS
 # =========================================================
 st.subheader("🔍 Top Candidates (by score)")
-# Optional: candidate identity fields (role gated)
+# ---------------------------------------------------------
+# Candidate identity map (so tables show name + email)
+# Role-gated: only admin/recruiter can see PII
+# ---------------------------------------------------------
+apps_rows = apps  # keep alias to avoid NameError if any later block expects apps_rows
+
 users_map = {}
 if can_view_pii:
-    cand_ids = {a.get("candidate_user_id") for a in (apps or []) if a.get("candidate_user_id")}
-    users_map = _fetch_users_app_map(cand_ids)
+    cand_ids = {a.get("candidate_user_id") for a in (apps_rows or []) if a.get("candidate_user_id")}
+    users_map = _fetch_users_app_map(list(cand_ids))
 
 top_rows = []
 for a in apps:
@@ -507,14 +513,20 @@ for a in apps:
     s = score_by_app.get(aid, {})
     if not s:
         continue
+    cid = a.get("candidate_user_id")
+    u = users_map.get(cid, {})
+
     top_rows.append({
-        "application_id": aid,
-        "candidate_user_id": a.get("candidate_user_id"),
-        "job_post_id": a.get("job_post_id"),
-        "status": a.get("status"),
-        "created_at": a.get("created_at"),
-        "overall_score": s.get("overall_score"),
-    })
+                  "application_id": aid,
+                  "candidate_name": (u.get("full_name") if can_view_pii else ""),
+                  "candidate_email": (u.get("email") if can_view_pii else ""),
+                  "candidate_user_id": cid,
+                  "job_post_id": a.get("job_post_id"),
+                  "status": a.get("status"),
+                  "created_at": a.get("created_at"),
+                  "overall_score": s.get("overall_score"),
+          })
+    
 
 top_rows = sorted(top_rows, key=lambda r: float(r.get("overall_score") or 0), reverse=True)[:50]
 if top_rows:
@@ -523,15 +535,21 @@ else:
     st.info("No scored candidates available for this filter.")
 
 st.subheader("🧾 Recent Applications")
-recent_rows = [{
-    "application_id": a.get("id"),
-    "candidate_user_id": a.get("candidate_user_id"),
-    "job_post_id": a.get("job_post_id"),
-    "status": a.get("status"),
-    "created_at": a.get("created_at"),
-    "score": (score_by_app.get(a.get("id"), {}) or {}).get("overall_score")
-} for a in apps[:100]]
+recent_rows = []
+for a in apps[:100]:
+    cid = a.get("candidate_user_id")
+    u = users_map.get(cid, {}) if can_view_pii else {}
 
+    recent_rows.append({
+        "application_id": a.get("id"),
+        "candidate_name": (u.get("full_name") if can_view_pii else ""),
+        "candidate_email": (u.get("email") if can_view_pii else ""),
+        "candidate_user_id": cid,
+        "job_post_id": a.get("job_post_id"),
+        "status": a.get("status"),
+        "created_at": a.get("created_at"),
+        "score": (score_by_app.get(a.get("id"), {}) or {}).get("overall_score")
+    })
 if recent_rows:
     st.dataframe(recent_rows, use_container_width=True, hide_index=True)
 
@@ -564,18 +582,18 @@ if recent_rows:
         )
 
     with col_d3:
-        # Minimal single-page PDF summary (no external deps)
+        # Minimal single-page PDF summary (no external deps)  
         pdf_lines = [
-            f"Institution: {selected_inst_name}",
-            f"Generated (UTC): {datetime.now(timezone.utc).isoformat()}",
-            "",
-            f"Total Applications: {kpi_total_apps}",
-            f"Avg Score: {kpi_avg_score}",
-            f"Top Band (best): {kpi_top_band}",
-            f"High Performers (>=80): {kpi_high_perf}",
-            "",
-            "Top Candidates (first 5):",
-        ]
+                            f"Institution: {selected_inst_name}",
+                            f"Generated (UTC): {datetime.now(timezone.utc).isoformat()}",
+                            "",
+                            f"Total Applications: {total_apps}",
+                            f"Average Score: {avg_score:.1f}" if scored_count else "Average Score: —",
+                            f"Job Ready Rate (>=70): {job_ready_rate*100:.0f}%" if scored_count else "Job Ready Rate: —",
+                            "",
+                            "Top Candidates (first 5):",
+                   ]
+
 
         for r in (top_rows or [])[:5]:
             pdf_lines.append(f"- {r.get('candidate_user_id','')} | score={r.get('overall_score','')}")
