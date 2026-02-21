@@ -420,12 +420,11 @@ st.write("---")
 # DRILL-DOWNS
 # =========================================================
 st.subheader("🔍 Top Candidates (by score)")
+
 # Optional: candidate identity fields (role gated)
 users_map = {}
 if can_view_pii:
     cand_ids = {a.get("candidate_user_id") for a in (apps or []) if a.get("candidate_user_id")}
-          
-    
     users_map = _fetch_users_app_map(cand_ids)
 
 top_rows = []
@@ -434,14 +433,23 @@ for a in apps:
     s = score_by_app.get(aid, {})
     if not s:
         continue
-    top_rows.append({
+
+    row = {
         "application_id": aid,
         "candidate_user_id": a.get("candidate_user_id"),
         "job_post_id": a.get("job_post_id"),
         "status": a.get("status"),
         "created_at": a.get("created_at"),
         "overall_score": s.get("overall_score"),
-    })
+    }
+
+    # ✅ Add identity fields (name/email) only if allowed
+    if can_view_pii:
+        u = users_map.get(a.get("candidate_user_id")) or {}
+        row["candidate_name"] = u.get("full_name")
+        row["candidate_email"] = u.get("email")
+
+    top_rows.append(row)
 
 top_rows = sorted(top_rows, key=lambda r: float(r.get("overall_score") or 0), reverse=True)[:50]
 if top_rows:
@@ -449,15 +457,27 @@ if top_rows:
 else:
     st.info("No scored candidates available for this filter.")
 
+
 st.subheader("🧾 Recent Applications")
-recent_rows = [{
-    "application_id": a.get("id"),
-    "candidate_user_id": a.get("candidate_user_id"),
-    "job_post_id": a.get("job_post_id"),
-    "status": a.get("status"),
-    "created_at": a.get("created_at"),
-    "score": (score_by_app.get(a.get("id"), {}) or {}).get("overall_score")
-} for a in apps[:100]]
+
+recent_rows = []
+for a in apps[:100]:
+    row = {
+        "application_id": a.get("id"),
+        "candidate_user_id": a.get("candidate_user_id"),
+        "job_post_id": a.get("job_post_id"),
+        "status": a.get("status"),
+        "created_at": a.get("created_at"),
+        "score": (score_by_app.get(a.get("id"), {}) or {}).get("overall_score"),
+    }
+
+    # ✅ Add identity fields (name/email) only if allowed
+    if can_view_pii:
+        u = users_map.get(a.get("candidate_user_id")) or {}
+        row["candidate_name"] = u.get("full_name")
+        row["candidate_email"] = u.get("email")
+
+    recent_rows.append(row)
 
 if recent_rows:
     st.dataframe(recent_rows, use_container_width=True, hide_index=True)
