@@ -582,31 +582,115 @@ if recent_rows:
         )
 
     with col_d3:
-        # Minimal single-page PDF summary (no external deps)  
-        pdf_lines = [
-                            f"Institution: {selected_inst_name}",
-                            f"Generated (UTC): {datetime.now(timezone.utc).isoformat()}",
-                            "",
-                            f"Total Applications: {total_apps}",
-                            f"Average Score: {avg_score:.1f}" if scored_count else "Average Score: —",
-                            f"Job Ready Rate (>=70): {job_ready_rate*100:.0f}%" if scored_count else "Job Ready Rate: —",
-                            "",
-                            "Top Candidates (first 5):",
-                   ]
+                   # Simple, dependency-free PDF (no ReportLab)
+                   # Uses the lightweight _simple_pdf_bytes() helper defined earlier in this file.
 
+                   def _fmt1(x):
+                           try:
+                                    return f"{float(x):.1f}"
+                           except Exception:
+                                    return "—"
 
-        for r in (top_rows or [])[:5]:
-            pdf_lines.append(f"- {r.get('candidate_user_id','')} | score={r.get('overall_score','')}")
+                  def _fmt_pct(x):
+                          try:
+                                   return f"{float(x):.0f}%"
+                          except Exception:
+                                   return "—"
 
-        pdf_bytes = _simple_pdf_bytes("TalentIQ — Executive Summary", pdf_lines)
+                  def _who(uid: str):
+                          users_map = locals().get("users_map", {}) or {}
+                          rec = users_map.get(uid) or {}
+                          name = (rec.get("full_name") or "").strip()
+                          email = (rec.get("email") or "").strip()
+                          if name and email:
+                                  return f"{name} <{email}>"
+                          if name:
+                                  return name
+                          if email:
+                                  return email
+                          return str(uid or "—")
 
-        st.download_button(
-            "Download Executive Summary (PDF)",
-            data=pdf_bytes,
-            file_name=f"{inst_slug}_executive_summary_{now_tag}.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-        )
+                 # Resolve institution name for labels/exports
+                 selected_inst_name = (
+                          locals().get("selected_inst_name")
+                          or locals().get("inst_name")
+                          or locals().get("institution_name")
+                          or "Institution"
+                 )
+
+                 pdf_lines = []
+                 pdf_lines.append("TalentIQ — Executive Summary")
+                 pdf_lines.append(f"Institution: {selected_inst_name}")
+                 pdf_lines.append(f"Generated (UTC): {datetime.now(timezone.utc).isoformat()}")
+                 pdf_lines.append("")
+
+                 total_apps = locals().get("total_apps", 0) or 0
+                 avg_score = locals().get("avg_score", None)
+                 job_ready_pct = locals().get("job_ready_pct", None)
+
+                 pdf_lines.append(f"Total Applications: {int(total_apps)}")
+                 pdf_lines.append(f"Average Score: {_fmt1(avg_score)}")
+                 pdf_lines.append(f"Job Ready Rate (>=70): {_fmt_pct(job_ready_pct)}")
+                 pdf_lines.append("")
+
+                # SCORE DISTRIBUTION (optional)
+                pdf_lines.append("Score Distribution")
+                band_rows = locals().get("band_rows", []) or []
+                if band_rows:
+                        for r in band_rows:
+                                band = r.get("score_band") or r.get("band") or "—"
+                                cnt = r.get("count") or r.get("cnt") or 0
+                                pdf_lines.append(f"- {band}: {cnt}") 
+                else:
+                         pdf_lines.append("- (not available)")
+                pdf_lines.append("")
+
+                # TOP CANDIDATES
+                pdf_lines.append("Top Candidates (first 10)")
+                top_candidates_rows = (
+                       locals().get("top_candidates_rows")
+                       or locals().get("top_rows")
+                       or []
+                )
+               for row in (top_candidates_rows or [])[:10]:
+                       uid = row.get("candidate_user_id")
+                       score = row.get("overall_score")
+                       pdf_lines.append(f"- {_who(uid)} | score={_fmt1(score)}")
+               if not top_candidates_rows:
+                       pdf_lines.append("- (none)")
+                pdf_lines.append("")
+
+                # RECENT APPLICATIONS
+                 pdf_lines.append("Recent Applications (last 10)")
+                 recent_apps_rows = (
+                           locals().get("recent_apps_rows")
+                           or locals().get("recent_rows")
+                           or []
+                 )
+                for row in (recent_apps_rows or [])[:10]:
+                        uid = row.get("candidate_user_id")
+                        status = row.get("status", "—")
+                        score = row.get("overall_score")
+                        created = row.get("created_at", "—")
+                        pdf_lines.append(f"- {_who(uid)} | status={status} | score={_fmt1(score)} | {created}")
+                if not recent_apps_rows:
+                         pdf_lines.append("- (none)")
+                 pdf_lines.append("")
+
+                 pdf_lines.append("Notes")
+                 pdf_lines.append("• Names/emails appear only for authorized roles.")
+                 pdf_lines.append("• Job-ready rate is based on overall_score >= 70.")
+
+                 pdf_bytes = _simple_pdf_bytes(pdf_lines, title="TalentIQ Executive Summary")
+                 inst_slug = (selected_inst_name or "institution").replace(" ", "_")
+                 st.download_button(
+                          "📄 Download Executive PDF",
+                          data=pdf_bytes,
+                          file_name=f"{inst_slug}_executive_summary.pdf",
+                          mime="application/pdf",
+                          use_container_width=True
+                 )
+
 
 if st.button("💳 Manage Subscription"):
     st.switch_page("pages/18_Institution_Subscription.py")
