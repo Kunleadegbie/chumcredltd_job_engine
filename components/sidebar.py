@@ -71,6 +71,7 @@ def render_sidebar() -> None:
         # Subscription / Support
         # -------------------------
         safe_page_link("pages/10_subscription.py", "💳 Subscription")
+        safe_page_link("pages/18_Institution_Subscription.py", "🏛️ Institution Subscription")
         safe_page_link("pages/14_Support_Hub.py", "🆘 Support Hub")
 
         # -------------------------

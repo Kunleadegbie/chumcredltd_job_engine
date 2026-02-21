@@ -36,6 +36,9 @@ if not user:
 user_id = user.get("id")
 user_role = (user.get("role") or "").lower()
 
+if st.button("💳 Manage Subscription"):
+    st.switch_page("pages/18_Institution_Subscription.py")
+
 # ---------------------------------------------------------
 # UI: Hide default nav + render sidebar
 # ---------------------------------------------------------
