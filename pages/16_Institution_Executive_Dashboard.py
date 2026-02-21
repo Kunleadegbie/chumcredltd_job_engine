@@ -8,6 +8,7 @@
 import streamlit as st
 import sys, os
 from datetime import datetime, timezone, timedelta, date
+import io, csv
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
@@ -117,6 +118,80 @@ def _resolve_member_institution_id(member_user_id: str) -> str | None:
             return row["institution_id"]
 
     return None
+def _rows_to_csv_bytes(rows):
+    """Convert list[dict] to CSV bytes (utf-8)."""
+    rows = rows or []
+    # Collect headers across all rows (stable order)
+    headers = []
+    seen = set()
+    for r in rows:
+        if isinstance(r, dict):
+            for k in r.keys():
+                if k not in seen:
+                    seen.add(k)
+                    headers.append(k)
+
+    # If empty, still return a header-only CSV
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    if headers:
+        w.writerow(headers)
+        for r in rows:
+            w.writerow([(r.get(h, "") if isinstance(r, dict) else "") for h in headers])
+    else:
+        w.writerow(["no_data"])
+    return buf.getvalue().encode("utf-8")
+
+
+def _simple_pdf_bytes(title: str, lines: list[str]):
+    """
+    Minimal PDF generator (no external deps).
+    Produces a simple single-page PDF with the given title + lines.
+    """
+    title = (title or "Report").replace("(", "\(").replace(")", "\)")
+    safe_lines = []
+    for ln in (lines or []):
+        ln = (str(ln) if ln is not None else "").replace("(", "\(").replace(")", "\)")
+        # basic cleanup for PDF text stream
+        ln = ln.replace("\\", "\\\\")
+        safe_lines.append(ln)
+
+    # Build PDF content stream
+    y = 780
+    content = [f"BT /F1 14 Tf 50 {y} Td ({title}) Tj ET"]
+    y -= 24
+    for ln in safe_lines[:50]:
+        content.append(f"BT /F1 11 Tf 50 {y} Td ({ln}) Tj ET")
+        y -= 16
+        if y < 60:
+            break
+
+    stream = "\n".join(content)
+    stream_bytes = stream.encode("latin-1", "replace")
+
+    # PDF objects
+    objs = []
+    objs.append(b"1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj")
+    objs.append(b"2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj")
+    objs.append(b"3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources<< /Font<< /F1 4 0 R >> >> /Contents 5 0 R >>endobj")
+    objs.append(b"4 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj")
+    objs.append(b"5 0 obj<< /Length %d >>stream\n%s\nendstream\nendobj" % (len(stream_bytes), stream_bytes))
+
+    # Assemble with xref
+    out = io.BytesIO()
+    out.write(b"%PDF-1.4\n")
+    xref = [0]
+    for o in objs:
+        xref.append(out.tell())
+        out.write(o + b"\n")
+    xref_start = out.tell()
+    out.write(b"xref\n0 %d\n" % (len(xref)))
+    out.write(b"0000000000 65535 f \n")
+    for off in xref[1:]:
+        out.write(f"{off:010d} 00000 n \n".encode("ascii"))
+    out.write(b"trailer<< /Size %d /Root 1 0 R >>\n" % (len(xref)))
+    out.write(b"startxref\n%d\n%%%%EOF" % xref_start)
+    return out.getvalue()
 
 def _get_institution_name(inst_id: str) -> str:
     r = _safe_exec(lambda: supabase.table("institutions").select("name").eq("id", inst_id).single().execute(), default=None)
@@ -423,7 +498,7 @@ st.subheader("🔍 Top Candidates (by score)")
 # Optional: candidate identity fields (role gated)
 users_map = {}
 if can_view_pii:
-    cand_ids = {a.get("candidate_user_id") for a in (apps_rows or []) if a.get("candidate_user_id")}
+    cand_ids = {a.get("candidate_user_id") for a in (apps or []) if a.get("candidate_user_id")}
     users_map = _fetch_users_app_map(cand_ids)
 
 top_rows = []
@@ -459,7 +534,64 @@ recent_rows = [{
 
 if recent_rows:
     st.dataframe(recent_rows, use_container_width=True, hide_index=True)
-else:
-    st.info("No applications found.")
+
+
+    st.write("---")
+    st.subheader("⬇️ Downloads")
+
+    # 2 CSV + 1 PDF (Executive)
+    now_tag = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+    inst_slug = (selected_inst_name or 'institution').replace(' ', '_')
+
+    col_d1, col_d2, col_d3 = st.columns(3)
+
+    with col_d1:
+        st.download_button(
+            "Download Top Candidates (CSV)",
+            data=_rows_to_csv_bytes(top_rows),
+            file_name=f"{inst_slug}_top_candidates_{now_tag}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+    with col_d2:
+        st.download_button(
+            "Download Recent Applications (CSV)",
+            data=_rows_to_csv_bytes(recent_rows),
+            file_name=f"{inst_slug}_recent_applications_{now_tag}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+    with col_d3:
+        # Minimal single-page PDF summary (no external deps)
+        pdf_lines = [
+            f"Institution: {selected_inst_name}",
+            f"Generated (UTC): {datetime.now(timezone.utc).isoformat()}",
+            "",
+            f"Total Applications: {kpi_total_apps}",
+            f"Avg Score: {kpi_avg_score}",
+            f"Top Band (best): {kpi_top_band}",
+            f"High Performers (>=80): {kpi_high_perf}",
+            "",
+            "Top Candidates (first 5):",
+        ]
+
+        for r in (top_rows or [])[:5]:
+            pdf_lines.append(f"- {r.get('candidate_user_id','')} | score={r.get('overall_score','')}")
+
+        pdf_bytes = _simple_pdf_bytes("TalentIQ — Executive Summary", pdf_lines)
+
+        st.download_button(
+            "Download Executive Summary (PDF)",
+            data=pdf_bytes,
+            file_name=f"{inst_slug}_executive_summary_{now_tag}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+        )
+
+if st.button("💳 Manage Subscription"):
+    st.switch_page("pages/18_Institution_Subscription.py")
+
 
 st.caption("Chumcred TalentIQ © 2025")
