@@ -381,35 +381,32 @@ with col_d2:
 with col_d3:
     st.markdown("### 📄 PDF (Executive Summary)")
     st.write("")
+    
+     # Minimal single-page PDF summary (no external deps)
+         # Uses existing datetime/timezone already imported at top of this file
 
-    # Minimal single-page PDF summary (no external deps)
-    # Replace your existing pdf_lines block with this (keeps your same KPI variables)
-
-        from datetime import datetime, timezone
-
-        def _safe_float(x, default=0.0):
-            try:
-                return float(x)
-            except Exception:
-                return default
-
-        def _fmt_pct(x):
-            try:
-                return f"{_safe_float(x, 0.0)*100:.0f}%"
-            except Exception:
-                return "—"
+         def _fmt_pct(x):
+                 try:
+                        return f"{float(x) * 100:.0f}%"
+                 except Exception:
+                           return "—"
 
         def _fmt_score(x):
-            try:
-                return f"{_safe_float(x, 0.0):.1f}"
-            except Exception:
-                return "—"
+                try:
+                       return f"{float(x):.1f}"
+                except Exception:
+                         return "—"
 
-        # Basic executive content (add more lines as needed)
+        def _safe_num(x, default=0.0):
+                try:
+                       return float(x)
+                except Exception:
+                          return default
+
         gen_utc = datetime.now(timezone.utc).isoformat()
 
         pdf_lines = []
-        pdf_lines.append(f"TalentIQ — Executive Summary")
+        pdf_lines.append("TalentIQ — Executive Summary")
         pdf_lines.append(f"Institution: {selected_inst_name or selected_inst_id}")
         pdf_lines.append(f"Generated (UTC): {gen_utc}")
         pdf_lines.append("")
@@ -418,82 +415,78 @@ with col_d3:
         pdf_lines.append(f"Job Ready Rate (>=70): {_fmt_pct(job_ready_rate)}")
         pdf_lines.append("")
 
-        # Add Top Candidates (show name/email)
         pdf_lines.append("Top Candidates (first 5):")
         for row in (top_candidates_table or [])[:5]:
-            nm = row.get("candidate_name") or "(unknown)"
-            em = row.get("candidate_email") or ""
-            sc = row.get("overall_score")
-            pdf_lines.append(f"- {nm} <{em}> | score={_safe_float(sc, 0):.0f}")
+                nm = row.get("candidate_name") or "(unknown)"
+                em = row.get("candidate_email") or ""
+                sc = row.get("overall_score")
+                pdf_lines.append(f"- {nm} <{em}> | score={_safe_num(sc, 0):.0f}")
 
         pdf_lines.append("")
         pdf_lines.append("Recent Applications (first 5):")
         for row in (recent_table or [])[:5]:
-            nm = row.get("candidate_name") or "(unknown)"
-            em = row.get("candidate_email") or ""
-            sc = row.get("overall_score")
-            pdf_lines.append(f"- {nm} <{em}> | score={_safe_float(sc, 0):.0f}")
+                nm = row.get("candidate_name") or "(unknown)"
+                em = row.get("candidate_email") or ""
+                sc = row.get("overall_score")
+                pdf_lines.append(f"- {nm} <{em}> | score={_safe_num(sc, 0):.0f}")
 
-        # Simple text-to-PDF generator (pure python)
-        def _simple_text_pdf(lines, title="TalentIQ Executive Summary"):
-            # Extremely small PDF generator (monospace). Avoids reportlab dependency.
-            # Writes a minimal PDF with text lines.
-            import io
-            buf = io.BytesIO()
+        def _simple_text_pdf(lines):
+                # Minimal PDF generator (pure python). No reportlab.
+                import io
 
-            # PDF header
-            buf.write(b"%PDF-1.4\n")
-            objects = []
+                buf = io.BytesIO()
+                buf.write(b"%PDF-1.4\n")
+                objects = []
 
-            def _obj(data: bytes):
-                objects.append(data)
+                def _obj(data: bytes):
+                        objects.append(data)
 
-            # Font object
-            _obj(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+               # Font object
+               _obj(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
 
-            # Page content stream
-            y = 800
-            content = []
-            content.append("BT")
-            content.append("/F1 12 Tf")
-            content.append("72 0 Td")
-            content.append("0 0 0 rg")
-            content.append(f"0 {y} Td")
+               # Content stream
+               content = []
+               content.append("BT")
+               content.append("/F1 12 Tf")
+               content.append("72 800 Td")
+               content.append("14 TL")  # line spacing
+    
+               for ln in lines:
+                       safe = (ln or "").replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+                       content.append(f"({safe}) Tj")
+                       content.append("T*")
 
-            for ln in lines:
-                safe = (ln or "").replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-                content.append(f"({safe}) Tj")
-                content.append("T*")
-            content.append("ET")
-            stream = "\n".join(content).encode("utf-8")
+               content.append("ET")
+               stream = "\n".join(content).encode("utf-8")
 
-            _obj(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
+               _obj(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
 
-            # Page object
-            _obj(b"<< /Type /Page /Parent 4 0 R /Resources << /Font << /F1 1 0 R >> >> /MediaBox [0 0 595 842] /Contents 2 0 R >>")
+               # Page
+               _obj(b"<< /Type /Page /Parent 4 0 R /Resources << /Font << /F1 1 0 R >> >> /MediaBox [0 0 595 842] /Contents 2 0 R >>")
 
-            # Pages object
-            _obj(b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+               # Pages
+               _obj(b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
 
-            # Catalog object
-            _obj(b"<< /Type /Catalog /Pages 4 0 R >>")
+              # Catalog
+              _obj(b"<< /Type /Catalog /Pages 4 0 R >>")
 
-            # Write xref
-            xref_positions = []
-            buf.write(b"%\xe2\xe3\xcf\xd3\n")  # binary marker
+             # Write objects
+             xref_positions = []
+             buf.write(b"%\xe2\xe3\xcf\xd3\n")
 
             for i, obj in enumerate(objects, start=1):
-                xref_positions.append(buf.tell())
-                buf.write(f"{i} 0 obj\n".encode("utf-8"))
-                buf.write(obj)
-                buf.write(b"\nendobj\n")
+                    xref_positions.append(buf.tell())
+                    buf.write(f"{i} 0 obj\n".encode("utf-8"))
+                    buf.write(obj)
+                    buf.write(b"\nendobj\n")
 
+            # Xref
             xref_start = buf.tell()
             buf.write(b"xref\n")
             buf.write(f"0 {len(objects)+1}\n".encode("utf-8"))
             buf.write(b"0000000000 65535 f \n")
             for pos in xref_positions:
-                buf.write(f"{pos:010d} 00000 n \n".encode("utf-8"))
+                    buf.write(f"{pos:010d} 00000 n \n".encode("utf-8"))
 
             buf.write(b"trailer\n")
             buf.write(f"<< /Size {len(objects)+1} /Root 5 0 R >>\n".encode("utf-8"))
@@ -504,11 +497,14 @@ with col_d3:
             return buf.getvalue()
 
         pdf_bytes = _simple_text_pdf(pdf_lines)
+
+        inst_slug = (selected_inst_name or "institution").replace(" ", "_")
+
         st.download_button(
-            "⬇️ Download Executive PDF",
-            data=pdf_bytes,
-            file_name=f"executive_summary_{(selected_inst_name or 'institution').replace(' ','_')}.pdf",
-            mime="application/pdf",
+                "⬇️ Download Executive PDF",
+                data=pdf_bytes,
+                file_name=f"executive_summary_{inst_slug}.pdf",
+                mime="application/pdf",
         )
 
 # =========================
