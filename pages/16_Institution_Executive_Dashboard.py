@@ -381,131 +381,131 @@ with col_d2:
 with col_d3:
     st.markdown("### 📄 PDF (Executive Summary)")
     st.write("")
-    
-     # Minimal single-page PDF summary (no external deps)
-         # Uses existing datetime/timezone already imported at top of this file
 
-         def _fmt_pct(x):
-                 try:
-                        return f"{float(x) * 100:.0f}%"
-                 except Exception:
-                           return "—"
+    # Minimal single-page PDF summary (no external deps)
+    # Uses existing datetime/timezone already imported at top of this file
 
-        def _fmt_score(x):
-                try:
-                       return f"{float(x):.1f}"
-                except Exception:
-                         return "—"
+    def _fmt_pct(x):
+        try:
+            return f"{float(x) * 100:.0f}%"
+        except Exception:
+            return "—"
 
-        def _safe_num(x, default=0.0):
-                try:
-                       return float(x)
-                except Exception:
-                          return default
+    def _fmt_score(x):
+        try:
+            return f"{float(x):.1f}"
+        except Exception:
+            return "—"
 
-        gen_utc = datetime.now(timezone.utc).isoformat()
+    def _safe_num(x, default=0.0):
+        try:
+            return float(x)
+        except Exception:
+            return default
 
-        pdf_lines = []
-        pdf_lines.append("TalentIQ — Executive Summary")
-        pdf_lines.append(f"Institution: {selected_inst_name or selected_inst_id}")
-        pdf_lines.append(f"Generated (UTC): {gen_utc}")
-        pdf_lines.append("")
-        pdf_lines.append(f"Total Applications: {total_apps}")
-        pdf_lines.append(f"Average Score: {_fmt_score(avg_score)}")
-        pdf_lines.append(f"Job Ready Rate (>=70): {_fmt_pct(job_ready_rate)}")
-        pdf_lines.append("")
+    gen_utc = datetime.now(timezone.utc).isoformat()
 
-        pdf_lines.append("Top Candidates (first 5):")
-        for row in (top_candidates_table or [])[:5]:
-                nm = row.get("candidate_name") or "(unknown)"
-                em = row.get("candidate_email") or ""
-                sc = row.get("overall_score")
-                pdf_lines.append(f"- {nm} <{em}> | score={_safe_num(sc, 0):.0f}")
+    pdf_lines = []
+    pdf_lines.append("TalentIQ — Executive Summary")
+    pdf_lines.append(f"Institution: {selected_inst_name or selected_inst_id}")
+    pdf_lines.append(f"Generated (UTC): {gen_utc}")
+    pdf_lines.append("")
+    pdf_lines.append(f"Total Applications: {total_apps}")
+    pdf_lines.append(f"Average Score: {_fmt_score(avg_score)}")
+    pdf_lines.append(f"Job Ready Rate (>=70): {_fmt_pct(job_ready_rate)}")
+    pdf_lines.append("")
 
-        pdf_lines.append("")
-        pdf_lines.append("Recent Applications (first 5):")
-        for row in (recent_table or [])[:5]:
-                nm = row.get("candidate_name") or "(unknown)"
-                em = row.get("candidate_email") or ""
-                sc = row.get("overall_score")
-                pdf_lines.append(f"- {nm} <{em}> | score={_safe_num(sc, 0):.0f}")
+    pdf_lines.append("Top Candidates (first 5):")
+    for row in (top_candidates_table or [])[:5]:
+        nm = row.get("candidate_name") or "(unknown)"
+        em = row.get("candidate_email") or ""
+        sc = row.get("overall_score")
+        pdf_lines.append(f"- {nm} <{em}> | score={_safe_num(sc, 0):.0f}")
 
-        def _simple_text_pdf(lines):
-                # Minimal PDF generator (pure python). No reportlab.
-                import io
+    pdf_lines.append("")
+    pdf_lines.append("Recent Applications (first 5):")
+    for row in (recent_table or [])[:5]:
+        nm = row.get("candidate_name") or "(unknown)"
+        em = row.get("candidate_email") or ""
+        sc = row.get("overall_score")
+        pdf_lines.append(f"- {nm} <{em}> | score={_safe_num(sc, 0):.0f}")
 
-                buf = io.BytesIO()
-                buf.write(b"%PDF-1.4\n")
-                objects = []
+    def _simple_text_pdf(lines):
+        # Minimal PDF generator (pure python). No reportlab.
+        import io
 
-                def _obj(data: bytes):
-                        objects.append(data)
+        buf = io.BytesIO()
+        buf.write(b"%PDF-1.4\n")
+        objects = []
 
-               # Font object
-               _obj(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+        def _obj(data: bytes):
+            objects.append(data)
 
-               # Content stream
-               content = []
-               content.append("BT")
-               content.append("/F1 12 Tf")
-               content.append("72 800 Td")
-               content.append("14 TL")  # line spacing
-    
-               for ln in lines:
-                       safe = (ln or "").replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-                       content.append(f"({safe}) Tj")
-                       content.append("T*")
+        # Font object
+        _obj(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
 
-               content.append("ET")
-               stream = "\n".join(content).encode("utf-8")
+        # Content stream
+        content = []
+        content.append("BT")
+        content.append("/F1 12 Tf")
+        content.append("72 800 Td")
+        content.append("14 TL")  # line spacing
 
-               _obj(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
+        for ln in lines:
+            safe = (ln or "").replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+            content.append(f"({safe}) Tj")
+            content.append("T*")
 
-               # Page
-               _obj(b"<< /Type /Page /Parent 4 0 R /Resources << /Font << /F1 1 0 R >> >> /MediaBox [0 0 595 842] /Contents 2 0 R >>")
+        content.append("ET")
+        stream = "\n".join(content).encode("utf-8")
 
-               # Pages
-               _obj(b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+        _obj(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
 
-              # Catalog
-              _obj(b"<< /Type /Catalog /Pages 4 0 R >>")
+        # Page
+        _obj(b"<< /Type /Page /Parent 4 0 R /Resources << /Font << /F1 1 0 R >> >> /MediaBox [0 0 595 842] /Contents 2 0 R >>")
 
-             # Write objects
-             xref_positions = []
-             buf.write(b"%\xe2\xe3\xcf\xd3\n")
+        # Pages
+        _obj(b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
 
-            for i, obj in enumerate(objects, start=1):
-                    xref_positions.append(buf.tell())
-                    buf.write(f"{i} 0 obj\n".encode("utf-8"))
-                    buf.write(obj)
-                    buf.write(b"\nendobj\n")
+        # Catalog
+        _obj(b"<< /Type /Catalog /Pages 4 0 R >>")
 
-            # Xref
-            xref_start = buf.tell()
-            buf.write(b"xref\n")
-            buf.write(f"0 {len(objects)+1}\n".encode("utf-8"))
-            buf.write(b"0000000000 65535 f \n")
-            for pos in xref_positions:
-                    buf.write(f"{pos:010d} 00000 n \n".encode("utf-8"))
+        # Write objects
+        xref_positions = []
+        buf.write(b"%\xe2\xe3\xcf\xd3\n")
 
-            buf.write(b"trailer\n")
-            buf.write(f"<< /Size {len(objects)+1} /Root 5 0 R >>\n".encode("utf-8"))
-            buf.write(b"startxref\n")
-            buf.write(f"{xref_start}\n".encode("utf-8"))
-            buf.write(b"%%EOF\n")
+        for i, obj in enumerate(objects, start=1):
+            xref_positions.append(buf.tell())
+            buf.write(f"{i} 0 obj\n".encode("utf-8"))
+            buf.write(obj)
+            buf.write(b"\nendobj\n")
 
-            return buf.getvalue()
+        # Xref
+        xref_start = buf.tell()
+        buf.write(b"xref\n")
+        buf.write(f"0 {len(objects)+1}\n".encode("utf-8"))
+        buf.write(b"0000000000 65535 f \n")
+        for pos in xref_positions:
+            buf.write(f"{pos:010d} 00000 n \n".encode("utf-8"))
 
-        pdf_bytes = _simple_text_pdf(pdf_lines)
+        buf.write(b"trailer\n")
+        buf.write(f"<< /Size {len(objects)+1} /Root 5 0 R >>\n".encode("utf-8"))
+        buf.write(b"startxref\n")
+        buf.write(f"{xref_start}\n".encode("utf-8"))
+        buf.write(b"%%EOF\n")
 
-        inst_slug = (selected_inst_name or "institution").replace(" ", "_")
+        return buf.getvalue()
 
-        st.download_button(
-                "⬇️ Download Executive PDF",
-                data=pdf_bytes,
-                file_name=f"executive_summary_{inst_slug}.pdf",
-                mime="application/pdf",
-        )
+    pdf_bytes = _simple_text_pdf(pdf_lines)
+
+    inst_slug = (selected_inst_name or "institution").replace(" ", "_")
+
+    st.download_button(
+        "⬇️ Download Executive PDF",
+        data=pdf_bytes,
+        file_name=f"executive_summary_{inst_slug}.pdf",
+        mime="application/pdf",
+    )
 
 # =========================
 # SUBSCRIPTION LINK
