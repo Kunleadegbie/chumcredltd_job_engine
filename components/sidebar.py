@@ -81,6 +81,7 @@ def render_sidebar() -> None:
             st.divider()
             st.markdown("### 🛡️ Admin Panel")
             safe_page_link("pages/12_Admin_Payments.py", "💼 Payment Approvals")
+            safe_page_link("pages/19_Admin_Institution_Payments.py", "🏛️ Institution Payments")
             safe_page_link("pages/9_Admin_Revenue.py", "💰 Revenue Dashboard")
             safe_page_link("pages/13_Admin_Credit_Usage.py", "📊 Credit Usage")
             safe_page_link("pages/15_Admin_Users.py", "👥 Users Profile")
