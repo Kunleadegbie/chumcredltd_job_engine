@@ -210,11 +210,30 @@ else:
 
     selected_inst_name = (inst_map.get(selected_inst_id, {}).get("name") if selected_inst_id else None) or "Institution"
     st.caption(f"Institution: **{selected_inst_name}**")
+
+# =========================
+# PATCH 1: MEMBER ROLE (selected institution) + PII RULE
+# =========================
+member_role = "admin" if user_role == "admin" else "viewer"
+if user_role != "admin":
+    mem_rows = _get_user_institution_memberships(user_id)
+    mem = next((x for x in (mem_rows or []) if x.get("institution_id") == selected_inst_id), None)
+    member_role = (mem.get("member_role") if mem else "viewer") or "viewer"
+    member_role = member_role.lower().strip()
+
+can_view_pii = (user_role == "admin") or (member_role in ("admin", "recruiter"))
+
 # =========================
 # LOAD DATA
 # =========================
 jobs_rows = _list_job_posts(selected_inst_id)
 apps_rows = _list_applications_by_institution(selected_inst_id)
+
+# =========================
+# PATCH 2: VIEWER SCOPE (self-only)
+# =========================
+if member_role == "viewer":
+    apps_rows = [a for a in (apps_rows or []) if a.get("candidate_user_id") == user_id]
 
 app_ids = {a.get("id") for a in (apps_rows or []) if a.get("id")}
 scores_rows = _list_scores_by_app_ids(app_ids)
@@ -342,27 +361,34 @@ st.write("---")
 # =========================
 st.subheader("🏅 Top Candidates")
 
-# top candidates by score
-apps_scored = [a for a in apps_with_scores if a.get("overall_score") is not None]
-apps_scored_sorted = sorted(apps_scored, key=lambda x: _safe_float(x.get("overall_score"), 0.0), reverse=True)
-top5_rows = apps_scored_sorted[:10]
+# =========================
+# PATCH 3: VIEWER cannot see Top Candidates (ranking)
+# =========================
+if member_role == "viewer":
+    st.info("Top Candidates is available to Institution Admin/Recruiter only.")
+    top_candidates_table = []
+else:
+    # top candidates by score
+    apps_scored = [a for a in apps_with_scores if a.get("overall_score") is not None]
+    apps_scored_sorted = sorted(apps_scored, key=lambda x: _safe_float(x.get("overall_score"), 0.0), reverse=True)
+    top5_rows = apps_scored_sorted[:10]
 
-top_candidates_table = []
-for a in top5_rows:
-    uid = a.get("candidate_user_id")
-    u = users_map.get(uid, {})
-    top_candidates_table.append({
-        "candidate_name": u.get("full_name") or "(unknown)",
-        "candidate_email": u.get("email") or "",
-        "candidate_user_id": uid,
-        "overall_score": a.get("overall_score"),
-        "applied_at": a.get("created_at"),
-        "application_id": a.get("id"),
-        "job_post_id": a.get("job_post_id"),
-        "status": a.get("status"),
-    })
+    top_candidates_table = []
+    for a in top5_rows:
+        uid = a.get("candidate_user_id")
+        u = users_map.get(uid, {})
+        top_candidates_table.append({
+            "candidate_name": (u.get("full_name") if can_view_pii else ""),
+            "candidate_email": (u.get("email") if can_view_pii else ""),
+            "candidate_user_id": uid,
+            "overall_score": a.get("overall_score"),
+            "applied_at": a.get("created_at"),
+            "application_id": a.get("id"),
+            "job_post_id": a.get("job_post_id"),
+            "status": a.get("status"),
+        })
 
-st.dataframe(top_candidates_table, use_container_width=True, hide_index=True)
+    st.dataframe(top_candidates_table, use_container_width=True, hide_index=True)
 
 st.write("---")
 st.subheader("🕒 Recent Applications")
@@ -373,8 +399,11 @@ for a in recent_rows:
     uid = a.get("candidate_user_id")
     u = users_map.get(uid, {})
     recent_table.append({
-        "candidate_name": u.get("full_name") or "(unknown)",
-        "candidate_email": u.get("email") or "",
+        # =========================
+        # PATCH 4: PII masking for viewer (and future safety)
+        # =========================
+        "candidate_name": (u.get("full_name") if can_view_pii else ""),
+        "candidate_email": (u.get("email") if can_view_pii else ""),
         "candidate_user_id": uid,
         "overall_score": a.get("overall_score"),
         "applied_at": a.get("created_at"),
@@ -392,166 +421,172 @@ st.write("---")
 # =========================
 st.subheader("⬇️ Downloads")
 
-col_d1, col_d2, col_d3 = st.columns([1, 1, 1.2])
+# =========================
+# PATCH 5: VIEWER cannot download institution reports
+# =========================
+if member_role == "viewer":
+    st.info("Downloads are available to Institution Admin/Recruiter only.")
+else:
+    col_d1, col_d2, col_d3 = st.columns([1, 1, 1.2])
 
-with col_d1:
-    st.markdown("### 📄 CSV (Candidates)")
-    export_candidates_rows = top_candidates_table if isinstance(top_candidates_table, list) else []
-    if export_candidates_rows:
-        import pandas as pd
-        df_candidates = pd.DataFrame(export_candidates_rows)
+    with col_d1:
+        st.markdown("### 📄 CSV (Candidates)")
+        export_candidates_rows = top_candidates_table if isinstance(top_candidates_table, list) else []
+        if export_candidates_rows:
+            import pandas as pd
+            df_candidates = pd.DataFrame(export_candidates_rows)
+            st.download_button(
+                "⬇️ Download Candidates CSV",
+                data=df_candidates.to_csv(index=False).encode("utf-8"),
+                file_name=f"candidates_{(selected_inst_name or 'institution').replace(' ','_')}.csv",
+                mime="text/csv",
+            )
+        else:
+            st.caption("No candidate rows to export.")
+
+    with col_d2:
+        st.markdown("### 📄 CSV (Jobs)")
+        export_jobs_rows = jobs_rows if isinstance(jobs_rows, list) else []
+        if export_jobs_rows:
+            import pandas as pd
+            df_jobs = pd.DataFrame(export_jobs_rows)
+            st.download_button(
+                "⬇️ Download Jobs CSV",
+                data=df_jobs.to_csv(index=False).encode("utf-8"),
+                file_name=f"jobs_{(selected_inst_name or 'institution').replace(' ','_')}.csv",
+                mime="text/csv",
+            )
+        else:
+            st.caption("No job rows to export.")
+
+    with col_d3:
+        st.markdown("### 📄 PDF (Executive Summary)")
+        st.write("")
+
+        # Minimal single-page PDF summary (no external deps)
+        # Uses existing datetime/timezone already imported at top of this file
+
+        def _fmt_pct(x):
+            try:
+                return f"{float(x) * 100:.0f}%"
+            except Exception:
+                return "—"
+
+        def _fmt_score(x):
+            try:
+                return f"{float(x):.1f}"
+            except Exception:
+                return "—"
+
+        def _safe_num(x, default=0.0):
+            try:
+                return float(x)
+            except Exception:
+                return default
+
+        gen_utc = datetime.now(timezone.utc).isoformat()
+
+        pdf_lines = []
+        pdf_lines.append("TalentIQ — Executive Summary")
+        pdf_lines.append(f"Institution: {selected_inst_name or selected_inst_id}")
+        pdf_lines.append(f"Generated (UTC): {gen_utc}")
+        pdf_lines.append("")
+        pdf_lines.append(f"Total Applications: {total_apps}")
+        pdf_lines.append(f"Average Score: {_fmt_score(avg_score)}")
+        pdf_lines.append(f"Job Ready Rate (>=70): {_fmt_pct(job_ready_rate)}")
+        pdf_lines.append("")
+
+        pdf_lines.append("Top Candidates (first 5):")
+        for row in (top_candidates_table or [])[:5]:
+            nm = row.get("candidate_name") or "(unknown)"
+            em = row.get("candidate_email") or ""
+            sc = row.get("overall_score")
+            pdf_lines.append(f"- {nm} <{em}> | score={_safe_num(sc, 0):.0f}")
+
+        pdf_lines.append("")
+        pdf_lines.append("Recent Applications (first 5):")
+        for row in (recent_table or [])[:5]:
+            nm = row.get("candidate_name") or "(unknown)"
+            em = row.get("candidate_email") or ""
+            sc = row.get("overall_score")
+            pdf_lines.append(f"- {nm} <{em}> | score={_safe_num(sc, 0):.0f}")
+
+        def _simple_text_pdf(lines):
+            # Minimal PDF generator (pure python). No reportlab.
+            import io
+
+            buf = io.BytesIO()
+            buf.write(b"%PDF-1.4\n")
+            objects = []
+
+            def _obj(data: bytes):
+                objects.append(data)
+
+            # Font object
+            _obj(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+
+            # Content stream
+            content = []
+            content.append("BT")
+            content.append("/F1 12 Tf")
+            content.append("72 800 Td")
+            content.append("14 TL")  # line spacing
+
+            for ln in lines:
+                safe = (ln or "").replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+                content.append(f"({safe}) Tj")
+                content.append("T*")
+
+            content.append("ET")
+            stream = "\n".join(content).encode("utf-8")
+
+            _obj(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
+
+            # Page
+            _obj(b"<< /Type /Page /Parent 4 0 R /Resources << /Font << /F1 1 0 R >> >> /MediaBox [0 0 595 842] /Contents 2 0 R >>")
+
+            # Pages
+            _obj(b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
+
+            # Catalog
+            _obj(b"<< /Type /Catalog /Pages 4 0 R >>")
+
+            # Write objects
+            xref_positions = []
+            buf.write(b"%\xe2\xe3\xcf\xd3\n")
+
+            for i, obj in enumerate(objects, start=1):
+                xref_positions.append(buf.tell())
+                buf.write(f"{i} 0 obj\n".encode("utf-8"))
+                buf.write(obj)
+                buf.write(b"\nendobj\n")
+
+            # Xref
+            xref_start = buf.tell()
+            buf.write(b"xref\n")
+            buf.write(f"0 {len(objects)+1}\n".encode("utf-8"))
+            buf.write(b"0000000000 65535 f \n")
+            for pos in xref_positions:
+                buf.write(f"{pos:010d} 00000 n \n".encode("utf-8"))
+
+            buf.write(b"trailer\n")
+            buf.write(f"<< /Size {len(objects)+1} /Root 5 0 R >>\n".encode("utf-8"))
+            buf.write(b"startxref\n")
+            buf.write(f"{xref_start}\n".encode("utf-8"))
+            buf.write(b"%%EOF\n")
+
+            return buf.getvalue()
+
+        pdf_bytes = _simple_text_pdf(pdf_lines)
+
+        inst_slug = (selected_inst_name or "institution").replace(" ", "_")
+
         st.download_button(
-            "⬇️ Download Candidates CSV",
-            data=df_candidates.to_csv(index=False).encode("utf-8"),
-            file_name=f"candidates_{(selected_inst_name or 'institution').replace(' ','_')}.csv",
-            mime="text/csv",
+            "⬇️ Download Executive PDF",
+            data=pdf_bytes,
+            file_name=f"executive_summary_{inst_slug}.pdf",
+            mime="application/pdf",
         )
-    else:
-        st.caption("No candidate rows to export.")
-
-with col_d2:
-    st.markdown("### 📄 CSV (Jobs)")
-    export_jobs_rows = jobs_rows if isinstance(jobs_rows, list) else []
-    if export_jobs_rows:
-        import pandas as pd
-        df_jobs = pd.DataFrame(export_jobs_rows)
-        st.download_button(
-            "⬇️ Download Jobs CSV",
-            data=df_jobs.to_csv(index=False).encode("utf-8"),
-            file_name=f"jobs_{(selected_inst_name or 'institution').replace(' ','_')}.csv",
-            mime="text/csv",
-        )
-    else:
-        st.caption("No job rows to export.")
-
-with col_d3:
-    st.markdown("### 📄 PDF (Executive Summary)")
-    st.write("")
-
-    # Minimal single-page PDF summary (no external deps)
-    # Uses existing datetime/timezone already imported at top of this file
-
-    def _fmt_pct(x):
-        try:
-            return f"{float(x) * 100:.0f}%"
-        except Exception:
-            return "—"
-
-    def _fmt_score(x):
-        try:
-            return f"{float(x):.1f}"
-        except Exception:
-            return "—"
-
-    def _safe_num(x, default=0.0):
-        try:
-            return float(x)
-        except Exception:
-            return default
-
-    gen_utc = datetime.now(timezone.utc).isoformat()
-
-    pdf_lines = []
-    pdf_lines.append("TalentIQ — Executive Summary")
-    pdf_lines.append(f"Institution: {selected_inst_name or selected_inst_id}")
-    pdf_lines.append(f"Generated (UTC): {gen_utc}")
-    pdf_lines.append("")
-    pdf_lines.append(f"Total Applications: {total_apps}")
-    pdf_lines.append(f"Average Score: {_fmt_score(avg_score)}")
-    pdf_lines.append(f"Job Ready Rate (>=70): {_fmt_pct(job_ready_rate)}")
-    pdf_lines.append("")
-
-    pdf_lines.append("Top Candidates (first 5):")
-    for row in (top_candidates_table or [])[:5]:
-        nm = row.get("candidate_name") or "(unknown)"
-        em = row.get("candidate_email") or ""
-        sc = row.get("overall_score")
-        pdf_lines.append(f"- {nm} <{em}> | score={_safe_num(sc, 0):.0f}")
-
-    pdf_lines.append("")
-    pdf_lines.append("Recent Applications (first 5):")
-    for row in (recent_table or [])[:5]:
-        nm = row.get("candidate_name") or "(unknown)"
-        em = row.get("candidate_email") or ""
-        sc = row.get("overall_score")
-        pdf_lines.append(f"- {nm} <{em}> | score={_safe_num(sc, 0):.0f}")
-
-    def _simple_text_pdf(lines):
-        # Minimal PDF generator (pure python). No reportlab.
-        import io
-
-        buf = io.BytesIO()
-        buf.write(b"%PDF-1.4\n")
-        objects = []
-
-        def _obj(data: bytes):
-            objects.append(data)
-
-        # Font object
-        _obj(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
-
-        # Content stream
-        content = []
-        content.append("BT")
-        content.append("/F1 12 Tf")
-        content.append("72 800 Td")
-        content.append("14 TL")  # line spacing
-
-        for ln in lines:
-            safe = (ln or "").replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-            content.append(f"({safe}) Tj")
-            content.append("T*")
-
-        content.append("ET")
-        stream = "\n".join(content).encode("utf-8")
-
-        _obj(b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream")
-
-        # Page
-        _obj(b"<< /Type /Page /Parent 4 0 R /Resources << /Font << /F1 1 0 R >> >> /MediaBox [0 0 595 842] /Contents 2 0 R >>")
-
-        # Pages
-        _obj(b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>")
-
-        # Catalog
-        _obj(b"<< /Type /Catalog /Pages 4 0 R >>")
-
-        # Write objects
-        xref_positions = []
-        buf.write(b"%\xe2\xe3\xcf\xd3\n")
-
-        for i, obj in enumerate(objects, start=1):
-            xref_positions.append(buf.tell())
-            buf.write(f"{i} 0 obj\n".encode("utf-8"))
-            buf.write(obj)
-            buf.write(b"\nendobj\n")
-
-        # Xref
-        xref_start = buf.tell()
-        buf.write(b"xref\n")
-        buf.write(f"0 {len(objects)+1}\n".encode("utf-8"))
-        buf.write(b"0000000000 65535 f \n")
-        for pos in xref_positions:
-            buf.write(f"{pos:010d} 00000 n \n".encode("utf-8"))
-
-        buf.write(b"trailer\n")
-        buf.write(f"<< /Size {len(objects)+1} /Root 5 0 R >>\n".encode("utf-8"))
-        buf.write(b"startxref\n")
-        buf.write(f"{xref_start}\n".encode("utf-8"))
-        buf.write(b"%%EOF\n")
-
-        return buf.getvalue()
-
-    pdf_bytes = _simple_text_pdf(pdf_lines)
-
-    inst_slug = (selected_inst_name or "institution").replace(" ", "_")
-
-    st.download_button(
-        "⬇️ Download Executive PDF",
-        data=pdf_bytes,
-        file_name=f"executive_summary_{inst_slug}.pdf",
-        mime="application/pdf",
-    )
 
 # =========================
 # SUBSCRIPTION LINK
