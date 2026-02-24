@@ -13,12 +13,6 @@ from components.sidebar import render_sidebar
 from components.ui import hide_streamlit_sidebar
 from config.supabase_client import supabase, supabase_admin
 
-# --- INSTITUTION ACCESS GUARD (members or platform admin only) ---
-if (user.get("role") or "").lower() != "admin":
-    m = supabase.table("institution_members").select("id").eq("user_id", user_id).limit(1).execute().data or []
-    if not m:
-        st.error("Access denied. You are not assigned to any institution.")
-        st.stop()
 
 # ---------------------------------------------------------
 # AUTH GUARD
@@ -29,6 +23,15 @@ if not st.session_state.get("authenticated"):
 
 user = st.session_state.get("user") or {}
 user_id = user.get("id")
+
+# --- INSTITUTION ACCESS GUARD (members or platform admin only) ---
+if (user.get("role") or "").lower() != "admin":
+    m = supabase.table("institution_members").select("id").eq("user_id", user_id).limit(1).execute().data or []
+    if not m:
+        st.error("Access denied. You are not assigned to any institution.")
+        st.stop()
+
+
 user_role = (user.get("role") or "").lower()
 if not user_id:
     st.switch_page("app.py")
