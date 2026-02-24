@@ -1,4 +1,3 @@
-
 # ==========================================================
 # components/sidebar.py — STABLE PER-PAGE SIDEBAR (FIXED)
 # ==========================================================
@@ -8,7 +7,6 @@ import os
 import uuid
 import streamlit as st
 from config.supabase_client import supabase
-
 
 
 def _page_exists(page_path: str) -> bool:
@@ -23,10 +21,35 @@ def safe_page_link(page_path: str, label: str) -> None:
         pass
 
 
+# ==========================================================
+# NEW: Institution membership check (for hiding institution links)
+# ==========================================================
+def _is_institution_member(user_app_id: str) -> bool:
+    try:
+        if not user_app_id:
+            return False
+        r = (
+            supabase
+            .table("institution_members")
+            .select("id")
+            .eq("user_id", user_app_id)
+            .limit(1)
+            .execute()
+        )
+        rows = r.data or []
+        return len(rows) > 0
+    except Exception:
+        return False
+
+
 def render_sidebar() -> None:
     user = st.session_state.get("user") or {}
     role = (user.get("role") or "user").lower()
     email = (user.get("email") or "").lower()
+
+    # NEW: used to hide institution menu items for individual users
+    user_app_id = user.get("id")
+    show_institutions = (role == "admin") or _is_institution_member(user_app_id)
 
     admin_emails = {
         "chumcred@gmail.com",
@@ -46,8 +69,10 @@ def render_sidebar() -> None:
         safe_page_link("pages/2_Dashboard.py", "📊 Dashboard")
         safe_page_link("pages/3_Job_Search.py", "🔍 Job Search")
         safe_page_link("pages/4_Saved_Jobs.py", "💾 Saved Jobs")
-        safe_page_link("pages/16_Institution_Executive_Dashboard.py", "🏛️ Institution Dashboard")
 
+        # NEW: show institution dashboard only for platform admin or institution members
+        if show_institutions:
+            safe_page_link("pages/16_Institution_Executive_Dashboard.py", "🏛️ Institution Dashboard")
 
         st.divider()
 
@@ -71,7 +96,11 @@ def render_sidebar() -> None:
         # Subscription / Support
         # -------------------------
         safe_page_link("pages/10_subscription.py", "💳 Subscription")
-        safe_page_link("pages/18_Institution_Subscription.py", "🏛️ Institution Subscription")
+
+        # NEW: show institution subscription only for platform admin or institution members
+        if show_institutions:
+            safe_page_link("pages/18_Institution_Subscription.py", "🏛️ Institution Subscription")
+
         safe_page_link("pages/14_Support_Hub.py", "🆘 Support Hub")
 
         # -------------------------
@@ -95,7 +124,6 @@ def render_sidebar() -> None:
             handle_logout()
 
 
-
 # ==========================================================
 # Logout handler — FINAL & STABLE
 # ==========================================================
@@ -110,16 +138,3 @@ def handle_logout():
 
     # Hard redirect to login page
     st.switch_page("app.py")
-
-
-
-
-
- 
-
-
-
-
-        
-
-
