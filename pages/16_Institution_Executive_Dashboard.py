@@ -155,23 +155,61 @@ st.caption("Admin view: Select an institution to view KPI cards, charts, and rep
 # =========================
 # INSTITUTION SELECTOR
 # =========================
-inst_rows = _select_all_institutions()
+# =========================
+# INSTITUTION SELECTOR (ADMIN vs MEMBER)
+# =========================
+user_role = (user.get("role") or "").lower().strip()
 
-if not inst_rows:
-    st.info("No institutions found yet.")
-    st.stop()
+if user_role == "admin":
+    # Platform admin can see ALL institutions
+    inst_rows = _select_all_institutions()
 
-inst_map = _get_institution_name_map(inst_rows)
-inst_choices = [f"{r.get('name','(no name)')} — {r.get('id')}" for r in inst_rows if r.get("id")]
-selected_pick = st.selectbox("Select an institution", inst_choices, index=0)
+    if not inst_rows:
+        st.info("No institutions found yet.")
+        st.stop()
 
-selected_inst_id = selected_pick.split("—")[-1].strip() if "—" in selected_pick else None
-selected_inst_name = (inst_map.get(selected_inst_id, {}).get("name") if selected_inst_id else None)
+    inst_map = _get_institution_name_map(inst_rows)
+    inst_choices = [f"{r.get('name','(no name)')} — {r.get('id')}" for r in inst_rows if r.get("id")]
+    selected_pick = st.selectbox("Select an institution", inst_choices, index=0)
 
-if not selected_inst_id:
-    st.warning("Please select a valid institution.")
-    st.stop()
+    selected_inst_id = selected_pick.split("—")[-1].strip() if "—" in selected_pick else None
+    selected_inst_name = (inst_map.get(selected_inst_id, {}).get("name") if selected_inst_id else None)
 
+    if not selected_inst_id:
+        st.warning("Please select a valid institution.")
+        st.stop()
+
+else:
+    # Institution member: can only see THEIR institution(s)
+    memberships = _get_user_institution_memberships(user_id)
+    my_inst_ids = [m.get("institution_id") for m in (memberships or []) if m.get("institution_id")]
+
+    if not my_inst_ids:
+        st.error("Access denied. You are not assigned to any institution.")
+        st.stop()
+
+    inst_rows = (
+        supabase_admin.table("institutions")
+        .select("id,name,institution_type,industry,website,created_at")
+        .in_("id", my_inst_ids)
+        .order("created_at", desc=True)
+        .limit(500)
+        .execute()
+        .data
+        or []
+    )
+
+    inst_map = _get_institution_name_map(inst_rows)
+
+    if len(inst_rows) > 1:
+        inst_choices = [f"{r.get('name','(no name)')} — {r.get('id')}" for r in inst_rows if r.get("id")]
+        selected_pick = st.selectbox("Your institutions", inst_choices, index=0)
+        selected_inst_id = selected_pick.split("—")[-1].strip() if "—" in selected_pick else my_inst_ids[0]
+    else:
+        selected_inst_id = my_inst_ids[0]
+
+    selected_inst_name = (inst_map.get(selected_inst_id, {}).get("name") if selected_inst_id else None) or "Institution"
+    st.caption(f"Institution: **{selected_inst_name}**")
 # =========================
 # LOAD DATA
 # =========================
