@@ -24,6 +24,11 @@ if not st.session_state.get("authenticated"):
 user = st.session_state.get("user") or {}
 user_id = user.get("id")
 
+user_role = (user.get("role") or "").lower()
+if not user_id:
+    st.switch_page("app.py")
+    st.stop()
+
 # --- INSTITUTION ACCESS GUARD (members or platform admin only) ---
 if (user.get("role") or "").lower() != "admin":
     m = supabase.table("institution_members").select("id").eq("user_id", user_id).limit(1).execute().data or []
@@ -32,10 +37,6 @@ if (user.get("role") or "").lower() != "admin":
         st.stop()
 
 
-user_role = (user.get("role") or "").lower()
-if not user_id:
-    st.switch_page("app.py")
-    st.stop()
 
 hide_streamlit_sidebar()
 render_sidebar()
