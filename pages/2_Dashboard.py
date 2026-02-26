@@ -379,6 +379,15 @@ Upload your resume and a job description to receive:
 - Clear explanations of **what recruiters and ATS systems see**
 - Actionable recommendations to **improve your chances**
 
+#### 🔹 Tailor CV to Job *(Targeted Rewrite)*
+Upload (or paste) your **current CV** and a **job description** to receive:
+* A **tailored CV** rewritten to match the role (same facts, better alignment)
+* Optimized **keywords + ATS-friendly phrasing**
+* Stronger **professional summary** aligned to the job
+* Re-ordered **skills & experience** to highlight what matters most
+* A quick **“changes made”** note so you can review confidently
+
+
 #### 🔹 InterviewIQ™ *(AI Interview Preparation Engine)*  
 Practice real interview scenarios before the actual interview:
 - AI-generated **role-specific interview questions**
@@ -577,6 +586,7 @@ st.markdown("""
 | Cover Letter | **5** |
 | Eligibility Check | **5** |
 | Resume Writer | **5** |
+| Tailor CV to Job | **20** |
 | Job Recommendations | **3** |
 | ATS SmartMatch | **10** |
 | InterviewIQ | **10** |
