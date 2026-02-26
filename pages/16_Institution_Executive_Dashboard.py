@@ -266,7 +266,6 @@ users_map = _fetch_users_app_map(cand_ids)
 try:
     _uid = user_id
     if _uid and (_uid in cand_ids or str(_uid) in {str(x) for x in cand_ids}):
-        # normalize key usage
         _uid_str = str(_uid)
         _existing = users_map.get(_uid) or users_map.get(_uid_str) or {}
 
@@ -274,14 +273,10 @@ try:
         _email = (_existing.get("email") or "").strip()
 
         if not _name or not _email:
-            # fallback to session user object
             fallback_name = (user.get("full_name") or user.get("name") or "").strip()
             fallback_email = (user.get("email") or "").strip()
 
-            users_map[_uid] = {
-                "full_name": fallback_name or _name,
-                "email": fallback_email or _email,
-            }
+            users_map[_uid] = {"full_name": fallback_name or _name, "email": fallback_email or _email}
             users_map[_uid_str] = users_map[_uid]
 except Exception:
     pass
@@ -401,10 +396,15 @@ else:
     top_candidates_table = []
     for a in top5_rows:
         uid = a.get("candidate_user_id")
-        u = users_map.get(uid, {})
+        # ===== PATCH: robust lookup + viewer self-only PII fallback (even though viewer can't see this table) =====
+        u = users_map.get(uid) or users_map.get(str(uid)) or {}
+        show_self = (str(uid) == str(user_id))
+        nm = u.get("full_name") if (can_view_pii or show_self) else ""
+        em = u.get("email") if (can_view_pii or show_self) else ""
+        # ===== END PATCH =====
         top_candidates_table.append({
-            "candidate_name": (u.get("full_name") if can_view_pii else ""),
-            "candidate_email": (u.get("email") if can_view_pii else ""),
+            "candidate_name": nm,
+            "candidate_email": em,
             "candidate_user_id": uid,
             "overall_score": a.get("overall_score"),
             "applied_at": a.get("created_at"),
@@ -422,13 +422,18 @@ recent_rows = (apps_with_scores or [])[:20]
 recent_table = []
 for a in recent_rows:
     uid = a.get("candidate_user_id")
-    u = users_map.get(uid, {})
+    # ===== PATCH: robust lookup + allow viewer to see ONLY their own name/email =====
+    u = users_map.get(uid) or users_map.get(str(uid)) or {}
+    show_self = (str(uid) == str(user_id))
+    nm = u.get("full_name") if (can_view_pii or show_self) else ""
+    em = u.get("email") if (can_view_pii or show_self) else ""
+    # ===== END PATCH =====
     recent_table.append({
         # =========================
         # PATCH 4: PII masking for viewer (and future safety)
         # =========================
-        "candidate_name": (u.get("full_name") if can_view_pii else ""),
-        "candidate_email": (u.get("email") if can_view_pii else ""),
+        "candidate_name": nm,
+        "candidate_email": em,
         "candidate_user_id": uid,
         "overall_score": a.get("overall_score"),
         "applied_at": a.get("created_at"),
