@@ -262,6 +262,31 @@ for a in apps_rows or []:
 cand_ids = {a.get("candidate_user_id") for a in (apps_rows or []) if a.get("candidate_user_id")}
 users_map = _fetch_users_app_map(cand_ids)
 
+# ---- PATCH: ensure logged-in user's name/email always shows (viewer-friendly) ----
+try:
+    _uid = user_id
+    if _uid and (_uid in cand_ids or str(_uid) in {str(x) for x in cand_ids}):
+        # normalize key usage
+        _uid_str = str(_uid)
+        _existing = users_map.get(_uid) or users_map.get(_uid_str) or {}
+
+        _name = (_existing.get("full_name") or "").strip()
+        _email = (_existing.get("email") or "").strip()
+
+        if not _name or not _email:
+            # fallback to session user object
+            fallback_name = (user.get("full_name") or user.get("name") or "").strip()
+            fallback_email = (user.get("email") or "").strip()
+
+            users_map[_uid] = {
+                "full_name": fallback_name or _name,
+                "email": fallback_email or _email,
+            }
+            users_map[_uid_str] = users_map[_uid]
+except Exception:
+    pass
+# ---- END PATCH ----
+
 # =========================
 # KPI CARDS
 # =========================
