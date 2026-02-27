@@ -103,8 +103,9 @@ def render_sidebar() -> None:
         if show_institutions:
             safe_page_link("pages/18_Institution_Subscription.py", "🏛️ Institution Subscription")
 
-        safe_page_link("pages/14_Support_Hub.py", "🆘 Support Hub")
         safe_page_link("pages/22_Employer_Subscription.py", "💳 Employer Subscription")
+        safe_page_link("pages/14_Support_Hub.py", "🆘 Support Hub")
+        
 
         # -------------------------
         # Admin Panel
