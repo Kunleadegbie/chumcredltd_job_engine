@@ -160,14 +160,17 @@ if employer_id:
 
 CURRENT_YEAR = 2026
 
-usage_res = supabase_admin.table("employer_unlock_usage") \
-    .select("id") \
-    .eq("employer_id", employer_id) \
-    .eq("reporting_year", CURRENT_YEAR) \
-    .execute()
-
-used_unlocks = len(usage_res.data or [])
-
+if employer_id:
+    usage_res = (
+        supabase_admin.table("employer_unlock_usage")
+        .select("id")
+        .eq("employer_id", employer_id)
+        .eq("reporting_year", CURRENT_YEAR)
+        .execute()
+    )
+    used_unlocks = len(usage_res.data or [])
+else:
+    used_unlocks = 0
 cap = subscription.get("unlock_cap", 0)
 
 remaining_unlocks = max(cap - used_unlocks, 0)

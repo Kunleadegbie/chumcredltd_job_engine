@@ -437,9 +437,20 @@ with st.expander("🏢 Employer Intelligence", expanded=False):
 
     emp_col1, emp_col2, emp_col3 = st.columns(3)
 
-    emp_col1.metric("Hire Rate (%)", round(hire_rate, 1) if 'hire_rate' in locals() else 0)
-    emp_col2.metric("Employer Satisfaction", round(employer_rating, 1) if 'employer_rating' in locals() else 0)
-    emp_col3.metric("Avg Salary (Your Graduates)", round(avg_salary, 0) if 'avg_salary' in locals() else 0)
+    emp_col1.metric(
+    "Hire Rate (%)",
+    round(float(hire_rate), 1) if hire_rate is not None else 0
+    )
+
+  emp_col2.metric(
+    "Employer Satisfaction",
+    round(float(employer_rating), 1) if employer_rating is not None else 0
+    )
+
+  emp_col3.metric(
+    "Avg Salary (Your Graduates)",
+    round(float(avg_salary), 0) if avg_salary is not None else 0
+    ) 
 
     if 'hiring_trend_df' in locals() and not hiring_trend_df.empty:
         st.line_chart(hiring_trend_df.set_index("month")["hires_count"])
