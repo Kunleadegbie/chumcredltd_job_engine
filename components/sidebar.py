@@ -128,7 +128,7 @@ def render_sidebar() -> None:
         safe_page_link("pages/21_Public_Institution_Ranking.py", "🏆 National Ranking")
         st.divider()
 
-        if st.button("🚪 Logout"):
+        if st.button("🚪 Logout", key="sidebar_logout_button"):      
             handle_logout()
 
         
