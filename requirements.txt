@@ -14,5 +14,7 @@ PyMuPDF
 pypdf
 pdfminer.six
 
+plotly>=5.0.0
+
 
 

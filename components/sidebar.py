@@ -70,7 +70,7 @@ def render_sidebar() -> None:
         safe_page_link("pages/3_Job_Search.py", "🔍 Job Search")
         safe_page_link("pages/4_Saved_Jobs.py", "💾 Saved Jobs")
         # Employer analytics dashboard
-        if role == "employer":
+        if role in ["employer", "admin"]:
             safe_page_link("pages/20_Employer_Analytics_Dashboard.py", "🏢 Employer Analytics")
 
         # NEW: show institution dashboard only for platform admin or institution members
