@@ -178,6 +178,26 @@ with tab1:
 
 
 # =========================================================
+# INTELLIGENCE REFRESH (ADMIN ONLY)
+# =========================================================
+
+st.divider()
+st.subheader("🧠 Intelligence Engine Control")
+
+CURRENT_YEAR = 2026
+
+if st.button("🔄 Recalculate National Intelligence Snapshot"):
+    try:
+        supabase_admin.rpc(
+            "refresh_all_institution_intelligence",
+            {"p_year": CURRENT_YEAR}
+        ).execute()
+
+        st.success("Intelligence snapshot refreshed successfully.")
+    except Exception as e:
+        st.error(f"Refresh failed: {e}")
+
+# =========================================================
 # TAB 2: MEMBERS
 # =========================================================
 with tab2:

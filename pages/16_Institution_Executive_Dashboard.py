@@ -229,6 +229,34 @@ can_view_pii = (user_role == "admin") or (member_role in ("admin", "recruiter"))
 jobs_rows = _list_job_posts(selected_inst_id)
 apps_rows = _list_applications_by_institution(selected_inst_id)
 
+# =========================================================
+# FETCH INTELLIGENCE SNAPSHOT (Current Year)
+# =========================================================
+
+CURRENT_YEAR = 2026  # you can later make dynamic
+
+snapshot_res = supabase_admin.table("institution_intelligence_snapshot") \
+    .select("*") \
+    .eq("institution_id", selected_inst_id) \
+    .eq("reporting_year", CURRENT_YEAR) \
+    .limit(1) \
+    .execute()
+
+snapshot = (snapshot_res.data or [{}])[0]
+
+# Extract safely
+national_rank = snapshot.get("national_rank")
+public_tier = snapshot.get("public_tier")
+hire_rate = snapshot.get("hire_rate")
+employer_rating = snapshot.get("employer_rating")
+total_hires = snapshot.get("total_hires")
+yoy_growth = snapshot.get("yoy_growth")
+
+snapshot_updated_at = snapshot.get("updated_at")
+
+if snapshot_updated_at:
+    st.caption(f"📅 Intelligence Snapshot Last Updated: {snapshot_updated_at}")
+
 # =========================
 # PATCH 2: VIEWER SCOPE (self-only)
 # =========================
@@ -376,6 +404,61 @@ else:
 
 st.write("---")
 
+# =========================================================
+# STRATEGIC INTELLIGENCE LAYER (Expandable Sections)
+# =========================================================
+
+st.divider()
+st.header("📈 Strategic Institutional Intelligence")
+
+# ---------------------------------------------------------
+# GOVERNMENT INTELLIGENCE
+# ---------------------------------------------------------
+with st.expander("🏛 Government Intelligence", expanded=False):
+
+    gov_col1, gov_col2, gov_col3 = st.columns(3)
+
+    gov_col1.metric("National Employability Score", round(avg_score, 1) if 'avg_score' in locals() else 0)
+    gov_col2.metric("National Rank", national_rank if 'national_rank' in locals() else "N/A")
+    gov_col3.metric("Public Tier", public_tier if 'public_tier' in locals() else "N/A")
+
+    if 'national_avg_score' in locals():
+        import pandas as pd
+        df_compare = pd.DataFrame({
+            "Metric": ["Your Institution", "National Average"],
+            "Score": [avg_score, national_avg_score]
+        }).set_index("Metric")
+        st.bar_chart(df_compare)
+
+# ---------------------------------------------------------
+# EMPLOYER INTELLIGENCE
+# ---------------------------------------------------------
+with st.expander("🏢 Employer Intelligence", expanded=False):
+
+    emp_col1, emp_col2, emp_col3 = st.columns(3)
+
+    emp_col1.metric("Hire Rate (%)", round(hire_rate, 1) if 'hire_rate' in locals() else 0)
+    emp_col2.metric("Employer Satisfaction", round(employer_rating, 1) if 'employer_rating' in locals() else 0)
+    emp_col3.metric("Avg Salary (Your Graduates)", round(avg_salary, 0) if 'avg_salary' in locals() else 0)
+
+    if 'hiring_trend_df' in locals() and not hiring_trend_df.empty:
+        st.line_chart(hiring_trend_df.set_index("month")["hires_count"])
+
+# ---------------------------------------------------------
+# PUBLIC INTELLIGENCE
+# ---------------------------------------------------------
+with st.expander("🌍 Public Intelligence", expanded=False):
+
+    pub_col1, pub_col2, pub_col3 = st.columns(3)
+
+    pub_col1.metric("YoY Growth (%)", round(yoy_growth, 1) if 'yoy_growth' in locals() else 0)
+    pub_col2.metric("Total Graduates Placed", total_hires if 'total_hires' in locals() else 0)
+    pub_col3.metric("Ranking Movement", ranking_delta if 'ranking_delta' in locals() else "N/A")
+
+    if 'yoy_trend_df' in locals() and not yoy_trend_df.empty:
+        st.line_chart(yoy_trend_df.set_index("year")["employability_score"])
+
+
 # =========================
 # TABLES
 # =========================
@@ -445,6 +528,19 @@ for a in recent_rows:
 st.dataframe(recent_table, use_container_width=True, hide_index=True)
 
 st.write("---")
+
+# National average for comparison
+national_avg_res = supabase_admin.table("institution_intelligence_snapshot") \
+    .select("employability_score") \
+    .eq("reporting_year", CURRENT_YEAR) \
+    .execute()
+
+rows = national_avg_res.data or []
+
+if rows:
+    national_avg_score = sum(r["employability_score"] for r in rows if r["employability_score"]) / len(rows)
+else:
+    national_avg_score = 0
 
 # =========================
 # DOWNLOADS (2 CSV + 1 PDF)
