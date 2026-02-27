@@ -19,7 +19,7 @@ from config.supabase_client import supabase_admin
 
 
 # =========================================================
-# AUTH GUARD (EMPLOYER ONLY)
+# AUTH GUARD (EMPLOYER + ADMIN)
 # =========================================================
 if not st.session_state.get("authenticated"):
     st.switch_page("app.py")
@@ -33,7 +33,8 @@ if role not in ["employer", "admin"]:
     st.error("Access restricted to Employer accounts.")
     st.stop()
 
-employer_id = user.get("employer_id")
+# Determine employer_id safely
+employer_id = user.get("employer_id") if role == "employer" else None
 
 hide_streamlit_sidebar()
 render_sidebar()
@@ -43,16 +44,34 @@ st.caption("Your Hiring Performance & Talent Analytics")
 
 
 # =========================================================
-# FETCH DATA
+# SAFE DATA FETCHING
 # =========================================================
 
 def fetch_rows(view_name):
-    res = supabase_admin.table(view_name).select("*").eq("employer_id", employer_id).execute()
+    if not employer_id:
+        return []
+    res = (
+        supabase_admin
+        .table(view_name)
+        .select("*")
+        .eq("employer_id", employer_id)
+        .execute()
+    )
     return res.data or []
 
 def fetch_single(view_name):
-    res = supabase_admin.table(view_name).select("*").eq("employer_id", employer_id).limit(1).execute()
-    return (res.data or [{}])[0]
+    if not employer_id:
+        return {}
+    res = (
+        supabase_admin
+        .table(view_name)
+        .select("*")
+        .eq("employer_id", employer_id)
+        .limit(1)
+        .execute()
+    )
+    rows = res.data or []
+    return rows[0] if rows else {}
 
 performance = fetch_single("employer_hiring_performance")
 roi_data = fetch_single("employer_hiring_roi")
@@ -82,18 +101,14 @@ st.subheader("🏫 Institution Hiring Mix")
 
 if mix:
     import pandas as pd
-    import plotly.express as px
 
     df_mix = pd.DataFrame(mix)
 
-    fig_mix = px.pie(
-        df_mix,
-        names="institution_name",
-        values="hires_count",
-        title="Hiring Distribution by Institution"
-    )
-
-    st.plotly_chart(fig_mix, use_container_width=True)
+    if not df_mix.empty:
+        df_chart = df_mix.set_index("institution_name")
+        st.bar_chart(df_chart["hires_count"])
+    else:
+        st.info("No hiring mix data available.")
 else:
     st.info("No hiring mix data available.")
 
@@ -106,24 +121,14 @@ st.subheader("📈 Hiring Trend (Monthly)")
 
 if trend:
     import pandas as pd
-    import plotly.express as px
 
     df_trend = pd.DataFrame(trend)
 
-    fig_trend = px.line(
-        df_trend,
-        x="hire_month",
-        y="hires_count",
-        markers=True,
-        title="Monthly Hiring Trend"
-    )
-
-    fig_trend.update_layout(
-        xaxis_title="Month",
-        yaxis_title="Number of Hires"
-    )
-
-    st.plotly_chart(fig_trend, use_container_width=True)
+    if not df_trend.empty:
+        df_chart = df_trend.set_index("hire_month")
+        st.line_chart(df_chart["hires_count"])
+    else:
+        st.info("No hiring trend data available.")
 else:
     st.info("No hiring trend data available.")
 
@@ -140,31 +145,17 @@ salary_res = supabase_admin.table("institution_salary_intelligence") \
 
 salary_rows = salary_res.data or []
 
-if salary_rows:
+if salary_rows and mix:
     import pandas as pd
-    import plotly.express as px
 
     df_salary = pd.DataFrame(salary_rows)
 
-    # Filter only institutions employer hired from
-    hired_inst_ids = {m["institution_id"] for m in mix} if mix else set()
+    hired_inst_ids = {m["institution_id"] for m in mix}
     df_salary = df_salary[df_salary["institution_id"].isin(hired_inst_ids)]
 
     if not df_salary.empty:
-        fig_salary = px.bar(
-            df_salary,
-            x="institution_name",
-            y="avg_salary",
-            title="Average Salary by Institution (Your Hires)"
-        )
-
-        fig_salary.update_layout(
-            xaxis_tickangle=-45,
-            xaxis_title="Institution",
-            yaxis_title="Average Salary"
-        )
-
-        st.plotly_chart(fig_salary, use_container_width=True)
+        df_chart = df_salary.set_index("institution_name")
+        st.bar_chart(df_chart["avg_salary"])
     else:
         st.info("No salary breakdown available for your hires.")
 else:
