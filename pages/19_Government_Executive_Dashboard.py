@@ -2,6 +2,12 @@ import streamlit as st
 import sys, os
 from datetime import datetime
 
+from components.sidebar import render_sidebar
+from components.ui import hide_streamlit_sidebar
+
+hide_streamlit_sidebar()
+render_sidebar()
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 # ---------------------------------------------------------

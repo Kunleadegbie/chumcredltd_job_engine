@@ -2,6 +2,12 @@ import streamlit as st
 import sys, os
 from datetime import datetime
 
+from components.sidebar import render_sidebar
+from components.ui import hide_streamlit_sidebar
+
+hide_streamlit_sidebar()
+render_sidebar()
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 # ---------------------------------------------------------
@@ -26,7 +32,10 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 user = st.session_state.get("user") or {}
-if (user.get("role") or "").lower() != "employer":
+role = (user.get("role") or "").lower()
+
+# Allow employer + admin
+if role not in ["employer", "admin"]:
     st.error("Access restricted to Employer accounts.")
     st.stop()
 
