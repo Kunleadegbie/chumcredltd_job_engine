@@ -69,6 +69,9 @@ def render_sidebar() -> None:
         safe_page_link("pages/2_Dashboard.py", "📊 Dashboard")
         safe_page_link("pages/3_Job_Search.py", "🔍 Job Search")
         safe_page_link("pages/4_Saved_Jobs.py", "💾 Saved Jobs")
+        # Employer analytics dashboard
+        if role == "employer":
+            safe_page_link("pages/20_Employer_Analytics_Dashboard.py", "🏢 Employer Analytics")
 
         # NEW: show institution dashboard only for platform admin or institution members
         if show_institutions:
@@ -117,11 +120,18 @@ def render_sidebar() -> None:
             safe_page_link("pages/17_Admin_institution.py", "🏛️ Institutions")
             if email in admin_emails:
                 safe_page_link("pages/16_Admin_User_Details.py", "🛡️ User Details")
+            safe_page_link("pages/19_Government_Executive_Dashboard.py", "🏛️ Government Executive")
 
+        st.divider()
+
+        
+        safe_page_link("pages/21_Public_Institution_Ranking.py", "🏆 National Ranking")
         st.divider()
 
         if st.button("🚪 Logout"):
             handle_logout()
+
+        
 
 
 # ==========================================================
