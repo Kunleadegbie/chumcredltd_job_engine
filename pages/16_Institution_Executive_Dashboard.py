@@ -431,6 +431,15 @@ with st.expander("🏛 Government Intelligence", expanded=False):
         st.bar_chart(df_compare)
 
 
+# ---------------- SAFE DEFAULTS (Prevent NameError) ----------------
+avg_salary = locals().get("avg_salary", 0)
+hire_rate = locals().get("hire_rate", 0)
+employer_rating = locals().get("employer_rating", 0)
+
+total_hires = locals().get("total_hires", 0)
+ranking_delta = locals().get("ranking_delta", "N/A")
+yoy_growth = locals().get("yoy_growth", 0)
+
 # ---------------------------------------------------------
 # EMPLOYER
 # ---------------------------------------------------------
@@ -466,21 +475,22 @@ with st.expander("🌍 Public Intelligence", expanded=False):
 
     pub_col1.metric(
         "YoY Growth (%)",
-        round(yoy_growth, 1) if 'yoy_growth' in locals() else 0
+        round(float(yoy_growth), 1) if yoy_growth is not None else 0
     )
 
     pub_col2.metric(
         "Total Graduates Placed",
-        total_hires if 'total_hires' in locals() else 0
+        int(total_hires) if total_hires is not None else 0
     )
 
     pub_col3.metric(
         "Ranking Movement",
-        ranking_delta if 'ranking_delta' in locals() else "N/A"
+        ranking_delta
     )
 
-    if 'yoy_trend_df' in locals() and not yoy_trend_df.empty:
+    if 'yoy_trend_df' in locals() and yoy_trend_df is not None and not yoy_trend_df.empty:
         st.line_chart(yoy_trend_df.set_index("year")["employability_score"])
+
 
 # =========================
 # TABLES
