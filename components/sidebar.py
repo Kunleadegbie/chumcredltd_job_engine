@@ -43,6 +43,13 @@ def _is_institution_member(user_app_id: str) -> bool:
 
 
 def render_sidebar() -> None:
+
+    # Prevent duplicate rendering in same run
+    if st.session_state.get("_sidebar_rendered"):
+        return
+
+    st.session_state["_sidebar_rendered"] = True
+
     user = st.session_state.get("user") or {}
     role = (user.get("role") or "user").lower()
     email = (user.get("email") or "").lower()
@@ -128,7 +135,7 @@ def render_sidebar() -> None:
         safe_page_link("pages/21_Public_Institution_Ranking.py", "🏆 National Ranking")
         st.divider()
 
-        if st.button("🚪 Logout", key="sidebar_logout_button"):      
+        if st.button("🚪 Logout"):
             handle_logout()
 
         
