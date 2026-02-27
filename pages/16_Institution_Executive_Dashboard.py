@@ -453,9 +453,9 @@ with st.expander("🏢 Employer Intelligence", expanded=False):
         round(float(avg_salary), 0) if avg_salary is not None else 0
     )
 
+    if 'hiring_trend_df' in locals() and not hiring_trend_df.empty:
+        st.line_chart(hiring_trend_df.set_index("month")["hires_count"])
 
-         if 'hiring_trend_df' in locals() and not hiring_trend_df.empty:
-         st.line_chart(hiring_trend_df.set_index("month")["hires_count"])
 
 # ---------------------------------------------------------
 # PUBLIC INTELLIGENCE
@@ -464,13 +464,23 @@ with st.expander("🌍 Public Intelligence", expanded=False):
 
     pub_col1, pub_col2, pub_col3 = st.columns(3)
 
-    pub_col1.metric("YoY Growth (%)", round(yoy_growth, 1) if 'yoy_growth' in locals() else 0)
-    pub_col2.metric("Total Graduates Placed", total_hires if 'total_hires' in locals() else 0)
-    pub_col3.metric("Ranking Movement", ranking_delta if 'ranking_delta' in locals() else "N/A")
+    pub_col1.metric(
+        "YoY Growth (%)",
+        round(yoy_growth, 1) if 'yoy_growth' in locals() else 0
+    )
+
+    pub_col2.metric(
+        "Total Graduates Placed",
+        total_hires if 'total_hires' in locals() else 0
+    )
+
+    pub_col3.metric(
+        "Ranking Movement",
+        ranking_delta if 'ranking_delta' in locals() else "N/A"
+    )
 
     if 'yoy_trend_df' in locals() and not yoy_trend_df.empty:
         st.line_chart(yoy_trend_df.set_index("year")["employability_score"])
-
 
 # =========================
 # TABLES
