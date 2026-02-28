@@ -4,7 +4,6 @@
 
 import os
 import streamlit as st
-from config.supabase_client import supabase
 
 
 # ==========================================================
@@ -29,6 +28,9 @@ def _is_institution_member(user_app_id: str) -> bool:
     try:
         if not user_app_id:
             return False
+
+        from config.supabase_client import supabase
+
         r = (
             supabase
             .table("institution_members")
