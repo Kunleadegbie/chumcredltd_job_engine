@@ -48,6 +48,50 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+# =========================================================
+# AUTOMATED LICENSE ENFORCEMENT — INSTITUTION
+# =========================================================
+
+from datetime import datetime, timezone
+
+inst = (
+    supabase_admin
+    .table("institutions")
+    .select("license_status, subscription_expires_at")
+    .eq("id", selected_inst_id)
+    .limit(1)
+    .execute()
+    .data
+)
+
+inst = (inst or [{}])[0]
+
+license_status = (inst.get("license_status") or "trial").lower()
+expires_at = inst.get("subscription_expires_at")
+
+is_expired = False
+
+if expires_at:
+    try:
+        expiry_dt = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+        if expiry_dt < datetime.now(timezone.utc):
+            is_expired = True
+    except Exception:
+        pass
+
+if is_expired:
+    supabase_admin.table("institutions").update(
+        {"license_status": "expired"}
+    ).eq("id", selected_inst_id).execute()
+
+    license_status = "expired"
+
+if license_status in ["expired", "suspended"]:
+    st.error("🚫 Institution subscription expired. Please renew to access analytics.")
+    st.button("💳 Manage Subscription", on_click=lambda: st.switch_page("pages/18_Institution_Subscription.py"))
+    st.stop()
+
 # =========================
 # HELPERS
 # =========================
