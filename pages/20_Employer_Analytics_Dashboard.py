@@ -1,6 +1,6 @@
 import streamlit as st
 import sys, os
-from datetime import datetime
+from datetime import datetime, timezone
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
@@ -28,50 +28,46 @@ if not st.session_state.get("authenticated"):
 user = st.session_state.get("user") or {}
 role = (user.get("role") or "").lower()
 
-# Allow employer + admin
 if role not in ["employer", "admin"]:
     st.error("Access restricted to Employer accounts.")
     st.stop()
 
-# Determine employer_id safely
-employer_id = user.get("employer_id") if role == "employer" else None
-
-# ===============================
-# RESOLVE EMPLOYER ID PROPERLY
-# ===============================
-role = (user.get("role") or "").lower()
+# =========================================================
+# RESOLVE EMPLOYER ID PROPERLY (FIXED)
+# =========================================================
 user_id = user.get("id")
-
 employer_id = None
 
 if role == "employer":
-    emp = supabase_admin.table("employers") \
-        .select("id") \
-        .eq("user_id", user_id) \
-        .limit(1) \
-        .execute().data
+    emp = (
+        supabase_admin
+        .table("employers")
+        .select("id")
+        .eq("created_by", user_id)   # FIXED (was user_id column)
+        .limit(1)
+        .execute()
+        .data
+    )
     employer_id = emp[0]["id"] if emp else None
 
 elif role == "admin":
-    # Admin can select employer
-    employers = supabase_admin.table("employers") \
-        .select("id,name") \
-        .order("name") \
-        .execute().data or []
+    employers = (
+        supabase_admin
+        .table("employers")
+        .select("id,name")
+        .order("name")
+        .execute()
+        .data or []
+    )
 
-    if not employers:
-        st.info("No employers found.")
-        st.stop()
+    if employers:
+        emp_map = {f"{e['name']} — {e['id']}": e["id"] for e in employers}
+        selected = st.selectbox("Select Employer", list(emp_map.keys()))
+        employer_id = emp_map[selected]
+    else:
+        employer_id = None  # DO NOT STOP PAGE
 
-    emp_map = {f"{e['name']} — {e['id']}": e["id"] for e in employers}
-    selected = st.selectbox("Select Employer", list(emp_map.keys()))
-    employer_id = emp_map[selected]
-
-else:
-    st.error("Access restricted to Employer accounts.")
-    st.stop()
-
-if not employer_id:
+if role == "employer" and not employer_id:
     st.error("Employer record not found.")
     st.stop()
 
@@ -119,15 +115,20 @@ mix = fetch_rows("employer_institution_mix")
 trend = fetch_rows("employer_hiring_trend")
 
 
-# ============================================================
+# =========================================================
 # AUTOMATED LICENSE ENFORCEMENT — EMPLOYER
-# ============================================================
+# =========================================================
 
-sub = supabase_admin.table("employer_subscriptions") \
-    .select("*") \
-    .eq("employer_id", employer_id) \
-    .limit(1) \
-    .execute().data
+sub = []
+if employer_id:
+    sub = (
+        supabase_admin.table("employer_subscriptions")
+        .select("*")
+        .eq("employer_id", employer_id)
+        .limit(1)
+        .execute()
+        .data
+    )
 
 sub = (sub or [{}])[0]
 
@@ -147,13 +148,14 @@ if expires_at:
 if is_expired:
     license_status = "expired"
 
-if license_status in ["expired", "suspended"]:
+if employer_id and license_status in ["expired", "suspended"]:
     st.error("🚫 Employer subscription expired. Upgrade to continue using analytics.")
     st.button("💳 Manage Subscription", on_click=lambda: st.switch_page("pages/22_Employer_Subscription.py"))
     st.stop()
 
-if license_status == "trial":
+if employer_id and license_status == "trial":
     st.warning("⚠️ Employer is on trial plan. Unlock cap may be limited.")
+
 
 # =========================================================
 # KPI SECTION
@@ -177,7 +179,6 @@ st.subheader("🏫 Institution Hiring Mix")
 
 if mix:
     import pandas as pd
-
     df_mix = pd.DataFrame(mix)
 
     if not df_mix.empty:
@@ -197,7 +198,6 @@ st.subheader("📈 Hiring Trend (Monthly)")
 
 if trend:
     import pandas as pd
-
     df_trend = pd.DataFrame(trend)
 
     if not df_trend.empty:
@@ -207,85 +207,6 @@ if trend:
         st.info("No hiring trend data available.")
 else:
     st.info("No hiring trend data available.")
-
-
-
-# =========================================================
-# SUBSCRIPTION FETCH (FOR UNLOCK CAP)
-# =========================================================
-
-subscription = {}
-
-if employer_id:
-    sub_res = (
-        supabase_admin
-        .table("employer_subscriptions")
-        .select("*")
-        .eq("employer_id", employer_id)
-        .eq("license_status", "active")
-        .limit(1)
-        .execute()
-    )
-
-    sub_rows = sub_res.data or []
-    subscription = sub_rows[0] if sub_rows else {}
-
-
-# =========================================================
-# UNLOCK USAGE SUMMARY
-# =========================================================
-
-CURRENT_YEAR = 2026
-
-if employer_id:
-    usage_res = (
-        supabase_admin.table("employer_unlock_usage")
-        .select("id")
-        .eq("employer_id", employer_id)
-        .eq("reporting_year", CURRENT_YEAR)
-        .execute()
-    )
-    used_unlocks = len(usage_res.data or [])
-else:
-    used_unlocks = 0
-cap = subscription.get("unlock_cap", 0)
-
-remaining_unlocks = max(cap - used_unlocks, 0)
-
-st.subheader("🔓 Unlock Usage")
-
-u1, u2, u3 = st.columns(3)
-u1.metric("Unlocks Used", used_unlocks)
-u2.metric("Unlock Cap", cap if cap < 999999 else "Unlimited")
-u3.metric("Remaining Unlocks", remaining_unlocks if cap < 999999 else "Unlimited")
-
-# =========================================================
-# SALARY BY INSTITUTION
-# =========================================================
-
-st.subheader("💰 Salary Intelligence by Institution")
-
-salary_res = supabase_admin.table("institution_salary_intelligence") \
-    .select("*") \
-    .execute()
-
-salary_rows = salary_res.data or []
-
-if salary_rows and mix:
-    import pandas as pd
-
-    df_salary = pd.DataFrame(salary_rows)
-
-    hired_inst_ids = {m["institution_id"] for m in mix}
-    df_salary = df_salary[df_salary["institution_id"].isin(hired_inst_ids)]
-
-    if not df_salary.empty:
-        df_chart = df_salary.set_index("institution_name")
-        st.bar_chart(df_chart["avg_salary"])
-    else:
-        st.info("No salary breakdown available for your hires.")
-else:
-    st.info("No salary data available.")
 
 
 # =========================================================
