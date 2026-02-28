@@ -2,9 +2,51 @@
 # components/sidebar.py
 # ==========================================================
 
+# ==========================================================
+# components/sidebar.py
+# ==========================================================
+
 import os
 import streamlit as st
 from config.supabase_client import supabase
+
+
+# ==========================================================
+# Page safety helpers
+# ==========================================================
+
+def _page_exists(page_path: str) -> bool:
+    return os.path.exists(page_path)
+
+
+def safe_page_link(page_path: str, label: str) -> None:
+    try:
+        if _page_exists(page_path):
+            st.page_link(page_path, label=label)
+    except Exception:
+        pass
+
+
+# ==========================================================
+# Institution membership check
+# ==========================================================
+
+def _is_institution_member(user_app_id: str) -> bool:
+    try:
+        if not user_app_id:
+            return False
+        r = (
+            supabase
+            .table("institution_members")
+            .select("id")
+            .eq("user_id", user_app_id)
+            .limit(1)
+            .execute()
+        )
+        rows = r.data or []
+        return len(rows) > 0
+    except Exception:
+        return False
 
 def render_sidebar() -> None:
     user = st.session_state.get("user") or {}
