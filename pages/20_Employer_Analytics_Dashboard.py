@@ -36,6 +36,14 @@ if role not in ["employer", "admin"]:
 # Determine employer_id safely
 employer_id = user.get("employer_id") if role == "employer" else None
 
+# ===============================
+# SAFE EMPLOYER ID GUARD
+# ===============================
+if not employer_id:
+    st.error("Employer ID not found. Please log in again.")
+    st.stop()
+
+
 hide_streamlit_sidebar()
 render_sidebar()
 
@@ -189,6 +197,7 @@ if employer_id:
 
     sub_rows = sub_res.data or []
     subscription = sub_rows[0] if sub_rows else {}
+
 
 # =========================================================
 # UNLOCK USAGE SUMMARY

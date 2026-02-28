@@ -4,6 +4,8 @@
 
 CURRENT_YEAR = 2026
 
+from config.supabase_client import supabase, supabase_admin
+
 usage_res = supabase_admin.table("employer_unlock_usage") \
     .select("id") \
     .eq("employer_id", employer_id) \
