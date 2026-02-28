@@ -37,10 +37,42 @@ if role not in ["employer", "admin"]:
 employer_id = user.get("employer_id") if role == "employer" else None
 
 # ===============================
-# SAFE EMPLOYER ID GUARD
+# RESOLVE EMPLOYER ID PROPERLY
 # ===============================
+role = (user.get("role") or "").lower()
+user_id = user.get("id")
+
+employer_id = None
+
+if role == "employer":
+    emp = supabase_admin.table("employers") \
+        .select("id") \
+        .eq("user_id", user_id) \
+        .limit(1) \
+        .execute().data
+    employer_id = emp[0]["id"] if emp else None
+
+elif role == "admin":
+    # Admin can select employer
+    employers = supabase_admin.table("employers") \
+        .select("id,name") \
+        .order("name") \
+        .execute().data or []
+
+    if not employers:
+        st.info("No employers found.")
+        st.stop()
+
+    emp_map = {f"{e['name']} — {e['id']}": e["id"] for e in employers}
+    selected = st.selectbox("Select Employer", list(emp_map.keys()))
+    employer_id = emp_map[selected]
+
+else:
+    st.error("Access restricted to Employer accounts.")
+    st.stop()
+
 if not employer_id:
-    st.error("Employer ID not found. Please log in again.")
+    st.error("Employer record not found.")
     st.stop()
 
 
