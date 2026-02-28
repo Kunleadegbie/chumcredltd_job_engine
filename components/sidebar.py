@@ -1,3 +1,11 @@
+# ==========================================================
+# components/sidebar.py
+# ==========================================================
+
+import os
+import streamlit as st
+from config.supabase_client import supabase
+
 def render_sidebar() -> None:
     user = st.session_state.get("user") or {}
     role = (user.get("role") or "user").lower()
