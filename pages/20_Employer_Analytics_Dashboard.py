@@ -46,14 +46,14 @@ employer_id = None
 
 if role == "employer":
     emp = supabase_admin.table("employers") \
-        .select("id,name") \
-        .eq("created_by", user_id) \
+        .select("id") \
+        .eq("user_id", user_id) \
         .limit(1) \
         .execute().data
-
     employer_id = emp[0]["id"] if emp else None
 
 elif role == "admin":
+    # Admin can select employer
     employers = supabase_admin.table("employers") \
         .select("id,name") \
         .order("name") \
@@ -74,6 +74,7 @@ else:
 if not employer_id:
     st.error("Employer record not found.")
     st.stop()
+
 
 hide_streamlit_sidebar()
 render_sidebar()
