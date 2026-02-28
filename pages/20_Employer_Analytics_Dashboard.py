@@ -79,6 +79,42 @@ mix = fetch_rows("employer_institution_mix")
 trend = fetch_rows("employer_hiring_trend")
 
 
+# ============================================================
+# AUTOMATED LICENSE ENFORCEMENT — EMPLOYER
+# ============================================================
+
+sub = supabase_admin.table("employer_subscriptions") \
+    .select("*") \
+    .eq("employer_id", employer_id) \
+    .limit(1) \
+    .execute().data
+
+sub = (sub or [{}])[0]
+
+license_status = (sub.get("license_status") or "trial").lower()
+expires_at = sub.get("subscription_expires_at")
+
+is_expired = False
+
+if expires_at:
+    try:
+        expiry_dt = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+        if expiry_dt < datetime.now(timezone.utc):
+            is_expired = True
+    except Exception:
+        pass
+
+if is_expired:
+    license_status = "expired"
+
+if license_status in ["expired", "suspended"]:
+    st.error("🚫 Employer subscription expired. Upgrade to continue using analytics.")
+    st.button("💳 Manage Subscription", on_click=lambda: st.switch_page("pages/22_Employer_Subscription.py"))
+    st.stop()
+
+if license_status == "trial":
+    st.warning("⚠️ Employer is on trial plan. Unlock cap may be limited.")
+
 # =========================================================
 # KPI SECTION
 # =========================================================

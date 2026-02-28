@@ -211,6 +211,37 @@ else:
     selected_inst_name = (inst_map.get(selected_inst_id, {}).get("name") if selected_inst_id else None) or "Institution"
     st.caption(f"Institution: **{selected_inst_name}**")
 
+# ============================================================
+# AUTOMATED LICENSE ENFORCEMENT — INSTITUTION
+# ============================================================
+
+inst_row = inst_map.get(selected_inst_id, {})
+license_status = (inst_row.get("license_status") or "trial").lower()
+expires_at = inst_row.get("subscription_expires_at")
+
+is_expired = False
+
+if expires_at:
+    try:
+        expiry_dt = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+        if expiry_dt < datetime.now(timezone.utc):
+            is_expired = True
+    except Exception:
+        pass
+
+# Override status if expired
+if is_expired:
+    license_status = "expired"
+
+# Enforcement logic
+if license_status in ["expired", "suspended"]:
+    st.error("🚫 Institution license has expired. Please renew subscription to regain access.")
+    st.button("💳 Renew Subscription", on_click=lambda: st.switch_page("pages/18_Institution_Subscription.py"))
+    st.stop()
+
+if license_status == "trial":
+    st.warning("⚠️ Institution is on trial plan. Some analytics may be limited.")
+
 # =========================
 # PATCH 1: MEMBER ROLE (selected institution) + PII RULE
 # =========================
