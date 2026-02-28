@@ -33,6 +33,48 @@ if role not in ["employer", "admin"]:
     st.stop()
 
 # =========================================================
+# AUTOMATED LICENSE ENFORCEMENT — EMPLOYER
+# =========================================================
+
+emp = (
+    supabase_admin
+    .table("employers")
+    .select("license_status, subscription_expires_at")
+    .eq("id", employer_id)
+    .limit(1)
+    .execute()
+    .data
+)
+
+emp = (emp or [{}])[0]
+
+license_status = (emp.get("license_status") or "trial").lower()
+expires_at = emp.get("subscription_expires_at")
+
+is_expired = False
+
+if expires_at:
+    try:
+        expiry_dt = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+        if expiry_dt < datetime.now(timezone.utc):
+            is_expired = True
+    except Exception:
+        pass
+
+if is_expired:
+    supabase_admin.table("employers").update(
+        {"license_status": "expired"}
+    ).eq("id", employer_id).execute()
+
+    license_status = "expired"
+
+if license_status in ["expired", "suspended"]:
+    st.error("🚫 Employer subscription expired. Upgrade to continue.")
+    st.button("💳 Manage Subscription", on_click=lambda: st.switch_page("pages/22_Employer_Subscription.py"))
+    st.stop()
+
+
+# =========================================================
 # RESOLVE EMPLOYER ID PROPERLY (FIXED)
 # =========================================================
 user_id = user.get("id")
@@ -79,46 +121,6 @@ st.title("🏢 Employer Hiring Intelligence Dashboard")
 st.caption("Your Hiring Performance & Talent Analytics")
 
 
-# =========================================================
-# AUTOMATED LICENSE ENFORCEMENT — EMPLOYER
-# =========================================================
-
-emp = (
-    supabase_admin
-    .table("employers")
-    .select("license_status, subscription_expires_at")
-    .eq("id", employer_id)
-    .limit(1)
-    .execute()
-    .data
-)
-
-emp = (emp or [{}])[0]
-
-license_status = (emp.get("license_status") or "trial").lower()
-expires_at = emp.get("subscription_expires_at")
-
-is_expired = False
-
-if expires_at:
-    try:
-        expiry_dt = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
-        if expiry_dt < datetime.now(timezone.utc):
-            is_expired = True
-    except Exception:
-        pass
-
-if is_expired:
-    supabase_admin.table("employers").update(
-        {"license_status": "expired"}
-    ).eq("id", employer_id).execute()
-
-    license_status = "expired"
-
-if license_status in ["expired", "suspended"]:
-    st.error("🚫 Employer subscription expired. Upgrade to continue.")
-    st.button("💳 Manage Subscription", on_click=lambda: st.switch_page("pages/22_Employer_Subscription.py"))
-    st.stop()
 
 
 # =========================================================
