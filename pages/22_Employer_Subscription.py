@@ -1,167 +1,227 @@
 import streamlit as st
 import sys, os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+import mimetypes
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+st.set_page_config(page_title="Employer Subscription", page_icon="💳", layout="wide")
 
 from components.sidebar import render_sidebar
 from components.ui import hide_streamlit_sidebar
 from config.supabase_client import supabase_admin
 
 
-# =========================================================
-# PAGE CONFIG
-# =========================================================
-st.set_page_config(
-    page_title="Employer Subscription",
-    page_icon="💳",
-    layout="wide"
-)
-
-# =========================================================
-# AUTH GUARD
-# =========================================================
 if not st.session_state.get("authenticated"):
     st.switch_page("app.py")
     st.stop()
 
 user = st.session_state.get("user") or {}
-role = (user.get("role") or "").lower()
 user_id = user.get("id")
-
-if role not in ["employer", "admin"]:
-    st.error("Access restricted.")
-    st.stop()
-
-# =========================================================
-# RESOLVE EMPLOYER ID (PERMANENT FIX)
-# =========================================================
-employer_id = None
-
-if role == "employer":
-    emp = (
-        supabase_admin
-        .table("employers")
-        .select("id")
-        .eq("created_by", user_id)
-        .limit(1)
-        .execute()
-        .data
-    )
-    employer_id = emp[0]["id"] if emp else None
-
-elif role == "admin":
-    employers = (
-        supabase_admin
-        .table("employers")
-        .select("id,name")
-        .order("name")
-        .execute()
-        .data or []
-    )
-
-    if employers:
-        emp_map = {f"{e['name']} — {e['id']}": e["id"] for e in employers}
-        selected = st.selectbox("Select Employer", list(emp_map.keys()))
-        employer_id = emp_map[selected]
-
-# 🔒 IMPORTANT FIX:
-# Only stop for employer role (admin can still view empty state safely)
-if role == "employer" and not employer_id:
-    st.warning("No employer profile found. Please contact support.")
-    st.stop()
+user_role = (user.get("role") or "").lower().strip()
 
 hide_streamlit_sidebar()
 render_sidebar()
 
-st.title("💳 Employer Subscription Management")
-st.caption("Manage subscription tier and unlock capacity")
+st.title("💳 Employer Subscription (Bank Transfer + Receipt Upload)")
+st.caption("Pay via Sterling Bank transfer, upload your receipt, and wait for Admin approval.")
 
 
-# =========================================================
-# FETCH SUBSCRIPTION SAFELY
-# =========================================================
-subscription = {}
+# =========================
+# EDIT THESE (Sterling Bank details)
+# =========================
+STERLING_BANK_NAME = "Sterling Bank"
+STERLING_ACCOUNT_NAME = "CHUMCRED LIMITED"     # <-- replace if needed
+STERLING_ACCOUNT_NUMBER = "0000000000"         # <-- replace with actual number
 
-if employer_id:
-    sub_res = (
-        supabase_admin
-        .table("employer_subscriptions")
-        .select("*")
-        .eq("employer_id", employer_id)
-        .limit(1)
-        .execute()
+
+PLANS = {
+    "basic_monthly": {"label": "Basic (Monthly)", "duration_days": 30, "amount": None},
+    "pro_monthly":   {"label": "Pro (Monthly)",   "duration_days": 30, "amount": None},
+    "basic_yearly":  {"label": "Basic (Yearly)",  "duration_days": 365, "amount": None},
+    "pro_yearly":    {"label": "Pro (Yearly)",    "duration_days": 365, "amount": None},
+}
+
+RECEIPT_BUCKET = "payment_receipts"
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
+
+def _pick_employer(uid: str):
+    if user_role == "admin":
+        emps = supabase_admin.table("employers").select("id,name,license_status,plan_code,subscription_expires_at").order("created_at", desc=True).limit(500).execute().data or []
+        if not emps:
+            return None, None, "admin"
+        opts = [f"{e['name']} — {e['id']}" for e in emps]
+        pick = st.selectbox("Select employer", opts, key="p22_admin_pick")
+        emp_id = pick.split("—")[-1].strip()
+        emp = next((e for e in emps if e["id"] == emp_id), None)
+        return emp_id, emp, "admin"
+
+    mems = supabase_admin.table("employer_members").select("employer_id,member_role").eq("user_id", uid).limit(100).execute().data or []
+    emp_ids = [m["employer_id"] for m in mems if m.get("employer_id")]
+    if not emp_ids:
+        return None, None, "viewer"
+    emps = supabase_admin.table("employers").select("id,name,license_status,plan_code,subscription_expires_at").in_("id", emp_ids).order("created_at", desc=True).limit(500).execute().data or []
+    if len(emps) > 1:
+        opts = [f"{e['name']} — {e['id']}" for e in emps]
+        pick = st.selectbox("Select employer", opts, key="p22_member_pick")
+        emp_id = pick.split("—")[-1].strip()
+    else:
+        emp_id = emps[0]["id"]
+    emp = next((e for e in emps if e["id"] == emp_id), None)
+    mem = next((m for m in mems if m.get("employer_id") == emp_id), None) or {}
+    role = (mem.get("member_role") or "viewer").lower().strip()
+    return emp_id, emp, role
+
+def _upload_receipt(file_obj, employer_id: str):
+    """
+    Uploads receipt into Supabase Storage bucket.
+    Returns receipt_path.
+    """
+    if not file_obj:
+        raise ValueError("No receipt file provided.")
+
+    raw = file_obj.getvalue()
+    filename = file_obj.name
+    mime = file_obj.type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+
+    safe_name = filename.replace(" ", "_")
+    ts = _utcnow().strftime("%Y%m%d_%H%M%S")
+    path = f"employer/{employer_id}/{ts}_{safe_name}"
+
+    # supabase-py storage upload
+    supabase_admin.storage.from_(RECEIPT_BUCKET).upload(
+        path=path,
+        file=raw,
+        file_options={"content-type": mime, "upsert": True},
     )
+    return path, mime
 
-    sub_rows = sub_res.data or []
-    subscription = sub_rows[0] if sub_rows else {}
-
-license_status = subscription.get("license_status", "trial")
-subscription_tier = subscription.get("subscription_tier", "basic")
-unlock_cap = subscription.get("unlock_cap", 0)
-expires_at = subscription.get("subscription_expires_at")
-
-st.subheader("📦 Current Plan")
-
-col1, col2, col3 = st.columns(3)
-
-col1.metric("Plan Tier", subscription_tier.title())
-col2.metric("License Status", license_status.title())
-col3.metric("Unlock Cap", unlock_cap if unlock_cap < 999999 else "Unlimited")
-
-if expires_at:
-    st.caption(f"Subscription Expires: {expires_at}")
+def _signed_url(path: str, expires_in: int = 60 * 30):
+    try:
+        res = supabase_admin.storage.from_(RECEIPT_BUCKET).create_signed_url(path, expires_in)
+        # supabase-py returns dict like {"signedURL": "..."} in some versions
+        return res.get("signedURL") or res.get("signed_url")
+    except Exception:
+        return None
 
 
-# =========================================================
-# UNLOCK USAGE SUMMARY
-# =========================================================
-CURRENT_YEAR = datetime.now().year
-used_unlocks = 0
+emp_id, emp, member_role = _pick_employer(user_id)
+if not emp_id:
+    st.info("No employer workspace found. Create one from Employer Dashboard.")
+    st.button("Go to Employer Dashboard", on_click=lambda: st.switch_page("pages/19_Employer_Dashboard.py"))
+    st.stop()
 
-if employer_id:
-    usage_res = (
-        supabase_admin
-        .table("employer_unlock_usage")
-        .select("id")
-        .eq("employer_id", employer_id)
-        .eq("reporting_year", CURRENT_YEAR)
-        .execute()
-    )
-    used_unlocks = len(usage_res.data or [])
-
-remaining_unlocks = max(unlock_cap - used_unlocks, 0)
-
-st.subheader("🔓 Unlock Usage")
-
-u1, u2, u3 = st.columns(3)
-u1.metric("Unlocks Used", used_unlocks)
-u2.metric("Unlock Cap", unlock_cap if unlock_cap < 999999 else "Unlimited")
-u3.metric("Remaining Unlocks", remaining_unlocks if unlock_cap < 999999 else "Unlimited")
-
-
-# =========================================================
-# UPGRADE OPTIONS
-# =========================================================
-st.subheader("⬆ Upgrade Plan")
-
-plan = st.selectbox(
-    "Choose Plan",
-    ["basic", "professional", "enterprise"],
-    index=["basic", "professional", "enterprise"].index(subscription_tier)
+st.write("---")
+st.subheader("Current Subscription Status")
+st.write(
+    {
+        "Employer": emp.get("name"),
+        "License Status": emp.get("license_status"),
+        "Plan": emp.get("plan_code"),
+        "Expires At": emp.get("subscription_expires_at"),
+    }
 )
 
-if st.button("Update Plan"):
-    if employer_id:
-        supabase_admin.table("employer_subscriptions").upsert({
-            "employer_id": employer_id,
-            "subscription_tier": plan,
-            "license_status": "active",
-            "subscription_started_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }).execute()
+st.write("---")
+st.subheader("Pay via Bank Transfer (Sterling Bank)")
 
-        st.success("Subscription updated successfully.")
-        st.rerun()
+st.markdown(
+    f"""
+**Bank Name:** {STERLING_BANK_NAME}  
+**Account Name:** {STERLING_ACCOUNT_NAME}  
+**Account Number:** {STERLING_ACCOUNT_NUMBER}  
 
-st.caption("TalentIQ Employer Subscription © {}".format(datetime.now().year))
+After payment, upload your **receipt/screenshot/PDF** below.  
+Admin will review and approve your subscription.
+"""
+)
+
+can_submit = (user_role == "admin") or (member_role in ("admin", "recruiter"))
+if not can_submit:
+    st.error("Access denied. Employer Admin/Recruiter role is required to submit subscription receipts.")
+    st.stop()
+
+with st.form("p22_submit_receipt_form"):
+    plan_code = st.selectbox(
+        "Select Plan",
+        list(PLANS.keys()),
+        format_func=lambda k: f"{PLANS[k]['label']} ({PLANS[k]['duration_days']} days)",
+        key="p22_plan_code",
+    )
+    amount = st.number_input("Amount Paid (NGN)", min_value=0.0, step=1000.0, key="p22_amount")
+    narration = st.text_input("Payment Narration / Transfer Reference (optional)", key="p22_narration")
+    receipt = st.file_uploader(
+        "Upload Receipt (PNG/JPG/PDF)",
+        type=["png", "jpg", "jpeg", "pdf"],
+        key="p22_receipt",
+    )
+
+    submitted = st.form_submit_button("Submit Receipt for Approval")
+
+if submitted:
+    if amount <= 0:
+        st.error("Please enter the amount you paid.")
+        st.stop()
+    if not receipt:
+        st.error("Please upload your payment receipt.")
+        st.stop()
+
+    try:
+        receipt_path, receipt_mime = _upload_receipt(receipt, emp_id)
+    except Exception as e:
+        st.error(f"Receipt upload failed: {e}")
+        st.stop()
+
+    supabase_admin.table("employer_subscription_payments").insert(
+        {
+            "employer_id": emp_id,
+            "submitted_by": user_id,
+            "plan_code": plan_code,
+            "amount": amount,
+            "currency": "NGN",
+            "payment_method": "bank_transfer",
+            "bank_name": "Sterling Bank",
+            "narration": narration.strip() or None,
+            "receipt_bucket": RECEIPT_BUCKET,
+            "receipt_path": receipt_path,
+            "receipt_mime": receipt_mime,
+            "status": "pending",
+        }
+    ).execute()
+
+    st.success("Receipt submitted. Awaiting Admin approval.")
+    st.rerun()
+
+st.write("---")
+st.subheader("Your Payment Submissions")
+
+rows = (
+    supabase_admin.table("employer_subscription_payments")
+    .select("id,plan_code,amount,currency,status,created_at,receipt_path,admin_note")
+    .eq("employer_id", emp_id)
+    .order("created_at", desc=True)
+    .limit(200)
+    .execute()
+    .data
+    or []
+)
+
+if not rows:
+    st.info("No payment submissions yet.")
+else:
+    st.dataframe(rows, use_container_width=True, hide_index=True)
+
+    # Optional: preview most recent receipt
+    latest = rows[0]
+    st.caption("Latest receipt preview (signed link):")
+    url = _signed_url(latest.get("receipt_path"))
+    if url:
+        if (latest.get("receipt_mime") or "").startswith("image/"):
+            st.image(url, caption="Receipt (image)")
+        else:
+            st.link_button("Open Receipt", url)
+    else:
+        st.info("Could not generate a signed preview link. (Check storage bucket permissions/settings.)")

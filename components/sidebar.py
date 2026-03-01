@@ -46,6 +46,30 @@ def _is_institution_member(user_app_id: str) -> bool:
 
 
 # ==========================================================
+# Employer membership check
+# ==========================================================
+def _is_employer_member(user_app_id: str) -> bool:
+    try:
+        if not user_app_id:
+            return False
+
+        from config.supabase_client import supabase
+
+        r = (
+            supabase
+            .table("employer_members")
+            .select("id")
+            .eq("user_id", user_app_id)
+            .limit(1)
+            .execute()
+        )
+        rows = r.data or []
+        return len(rows) > 0
+    except Exception:
+        return False
+
+
+# ==========================================================
 # SIDEBAR RENDER
 # ==========================================================
 def render_sidebar() -> None:
@@ -59,7 +83,9 @@ def render_sidebar() -> None:
     email = (user.get("email") or "").lower()
     user_app_id = user.get("id")
 
+    # Show sections by role OR membership (same pattern)
     show_institutions = (role == "admin") or _is_institution_member(user_app_id)
+    show_employers = (role == "admin") or (role == "employer") or _is_employer_member(user_app_id)
 
     admin_emails = {
         "chumcred@gmail.com",
@@ -116,10 +142,12 @@ def render_sidebar() -> None:
         # ==================================================
         # 🏢 EMPLOYER
         # ==================================================
-        if role in ["employer", "admin"]:
+        if show_employers:
             st.markdown("### 🏢 Employer")
 
-            safe_page_link("pages/20_Employer_Analytics_Dashboard.py", "🏢 Employer Analytics")
+            safe_page_link("pages/23_Employer_Dashboard.py", "🏢 Employer Dashboard")
+            safe_page_link("pages/24_Employer_Post_Job.py", "📝 Post a Job")
+            safe_page_link("pages/25_Employer_Manage_Jobs.py", "📋 Manage Jobs & Applicants")
             safe_page_link("pages/22_Employer_Subscription.py", "💳 Employer Subscription")
 
             st.divider()
@@ -142,6 +170,8 @@ def render_sidebar() -> None:
 
             safe_page_link("pages/12_Admin_Payments.py", "💼 Payment Approvals")
             safe_page_link("pages/19_Admin_Institution_Payments.py", "🏛️ Institution Payments")
+            safe_page_link("pages/26_Admin_Employer_Subscription_Approvals.py", "✅ Employer Subscription Approvals")
+
             safe_page_link("pages/9_Admin_Revenue.py", "💰 Revenue Dashboard")
             safe_page_link("pages/13_Admin_Credit_Usage.py", "📊 Credit Usage")
             safe_page_link("pages/15_Admin_Users.py", "👥 Users Profile")
@@ -168,6 +198,7 @@ def render_sidebar() -> None:
         # ==================================================
         if st.button("🚪 Logout", key="sidebar_logout_button"):
             try:
+                from config.supabase_client import supabase
                 supabase.auth.sign_out()
             except Exception:
                 pass
