@@ -194,7 +194,7 @@ if not selected_employer_id:
         ).execute()
 
         st.success("Employer workspace created.")
-        st.switch_page("pages/19_Employer_Dashboard.py")
+        st.switch_page("pages/23_Employer_Dashboard.py")
 
     st.stop()
 
@@ -259,11 +259,11 @@ can_manage = (user_role == "admin") or (member_role in ("admin", "recruiter"))
 a1, a2, a3 = st.columns(3)
 with a1:
     if st.button("📝 Post a Job", disabled=not can_manage, key="p19_post_job_btn"):
-        st.switch_page("pages/20_Employer_Post_Job.py")
+        st.switch_page("pages/24_Employer_Post_Job.py")
 
 with a2:
     if st.button("📋 Manage Jobs & Applicants", key="p19_manage_jobs_btn"):
-        st.switch_page("pages/21_Employer_Manage_Jobs.py")
+        st.switch_page("pages/25_Employer_Manage_Jobs.py")
 
 with a3:
     if st.button("💳 Subscription & Receipts", key="p19_sub_btn"):

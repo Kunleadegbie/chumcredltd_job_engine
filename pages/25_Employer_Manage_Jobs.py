@@ -75,7 +75,7 @@ def _enforce(emp: dict):
 emp_id, emp, member_role = _pick_employer(user_id)
 if not emp_id:
     st.info("No employer workspace found. Create one from Employer Dashboard.")
-    st.button("Go to Employer Dashboard", on_click=lambda: st.switch_page("pages/19_Employer_Dashboard.py"))
+    st.button("Go to Employer Dashboard", on_click=lambda: st.switch_page("pages/23_Employer_Dashboard.py"))
     st.stop()
 
 _enforce(emp)
@@ -108,7 +108,7 @@ st.subheader("Update Job Status")
 
 if not jobs:
     st.info("No jobs yet.")
-    st.button("Post a Job", on_click=lambda: st.switch_page("pages/20_Employer_Post_Job.py"))
+    st.button("Post a Job", on_click=lambda: st.switch_page("pages/24_Employer_Post_Job.py"))
     st.stop()
 
 job_opts = [f"{j.get('title','(no title)')} — {j.get('id')}" for j in jobs if j.get("id")]

@@ -83,7 +83,7 @@ def _enforce_license(emp: dict):
 emp_id, emp_row, member_role = _pick_employer_for_user(user_id)
 if not emp_id:
     st.info("No employer workspace found. Create one from Employer Dashboard.")
-    st.button("Go to Employer Dashboard", on_click=lambda: st.switch_page("pages/19_Employer_Dashboard.py"))
+    st.button("Go to Employer Dashboard", on_click=lambda: st.switch_page("pages/23_Employer_Dashboard.py"))
     st.stop()
 
 can_post = (user_role == "admin") or (member_role in ("admin", "recruiter"))
@@ -148,4 +148,4 @@ if submit:
         st.stop()
 
     st.success("Job posted successfully.")
-    st.switch_page("pages/21_Employer_Manage_Jobs.py")
+    st.switch_page("pages/25_Employer_Manage_Jobs.py")

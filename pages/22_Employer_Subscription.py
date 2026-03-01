@@ -111,7 +111,7 @@ def _signed_url(path: str, expires_in: int = 60 * 30):
 emp_id, emp, member_role = _pick_employer(user_id)
 if not emp_id:
     st.info("No employer workspace found. Create one from Employer Dashboard.")
-    st.button("Go to Employer Dashboard", on_click=lambda: st.switch_page("pages/19_Employer_Dashboard.py"))
+    st.button("Go to Employer Dashboard", on_click=lambda: st.switch_page("pages/23_Employer_Dashboard.py"))
     st.stop()
 
 st.write("---")
