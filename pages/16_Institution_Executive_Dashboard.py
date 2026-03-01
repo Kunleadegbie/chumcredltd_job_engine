@@ -508,6 +508,38 @@ with st.expander("🏛 Government Intelligence", expanded=False):
         }).set_index("Metric")
         st.bar_chart(df_compare)
 
+    # --- Charts (safe, read-only) ---
+    try:
+        import pandas as pd
+
+        # National average employability score (current year)
+        _nat_rows = (
+            supabase_admin.table("institution_intelligence_snapshot")
+            .select("employability_score")
+            .eq("reporting_year", CURRENT_YEAR)
+            .execute()
+            .data
+            or []
+        )
+        _nat_vals = [_safe_float(r.get("employability_score"), None) for r in (_nat_rows or [])]
+        _nat_vals = [v for v in _nat_vals if v is not None]
+        _national_avg_score = (sum(_nat_vals) / len(_nat_vals)) if _nat_vals else 0.0
+
+        # Compare: institution vs national
+        df_gov = pd.DataFrame(
+            {
+                "Metric": ["Your Institution", "National Average"],
+                "Score": [round(_safe_float(avg_score, 0.0), 1), round(_safe_float(_national_avg_score, 0.0), 1)],
+            }
+        ).set_index("Metric")
+
+        st.caption("Employability score comparison (current year)")
+        st.bar_chart(df_gov)
+        st.dataframe(df_gov.reset_index(), use_container_width=True, hide_index=True)
+
+    except Exception:
+        st.info("Government intelligence chart is not available yet.")
+
 
 # ---------------- SAFE DEFAULTS (Prevent NameError) ----------------
 avg_salary = locals().get("avg_salary", 0)
@@ -543,6 +575,47 @@ with st.expander("🏢 Employer Intelligence", expanded=False):
     if 'hiring_trend_df' in locals() and not hiring_trend_df.empty:
         st.line_chart(hiring_trend_df.set_index("month")["hires_count"])
 
+    # --- Charts (safe, read-only) ---
+    try:
+        import pandas as pd
+
+        # Summary metrics
+        df_emp = pd.DataFrame(
+            {
+                "Metric": ["Hire Rate (%)", "Employer Satisfaction", "Avg Salary (Your Graduates)"],
+                "Value": [
+                    round(_safe_float(hire_rate, 0.0), 2),
+                    round(_safe_float(employer_rating, 0.0), 2),
+                    round(_safe_float(avg_salary, 0.0), 0),
+                ],
+            }
+        ).set_index("Metric")
+
+        st.caption("Employer outcome metrics (current year)")
+        st.bar_chart(df_emp)
+        st.dataframe(df_emp.reset_index(), use_container_width=True, hide_index=True)
+
+        # Pipeline distribution (applications by status)
+        status_counts = {}
+        for _a in (apps_rows or []):
+            _s = (_a.get("status") or "unknown").strip() or "unknown"
+            status_counts[_s] = status_counts.get(_s, 0) + 1
+
+        if status_counts:
+            df_status = (
+                pd.DataFrame({"Status": list(status_counts.keys()), "Count": list(status_counts.values())})
+                .sort_values("Count", ascending=False)
+                .reset_index(drop=True)
+            )
+            st.caption("Application pipeline (count by status)")
+            st.bar_chart(df_status.set_index("Status"))
+            st.dataframe(df_status, use_container_width=True, hide_index=True)
+        else:
+            st.info("No application status data available yet.")
+
+    except Exception:
+        st.info("Employer intelligence charts are not available yet.")
+
 
 # ---------------------------------------------------------
 # PUBLIC INTELLIGENCE
@@ -568,6 +641,59 @@ with st.expander("🌍 Public Intelligence", expanded=False):
 
     if 'yoy_trend_df' in locals() and yoy_trend_df is not None and not yoy_trend_df.empty:
         st.line_chart(yoy_trend_df.set_index("year")["employability_score"])
+
+    # --- Charts (safe, read-only) ---
+    try:
+        import pandas as pd
+
+        # Summary metrics (current year)
+        df_pub = pd.DataFrame(
+            {
+                "Metric": ["YoY Growth (%)", "Total Graduates Placed", "National Rank"],
+                "Value": [
+                    round(_safe_float(yoy_growth, 0.0), 2),
+                    round(_safe_float(total_hires, 0.0), 0),
+                    _safe_int(national_rank, 0),
+                ],
+            }
+        ).set_index("Metric")
+
+        st.caption("Public-facing metrics (current year)")
+        st.bar_chart(df_pub)
+        st.dataframe(df_pub.reset_index(), use_container_width=True, hide_index=True)
+
+        # Multi-year trend (if available)
+        _trend_rows = (
+            supabase_admin.table("institution_intelligence_snapshot")
+            .select("reporting_year,employability_score,total_hires,national_rank,yoy_growth")
+            .eq("institution_id", selected_inst_id)
+            .order("reporting_year", desc=False)
+            .limit(15)
+            .execute()
+            .data
+            or []
+        )
+
+        if _trend_rows:
+            df_trend = pd.DataFrame(_trend_rows)
+
+            if "reporting_year" in df_trend.columns:
+                df_trend["reporting_year"] = df_trend["reporting_year"].astype(str)
+
+            if "employability_score" in df_trend.columns:
+                st.caption("Employability score trend (by reporting year)")
+                st.line_chart(df_trend.set_index("reporting_year")["employability_score"])
+
+            if "total_hires" in df_trend.columns:
+                st.caption("Total hires trend (by reporting year)")
+                st.line_chart(df_trend.set_index("reporting_year")["total_hires"])
+
+            st.dataframe(df_trend, use_container_width=True, hide_index=True)
+        else:
+            st.info("No historical public intelligence data available yet.")
+
+    except Exception:
+        st.info("Public intelligence charts are not available yet.")
 
 
 # =========================
