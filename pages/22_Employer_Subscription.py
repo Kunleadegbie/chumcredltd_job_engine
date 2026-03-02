@@ -116,15 +116,21 @@ if not emp_id:
 
 st.write("---")
 st.subheader("Current Subscription Status")
-st.write(
-    {
-        "Employer": emp.get("name"),
-        "License Status": emp.get("license_status"),
-        "Plan": emp.get("plan_code"),
-        "Expires At": emp.get("subscription_expires_at"),
-    }
-)
+st.write("---")
+st.subheader("Current Subscription Status")
 
+employer_name = emp.get("name") or "—"
+license_status = emp.get("license_status") or "—"
+plan = emp.get("plan_code") or "—"
+expires_at = emp.get("subscription_expires_at") or "—"
+
+c1, c2 = st.columns(2)
+with c1:
+    st.markdown(f"**Employer:** {employer_name}")
+    st.markdown(f"**License Status:** {license_status}")
+with c2:
+    st.markdown(f"**Plan:** {plan}")
+    st.markdown(f"**Expires At:** {expires_at}")
 st.write("---")
 st.subheader("Pay via Bank Transfer (Sterling Bank)")
 
