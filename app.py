@@ -70,46 +70,64 @@ with tab_login:
     password = st.text_input("Password", type="password", key="login_password")
 
     if st.button("Sign In"):
-        result = login_user(email, password)
+        email_clean = (email or "").strip()
+        password_clean = (password or "").strip()
 
-        user = None
-        if isinstance(result, dict):
-            user = result
-        elif isinstance(result, tuple):
-            user = next((r for r in result if isinstance(r, dict)), None)
+        if not email_clean or not password_clean:
+            st.error("Please enter email and password.")
+            st.stop()
 
-        if not user:
+        # 1) Supabase Auth is the ONLY source of truth for password validity
+        try:
+            auth_res = supabase.auth.sign_in_with_password(
+                {"email": email_clean, "password": password_clean}
+            )
+        except Exception:
             st.error("Invalid email or password.")
             st.stop()
 
+        # 2) Get authenticated user (robust across supabase-py variations)
+        auth_user = None
         try:
-            supabase.auth.sign_in_with_password({"email": email, "password": password})
+            auth_user = auth_res.user
         except Exception:
-            pass
+            auth_user = None
 
-        auth_session = supabase.auth.get_session()
-        if not auth_session or not auth_session.user:
-            st.error("Authentication error.")
-            st.stop()
+        if not auth_user:
+            auth_session = supabase.auth.get_session()
+            if not auth_session or not auth_session.user:
+                st.error("Authentication error.")
+                st.stop()
+            auth_user = auth_session.user
 
-        auth_user = auth_session.user
+        # 3) Get role + full_name from users_app (do not depend on login_user)
+        profile = {}
+        try:
+            profile_resp = (
+                supabase
+                .table("users_app")
+                .select("full_name,role")
+                .eq("id", auth_user.id)
+                .single()
+                .execute()
+            )
+            profile = profile_resp.data or {}
+        except Exception:
+            profile = {}
 
-        role_resp = (
-            supabase
-            .table("users_app")
-            .select("role")
-            .eq("id", auth_user.id)
-            .single()
-            .execute()
-        )
+        role = profile.get("role") if profile else "user"
+        if not role:
+            role = "user"
 
-        role = role_resp.data["role"] if role_resp.data else "user"
+        full_name = profile.get("full_name") if profile else ""
+        if not full_name:
+            full_name = ""
 
         st.session_state.authenticated = True
         st.session_state.user = {
             "id": auth_user.id,
             "email": auth_user.email,
-            "full_name": user.get("full_name"),
+            "full_name": full_name,
             "role": role,
         }
 
