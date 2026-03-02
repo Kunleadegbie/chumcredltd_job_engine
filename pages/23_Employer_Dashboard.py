@@ -239,16 +239,21 @@ c2.metric("Draft Jobs", draft_jobs)
 c3.metric("Total Applications", total_apps)
 c4.metric("Your Role", member_role)
 
-st.subheader("Workspace")
-st.write(
-    {
-        "Employer": selected_employer_row.get("name"),
-        "License Status": selected_employer_row.get("license_status"),
-        "Plan": selected_employer_row.get("plan_code"),
-        "Expires At": selected_employer_row.get("subscription_expires_at"),
-    }
-)
 
+st.subheader("Workspace")
+
+w1, w2, w3, w4 = st.columns(4)
+
+w1.metric("Employer", selected_employer_row.get("name") or "-")
+
+license_status = (selected_employer_row.get("license_status") or "-").strip()
+w2.metric("License Status", license_status)
+
+plan_code = (selected_employer_row.get("plan_code") or "-").strip()
+w3.metric("Plan", plan_code)
+
+expires_at = selected_employer_row.get("subscription_expires_at")
+w4.metric("Expires At", str(expires_at) if expires_at else "-")
 st.write("---")
 
 # -------------------------
