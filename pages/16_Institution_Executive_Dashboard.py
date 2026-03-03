@@ -5,9 +5,6 @@ import streamlit as st
 import sys, os
 from datetime import datetime, timezone, timedelta, date
 
-st.write("Selected institution:", institution_id)
-st.write("Rows returned:", len(df))
-
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 # ---------------------------------------------------------
@@ -214,6 +211,11 @@ else:
 
     selected_inst_name = (inst_map.get(selected_inst_id, {}).get("name") if selected_inst_id else None) or "Institution"
     st.caption(f"Institution: **{selected_inst_name}**")
+
+
+st.write("Selected institution:", institution_id)
+st.write("Rows returned:", len(df))
+
 
 
 # =========================================================
