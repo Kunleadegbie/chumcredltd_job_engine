@@ -6,6 +6,8 @@ from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 from services.employer_queries import get_candidate_score
 
+st.write("DEBUG: Student dashboard loaded")
+
 st.set_page_config(page_title="Student Dashboard", layout="wide")
 
 render_sidebar()
@@ -17,27 +19,40 @@ st.title("🎓 My Employability Intelligence")
 # =========================
 user = st.session_state.get("user")
 
+st.write("DEBUG USER OBJECT:", user)
+
 if not user:
     st.error("Please sign in to view your dashboard.")
     st.stop()
 
 user_id = user.get("id")
 
+st.write("DEBUG USER ID:", user_id)
+
 if not user_id:
     st.error("User profile incomplete.")
     st.stop()
 
+
+
 # =========================
 # FETCH INTELLIGENCE
 # =========================
+st.write("DEBUG: About to fetch score")
+
 score = get_candidate_score(user_id)
+
+st.write("DEBUG SCORE:", score)
 
 if not score:
     st.warning(
         "Your employability intelligence is still being generated. "
         "Please complete your profile and upload your CV."
     )
-    st.stop()
+else:
+    # ✅ SHOW METRICS HERE
+    st.success("Employability intelligence ready")
+    st.write(score)
 
 # =========================
 # DEBUG
