@@ -21,16 +21,23 @@ def get_supabase():
 
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def get_candidate_score(user_id: str):
-    supabase = get_supabase()
+def get_candidate_score(user_id):
+    try:
+        res = (
+            supabase
+            .table("candidate_scores")
+            .select("*")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
 
-    res = (
-        supabase
-        .table("candidate_scores")
-        .select("*")
-        .eq("user_id", user_id)
-        .single()
-        .execute()
-    )
+        data = res.data or []
 
-    return res.data
+        if len(data) == 0:
+            return None
+
+        return data[0]
+
+    except Exception:
+        return None
