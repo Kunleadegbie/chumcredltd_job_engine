@@ -16,6 +16,16 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # FETCH ALL SCORES (by institution later)
 # =========================
 
+def fetch_institutions():
+    res = (
+        supabase
+        .table("institutions")
+        .select("id, name")
+        .execute()
+    )
+
+    return res.data or []
+
 def fetch_institution_scores(
     institution_id: str,
     limit: int = 5000,

@@ -26,15 +26,24 @@ st.title("🎓 TalentIQ Institutional Intelligence Dashboard")
 
 st.sidebar.header("Institution Filter")
 
-# TEMP: replace with real institution table later
-institution_id = st.sidebar.text_input(
-    "Enter Institution ID",
-    help="Use UNILAG ID or assigned institution UUID",
+institutions = fetch_institutions()
+
+if not institutions:
+    st.warning("No institutions configured.")
+    st.stop()
+
+# Build display mapping
+options = {
+    f"{inst['name']} ({inst['id'][:8]}...)": inst["id"]
+    for inst in institutions
+}
+
+selected_label = st.sidebar.selectbox(
+    "Select Institution",
+    list(options.keys())
 )
 
-if not institution_id:
-    st.info("Please enter an institution ID.")
-    st.stop()
+institution_id = options[selected_label]
 
 # =========================
 # LOAD DATA
