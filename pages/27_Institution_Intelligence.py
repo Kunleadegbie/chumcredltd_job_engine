@@ -7,6 +7,11 @@ import plotly.express as px
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
+from services.employability_ranking import (
+    get_top_students,
+    get_faculty_employability,
+    get_graduate_readiness
+)
 
 from services.institution_queries import (
     fetch_institution_scores,
