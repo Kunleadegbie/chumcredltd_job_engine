@@ -4,6 +4,10 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+from components.sidebar import render_sidebar
+from components.ui import hide_streamlit_sidebar
+
+
 from services.institution_queries import (
     fetch_institution_scores,
     compute_institution_kpis,
