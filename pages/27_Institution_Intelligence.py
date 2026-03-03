@@ -42,22 +42,20 @@ with col2:
         for inst in institutions
     }
 
+    labels = list(options.keys())
+
+    # ✅ Initialize session state once
+    if "selected_institution_label" not in st.session_state:
+        st.session_state.selected_institution_label = labels[0]
+
     selected_label = st.selectbox(
         "Select Institution",
-        list(options.keys()),
-        key="institution_selector"
+        labels,
+        key="selected_institution_label"
     )
 
     institution_id = options[selected_label]
 
-
-st.sidebar.header("Institution Filter")
-
-institutions = fetch_institutions()
-
-if not institutions:
-    st.warning("No institutions configured.")
-    st.stop()
 
 # Build display mapping
 options = {
