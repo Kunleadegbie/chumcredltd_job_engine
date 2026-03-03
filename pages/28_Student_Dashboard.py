@@ -14,7 +14,7 @@ st.title("🎓 My Employability Intelligence")
 # =========================
 # AUTH GUARD
 # =========================
-user = get_current_user()
+user = st.session_state.get("user")
 
 if not user:
     st.error("Please sign in to view your dashboard.")
