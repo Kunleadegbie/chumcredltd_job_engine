@@ -6,8 +6,6 @@ from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 from services.employer_queries import get_candidate_score
 
-st.write("DEBUG: Student dashboard loaded")
-
 st.set_page_config(page_title="Student Dashboard", layout="wide")
 
 render_sidebar()
@@ -19,7 +17,6 @@ st.title("🎓 My Employability Intelligence")
 # =========================
 user = st.session_state.get("user")
 
-st.write("DEBUG USER OBJECT:", user)
 
 if not user:
     st.error("Please sign in to view your dashboard.")
@@ -27,7 +24,6 @@ if not user:
 
 user_id = user.get("id")
 
-st.write("DEBUG USER ID:", user_id)
 
 from supabase import create_client
 import os
@@ -45,7 +41,6 @@ test_query = (
     .execute()
 )
 
-st.write("DEBUG DIRECT QUERY:", test_query.data)
 
 if not user_id:
     st.error("User profile incomplete.")
@@ -56,11 +51,8 @@ if not user_id:
 # =========================
 # FETCH INTELLIGENCE
 # =========================
-st.write("DEBUG: About to fetch score")
 
 score = get_candidate_score(user_id)
-
-st.write("DEBUG SCORE:", score)
 
 if not score:
     st.warning(
@@ -72,10 +64,7 @@ else:
     st.success("Employability intelligence ready")
     st.write(score)
 
-# =========================
-# DEBUG
-# =========================
-st.write("DEBUG SCORE OBJECT:", score)
+
 
 # 🔥 Deep probe to confirm table visibility
 try:
@@ -86,9 +75,7 @@ try:
         .limit(3)
         .execute()
     )
-    st.write("DEBUG PROBE candidate_scores:", getattr(test_rows, "data", None))
-except Exception as e:
-    st.write("DEBUG PROBE ERROR:", str(e))
+    
 
 # =========================
 # HERO STATUS BANNER
