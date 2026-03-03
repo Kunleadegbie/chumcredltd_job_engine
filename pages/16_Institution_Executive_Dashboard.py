@@ -291,10 +291,6 @@ if license_status == "trial":
     st.warning("⚠️ Institution is on trial plan. Some analytics may be limited.")
 
 
-st.write("Selected institution:", institution_id)
-st.write("Rows returned:", len(df))
-
-
 # =========================
 # PATCH 1: MEMBER ROLE (selected institution) + PII RULE
 # =========================
