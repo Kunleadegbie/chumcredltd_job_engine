@@ -10,8 +10,6 @@ st.set_page_config(page_title="Student Dashboard", layout="wide")
 
 render_sidebar()
 
-st.write("DEBUG DASHBOARD USER:", user_id)
-
 st.title("🎓 My Employability Intelligence")
 
 # =========================
@@ -28,6 +26,9 @@ user_id = user.get("id")
 if not user_id:
     st.error("User profile incomplete.")
     st.stop()
+
+st.write("DEBUG DASHBOARD USER:", user_id)
+
 
 # =========================
 # FETCH INTELLIGENCE
