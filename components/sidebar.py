@@ -87,6 +87,7 @@ def render_sidebar() -> None:
         st.markdown("### 🎓 Student / Core")
 
         safe_page_link("pages/2_Dashboard.py", "📊 Dashboard")
+        safe_page_link("pages/28_Student_Dashboard.py","🎓 My Intelligence")  
         safe_page_link("pages/3_Job_Search.py", "🔍 Job Search")
         safe_page_link("pages/4_Saved_Jobs.py", "💾 Saved Jobs")
 
