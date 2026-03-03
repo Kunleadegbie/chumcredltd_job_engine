@@ -23,19 +23,23 @@ def get_supabase():
 
 def get_candidate_score(user_id):
     try:
-        res = (
+        response = (
             supabase
             .table("candidate_scores")
             .select("*")
             .eq("user_id", user_id)
+            .order("created_at", desc=True)
             .limit(1)
             .execute()
         )
 
-        data = getattr(res, "data", None) or []
-        return data[0] if data else None
+        data = response.data
+
+        if data and len(data) > 0:
+            return data[0]
+
+        return None
 
     except Exception as e:
-        # TEMP: surface the real error to Streamlit logs
-        print("get_candidate_score() ERROR:", repr(e))
+        print("Score fetch error:", e)
         return None

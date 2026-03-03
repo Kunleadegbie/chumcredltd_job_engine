@@ -75,7 +75,11 @@ except Exception as e:
 # =========================
 # HERO STATUS BANNER
 # =========================
-trust_badge = score.get("trust_badge", "Developing")
+if score:
+    trust_badge = score.get("trust_badge", "Developing")
+else:
+    trust_badge = "Developing"
+
 trust_index = score.get("trust_index", 0)
 
 if trust_badge == "Gold":
