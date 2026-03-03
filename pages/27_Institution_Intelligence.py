@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 
 from components.ui import hide_streamlit_sidebar
+from components.sidebar import render_sidebar
 
 
 from services.institution_queries import (
@@ -25,7 +26,6 @@ from services.institution_queries import compute_faculty_performance
 
 st.set_page_config(page_title="Institution Intelligence", layout="wide")
 
-hide_streamlit_sidebar()
 render_sidebar()
 
 st.title("🎓 TalentIQ Institutional Intelligence Dashboard")
