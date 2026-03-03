@@ -8,7 +8,7 @@ from services.institution_queries import (
     fetch_institution_scores,
     compute_institution_kpis,
     compute_badge_distribution,
-    fetch_institutions, 
+    fetch_institutions,
 )
 
 from services.institution_queries import (
@@ -24,38 +24,15 @@ st.set_page_config(page_title="Institution Intelligence", layout="wide")
 
 st.title("🎓 TalentIQ Institutional Intelligence Dashboard")
 
-# ===== Header with Institution Selector =====
-col1, col2 = st.columns([3, 1])
+# =========================
+# STABLE INSTITUTION SELECTOR (FIXED)
+# =========================
 
-with col1:
-    st.subheader("Institution Intelligence Dashboard")
+institutions = fetch_institutions()
 
-with col2:
-    institutions = fetch_institutions()
-
-    if not institutions:
-        st.warning("No institutions configured.")
-        st.stop()
-
-    options = {
-        f"{inst['name']} ({inst['id'][:8]}...)": inst["id"]
-        for inst in institutions
-    }
-
-    labels = list(options.keys())
-
-    # ✅ Initialize session state once
-    if "selected_institution_label" not in st.session_state:
-        st.session_state.selected_institution_label = labels[0]
-
-    selected_label = st.selectbox(
-        "Select Institution",
-        labels,
-        key="selected_institution_label"
-    )
-
-    institution_id = options[selected_label]
-
+if not institutions:
+    st.warning("No institutions configured.")
+    st.stop()
 
 # Build display mapping
 options = {
@@ -63,6 +40,26 @@ options = {
     for inst in institutions
 }
 
+labels = list(options.keys())
+
+# ✅ safe session initialization
+if "selected_institution_label" not in st.session_state:
+    st.session_state.selected_institution_label = labels[0]
+
+# ===== Header with Institution Selector =====
+col1, col2 = st.columns([3, 1])
+
+with col1:
+    st.subheader("Institution Intelligence Dashboard")
+
+with col2:
+    selected_label = st.selectbox(
+        "Select Institution",
+        labels,
+        key="selected_institution_label",
+    )
+
+institution_id = options[selected_label]
 
 # =========================
 # LOAD DATA
@@ -126,8 +123,6 @@ if badge_dist:
 
     st.plotly_chart(fig, use_container_width=True)
 
-
-
 st.divider()
 st.subheader("🏫 Faculty Intelligence")
 
@@ -138,8 +133,6 @@ if faculty_df.empty:
 else:
     st.dataframe(faculty_df, use_container_width=True)
 
-    import plotly.express as px
-
     fig = px.bar(
         faculty_df,
         x="faculty",
@@ -148,7 +141,6 @@ else:
     )
 
     st.plotly_chart(fig, use_container_width=True)
-
 
 st.divider()
 st.subheader("🧠 Skills Gap Heatmap")
@@ -160,10 +152,10 @@ gap_df = compute_skill_gap_matrix(supply_df, demand_df)
 heatmap_df = build_faculty_heatmap(gap_df)
 
 if heatmap_df.empty:
-    st.info("Skills intelligence is still building. Heatmap will populate as more candidate and employer data becomes available.")
+    st.info(
+        "Skills intelligence is still building. Heatmap will populate as more candidate and employer data becomes available."
+    )
 else:
-    import plotly.express as px
-
     fig = px.imshow(
         heatmap_df,
         aspect="auto",
