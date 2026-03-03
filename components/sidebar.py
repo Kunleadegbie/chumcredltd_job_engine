@@ -164,6 +164,15 @@ def render_sidebar() -> None:
 
             safe_page_link("pages/19_Government_Executive_Dashboard.py", "🏛️ Government Executive")
 
+            user = get_current_user()
+
+            if user and user.get("is_admin"):
+                st.sidebar.page_link(
+                    "pages/27_Institution_Intelligence.py",
+                    label="🎓 Institution Intelligence",
+                    icon="🎓"
+                )
+
             st.divider()
 
         # ==================================================
