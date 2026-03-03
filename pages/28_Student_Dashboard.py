@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
+from services.employer_queries import get_candidate_score
 
 st.set_page_config(page_title="Student Dashboard", layout="wide")
 
