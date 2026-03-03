@@ -24,6 +24,32 @@ st.set_page_config(page_title="Institution Intelligence", layout="wide")
 
 st.title("🎓 TalentIQ Institutional Intelligence Dashboard")
 
+# ===== Header with Institution Selector =====
+col1, col2 = st.columns([3, 1])
+
+with col1:
+    st.subheader("Institution Intelligence Dashboard")
+
+with col2:
+    institutions = fetch_institutions()
+
+    if not institutions:
+        st.warning("No institutions configured.")
+        st.stop()
+
+    options = {
+        f"{inst['name']} ({inst['id'][:8]}...)": inst["id"]
+        for inst in institutions
+    }
+
+    selected_label = st.selectbox(
+        "Select Institution",
+        list(options.keys()),
+        key="institution_selector"
+    )
+
+    institution_id = options[selected_label]
+
 
 st.sidebar.header("Institution Filter")
 
@@ -39,12 +65,6 @@ options = {
     for inst in institutions
 }
 
-selected_label = st.sidebar.selectbox(
-    "Select Institution",
-    list(options.keys())
-)
-
-institution_id = options[selected_label]
 
 # =========================
 # LOAD DATA
@@ -142,7 +162,7 @@ gap_df = compute_skill_gap_matrix(supply_df, demand_df)
 heatmap_df = build_faculty_heatmap(gap_df)
 
 if heatmap_df.empty:
-    st.info("Skills data not yet sufficient for heatmap.")
+    st.info("Skills intelligence is still building. Heatmap will populate as more candidate and employer data becomes available.")
 else:
     import plotly.express as px
 
