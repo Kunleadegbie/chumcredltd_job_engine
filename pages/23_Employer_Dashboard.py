@@ -3,6 +3,10 @@ import streamlit as st
 import sys, os
 from datetime import datetime, timezone
 
+
+st.write("URL exists:", bool(os.environ.get("SUPABASE_URL")))
+st.write("KEY exists:", bool(os.environ.get("SUPABASE_SERVICE_KEY")))
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 st.set_page_config(page_title="Employer Dashboard", page_icon="🏢", layout="wide")
