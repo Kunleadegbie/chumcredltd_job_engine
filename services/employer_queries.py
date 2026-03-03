@@ -28,16 +28,17 @@ def get_candidate_score(user_id):
             .table("candidate_scores")
             .select("*")
             .eq("user_id", user_id)
-            .limit(1)
+            .order("created_at", desc=True)
             .execute()
         )
 
-        data = res.data or []
+        data = res.data if res and hasattr(res, "data") else []
 
-        if len(data) == 0:
+        if not data:
             return None
 
         return data[0]
 
-    except Exception:
+    except Exception as e:
+        print("Score fetch error:", e)
         return None

@@ -35,6 +35,8 @@ st.write("DEBUG DASHBOARD USER:", user_id)
 # =========================
 score = get_candidate_score(user_id)
 
+st.write("DEBUG SCORE OBJECT:", score)
+
 if not score:
     st.warning(
         "Your employability intelligence is still being generated. "
