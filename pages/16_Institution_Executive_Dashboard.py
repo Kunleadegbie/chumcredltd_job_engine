@@ -5,6 +5,9 @@ import streamlit as st
 import sys, os
 from datetime import datetime, timezone, timedelta, date
 
+st.write("Selected institution:", institution_id)
+st.write("Rows returned:", len(df))
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 # ---------------------------------------------------------

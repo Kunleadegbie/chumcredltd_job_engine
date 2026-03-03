@@ -8,6 +8,7 @@ from services.institution_queries import (
     fetch_institution_scores,
     compute_institution_kpis,
     compute_badge_distribution,
+    fetch_institutions, 
 )
 
 from services.institution_queries import (
