@@ -28,17 +28,14 @@ def get_candidate_score(user_id):
             .table("candidate_scores")
             .select("*")
             .eq("user_id", user_id)
-            .order("created_at", desc=True)
+            .limit(1)
             .execute()
         )
 
-        data = res.data if res and hasattr(res, "data") else []
-
-        if not data:
-            return None
-
-        return data[0]
+        data = getattr(res, "data", None) or []
+        return data[0] if data else None
 
     except Exception as e:
-        print("Score fetch error:", e)
+        # TEMP: surface the real error to Streamlit logs
+        print("get_candidate_score() ERROR:", repr(e))
         return None

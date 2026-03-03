@@ -27,15 +27,15 @@ if not user_id:
     st.error("User profile incomplete.")
     st.stop()
 
-st.write("DEBUG DASHBOARD USER:", user_id)
+from services.supabase_client import supabase  # use wherever your supabase client is created
 
+probe = supabase.table("candidate_scores").select("id,user_id").limit(3).execute()
+st.write("DEBUG PROBE candidate_scores:", probe.data if hasattr(probe, "data") else probe)
 
 # =========================
 # FETCH INTELLIGENCE
 # =========================
 score = get_candidate_score(user_id)
-
-st.write("DEBUG SCORE OBJECT:", score)
 
 if not score:
     st.warning(
