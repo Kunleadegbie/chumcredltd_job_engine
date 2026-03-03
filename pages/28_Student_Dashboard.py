@@ -5,7 +5,6 @@ import pandas as pd
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 from services.employer_queries import get_candidate_score
-from services.employer_queries import supabase
 
 st.set_page_config(page_title="Student Dashboard", layout="wide")
 
@@ -29,23 +28,6 @@ if not user_id:
     st.stop()
 
 # =========================
-# DEBUG
-# =========================
-
-st.write("DEBUG DASHBOARD USER:", user_id)
-st.write("DEBUG SCORE OBJECT:", score)
-
-probe = (
-    supabase
-    .table("candidate_scores")
-    .select("id,user_id")
-    .limit(3)
-    .execute()
-)
-
-st.write("DEBUG PROBE candidate_scores:", getattr(probe, "data", None))
-
-# =========================
 # FETCH INTELLIGENCE
 # =========================
 score = get_candidate_score(user_id)
@@ -56,6 +38,24 @@ if not score:
         "Please complete your profile and upload your CV."
     )
     st.stop()
+
+# =========================
+# DEBUG
+# =========================
+st.write("DEBUG SCORE OBJECT:", score)
+
+# 🔥 Deep probe to confirm table visibility
+try:
+    test_rows = (
+        get_candidate_score.__globals__["supabase"]
+        .table("candidate_scores")
+        .select("id,user_id")
+        .limit(3)
+        .execute()
+    )
+    st.write("DEBUG PROBE candidate_scores:", getattr(test_rows, "data", None))
+except Exception as e:
+    st.write("DEBUG PROBE ERROR:", str(e))
 
 # =========================
 # HERO STATUS BANNER
