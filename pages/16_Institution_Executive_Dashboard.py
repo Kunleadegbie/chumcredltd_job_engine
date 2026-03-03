@@ -213,10 +213,6 @@ else:
     st.caption(f"Institution: **{selected_inst_name}**")
 
 
-st.write("Selected institution:", institution_id)
-st.write("Rows returned:", len(df))
-
-
 
 # =========================================================
 # AUTOMATED LICENSE ENFORCEMENT — INSTITUTION
@@ -293,6 +289,11 @@ if license_status in ["expired", "suspended"]:
 
 if license_status == "trial":
     st.warning("⚠️ Institution is on trial plan. Some analytics may be limited.")
+
+
+st.write("Selected institution:", institution_id)
+st.write("Rows returned:", len(df))
+
 
 # =========================
 # PATCH 1: MEMBER ROLE (selected institution) + PII RULE
