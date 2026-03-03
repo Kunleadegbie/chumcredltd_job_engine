@@ -256,6 +256,40 @@ expires_at = selected_employer_row.get("subscription_expires_at")
 w4.metric("Expires At", str(expires_at) if expires_at else "-")
 st.write("---")
 
+import streamlit as st
+from services.employer_queries import get_candidate_score
+
+
+def render_candidate_trust_card(user_id: str):
+
+    data = get_candidate_score(user_id)
+
+    if not data:
+        st.warning("No scoring data available.")
+        return
+
+    badge_color_map = {
+        "Gold": "🟢",
+        "Silver": "🔵",
+        "Bronze": "🟠",
+        "Developing": "🔴",
+    }
+
+    badge_icon = badge_color_map.get(data["trust_badge"], "⚪")
+
+    st.markdown(f"### {badge_icon} TalentIQ Trust Profile")
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Trust Index", data["trust_index"])
+    col2.metric("CV Quality", data["cv_quality_score"])
+    col3.metric("ERS", data["ers_score"])
+
+    st.info(data.get("trust_label"))
+
+    with st.expander("View Detailed Breakdown"):
+        st.json(data)
+
 # -------------------------
 # Actions
 # -------------------------
