@@ -10,6 +10,8 @@ st.set_page_config(page_title="Student Dashboard", layout="wide")
 
 render_sidebar()
 
+st.write("DEBUG DASHBOARD USER:", user_id)
+
 st.title("🎓 My Employability Intelligence")
 
 # =========================
