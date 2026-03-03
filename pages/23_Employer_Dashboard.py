@@ -3,7 +3,6 @@ import streamlit as st
 import sys, os
 from datetime import datetime, timezone
 
-st.write(get_candidate_score(candidate_user_id))
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
