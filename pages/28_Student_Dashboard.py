@@ -5,8 +5,11 @@ import pandas as pd
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
-from auth import get_current_user
-from services.employer_queries import get_candidate_score
+user = st.session_state.get("user")
+
+if not user:
+    st.error("Please sign in to view your dashboard.")
+    st.stop()from services.employer_queries import get_candidate_score
 
 st.set_page_config(page_title="Student Dashboard", layout="wide")
 
