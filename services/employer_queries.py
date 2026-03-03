@@ -22,24 +22,18 @@ def get_supabase():
     return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_candidate_score(user_id):
-    try:
-        response = (
-            supabase
-            .table("candidate_scores")
-            .select("*")
-            .eq("user_id", user_id)
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
 
-        data = response.data
+    response = (
+        supabase
+        .table("candidate_scores")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
 
-        if data and len(data) > 0:
-            return data[0]
+    if response.data:
+        return response.data[0]
 
-        return None
-
-    except Exception as e:
-        print("Score fetch error:", e)
-        return None
+    return None

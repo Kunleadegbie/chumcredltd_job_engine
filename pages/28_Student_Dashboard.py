@@ -29,6 +29,24 @@ user_id = user.get("id")
 
 st.write("DEBUG USER ID:", user_id)
 
+from supabase import create_client
+import os
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+
+supabase_test = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+test_query = (
+    supabase_test
+    .table("candidate_scores")
+    .select("*")
+    .eq("user_id", user_id)
+    .execute()
+)
+
+st.write("DEBUG DIRECT QUERY:", test_query.data)
+
 if not user_id:
     st.error("User profile incomplete.")
     st.stop()
@@ -76,11 +94,11 @@ except Exception as e:
 # HERO STATUS BANNER
 # =========================
 if score:
-    trust_badge = score.get("trust_badge", "Developing")
+    trust_badge = score.get("trust_badge", "Developing") if score else "Developing"
 else:
     trust_badge = "Developing"
 
-trust_index = score.get("trust_index", 0)
+trust_index = score.get("trust_index", 0) if score else 0
 
 if trust_badge == "Gold":
     st.success("✅ You are strongly positioned for employer opportunities.")
@@ -104,12 +122,12 @@ c1.metric(
 
 c2.metric(
     "🧠 CV Quality Score",
-    score.get("cv_quality_score", 0)
+    score.get("cv_quality_score", 0) if score else 0
 )
 
 c3.metric(
     "🚀 Employability Readiness (ERS)",
-    score.get("ers_score", 0)
+    score.get("ers_score", 0) if score else 0
 )
 
 c4.metric(
