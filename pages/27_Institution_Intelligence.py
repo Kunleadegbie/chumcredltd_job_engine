@@ -139,29 +139,23 @@ st.plotly_chart(fig)
 
 st.subheader("🏅 Talent Distribution")
 
-badge_dist = compute_badge_distribution(scores_df)
+badge_df = (
+    scores_df["trust_badge"]
+    .fillna("Developing")
+    .value_counts()
+    .reset_index()
+)
 
-if badge_dist is not None and not badge_dist.empty:
+badge_df.columns = ["trust_badge", "count"]
 
-    badge_df = badge_dist.copy()
+fig = px.bar(
+    badge_df,
+    x="trust_badge",
+    y="count",
+    title="Trust Badge Distribution",
+)
 
-    # Ensure column names are correct
-    badge_df = badge_df.rename(columns={
-        badge_df.columns[0]: "trust_badge",
-        badge_df.columns[1]: "count"
-    })
-
-    # Remove duplicate columns if any
-    badge_df = badge_df.loc[:, ~badge_df.columns.duplicated()]
-
-    fig = px.bar(
-        badge_df,
-        x="trust_badge",
-        y="count",
-        title="Trust Badge Distribution",
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
 
 
 st.divider()
