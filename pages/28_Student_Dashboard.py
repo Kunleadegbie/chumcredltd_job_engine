@@ -37,6 +37,8 @@ if not user_id:
     st.error("User profile incomplete.")
     st.stop()
 
+user_id = "f2553781-320c-444f-aef5-dcd81f2cedb1"
+
 # =========================
 # FETCH INTELLIGENCE
 # =========================
