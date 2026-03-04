@@ -1,11 +1,14 @@
 # pages/28_Student_Dashboard.py
 
+
+
 import os
 from supabase import create_client
 
-# Supabase connection
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 import streamlit as st
 import pandas as pd
