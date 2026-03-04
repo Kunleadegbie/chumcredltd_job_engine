@@ -29,13 +29,12 @@ def get_candidate_score(user_id):
         .table("candidate_scores")
         .select("*")
         .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .limit(1)
         .execute()
     )
 
     if not result.data:
         return None
 
-    return result.data[0]
+    # return latest score
+    return sorted(result.data, key=lambda x: x["created_at"], reverse=True)[0]
 
