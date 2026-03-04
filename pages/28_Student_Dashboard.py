@@ -7,8 +7,6 @@ from supabase import create_client
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
 import streamlit as st
 import pandas as pd
 from components.ui import hide_streamlit_sidebar
@@ -39,22 +37,11 @@ if not user_id:
 # =========================
 # FETCH INTELLIGENCE
 # =========================
-
-# Fetch latest candidate score directly
-result = (
-    supabase
-    .table("candidate_scores")
-    .select("*")
-    .eq("user_id", user_id)
-    .order("created_at", desc=True)
-    .limit(1)
-    .execute()
-)
-
-score = result.data[0] if result.data else None
+score = get_candidate_score(user_id)
 
 if score is None:
     st.info("Your employability intelligence is still being generated. Please complete your profile and upload your CV.")
+
 
 # =========================
 # HERO STATUS BANNER
