@@ -33,16 +33,14 @@ def fetch_institution_scores(
     """
     Fetch candidate scoring data for ONE institution
     """
-
-    res = (
+    data = (
         supabase
         .table("candidate_scores")
         .select("*")
-        .eq("institution_id", institution_id)     
+        .eq("institution_id", institution_id)
+        .limit(limit)
         .execute()
-    )
-
-    data = res.data or []
+    ).data
 
     if not data:
         return pd.DataFrame()
