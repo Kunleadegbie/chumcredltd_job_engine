@@ -114,7 +114,7 @@ def generate_matches(job_id, institution_id):
 
     for student in students:
 
-        score = compute_match_score(student, job)s
+        score = compute_match_score(student, job)
 
         results.append({
             "name": student.get("name"),
