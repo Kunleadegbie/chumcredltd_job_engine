@@ -143,6 +143,8 @@ st.plotly_chart(fig)
 
 st.subheader("🏅 Talent Distribution")
 
+st.write("DEBUG df columns:", list(df.columns))
+
 badge_dist = compute_badge_distribution(df)
 
 if badge_dist:

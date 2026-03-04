@@ -80,19 +80,38 @@ def compute_institution_kpis(df: pd.DataFrame):
 # BADGE DISTRIBUTION
 # =========================
 
-def compute_badge_distribution(df: pd.DataFrame):
-    if df.empty:
-        return None
+def compute_badge_distribution(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Returns badge distribution table with counts.
+    Expects candidate_scores-like dataframe.
+    """
 
-    dist = (
-        df["trust_badge"]
-        .value_counts(normalize=True)
-        .mul(100)
-        .round(1)
-        .to_dict()
+    if df is None or df.empty:
+        return pd.DataFrame(columns=["trust_badge", "count"])
+
+    # --- Schema normalization (contract) ---
+    # Some parts of the app may return `trust_badge` OR `trust_badge_label` OR `trust_badge_level`
+    # We standardize to `trust_badge`.
+    if "trust_badge" not in df.columns:
+        # Try common alternatives (if any exist in your dataset)
+        for alt in ["trust_badge_label", "trust_badge_level", "badge", "trust_badge_name"]:
+            if alt in df.columns:
+                df = df.rename(columns={alt: "trust_badge"})
+                break
+
+    # If still missing, force the column to exist (so downstream analytics always works)
+    if "trust_badge" not in df.columns:
+        df["trust_badge"] = None
+
+    # Clean + compute distribution
+    s = df["trust_badge"].fillna("Developing").astype(str).str.strip()
+    out = (
+        s.value_counts(dropna=False)
+         .reset_index()
+         .rename(columns={"index": "trust_badge", "trust_badge": "count"})
     )
 
-    return dist
+    return out
 
 def compute_faculty_performance(df: pd.DataFrame):
     """
