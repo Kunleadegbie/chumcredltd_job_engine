@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from datetime import datetim
+from datetime import datetime
 
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
