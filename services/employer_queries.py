@@ -24,7 +24,7 @@ def get_supabase():
 
 def get_candidate_score(user_id):
 
-    response = (
+    result = (
         supabase
         .table("candidate_scores")
         .select("*")
@@ -34,7 +34,8 @@ def get_candidate_score(user_id):
         .execute()
     )
 
-    if response.data:
-        return response.data[0]
+    if not result.data:
+        return None
 
-    return None
+    return result.data[0]
+
