@@ -4,18 +4,40 @@ from services.supabase_client import supabase
 # ------------------------------------------
 # GET STUDENT DATA
 # ------------------------------------------
-
 def get_students(institution_id):
 
     result = (
         supabase
         .table("candidate_scores")
-        .select("user_id, ers_score, cv_quality_score, trust_index, skills")
+        .select("""
+            user_id,
+            ers_score,
+            cv_quality_score,
+            trust_index,
+            skills,
+            users:users!candidate_scores_user_id_fkey(full_name,email)
+        """)
         .eq("institution_id", institution_id)
         .execute()
     )
 
-    return result.data
+    students = []
+
+    for row in result.data:
+
+        user = row.get("users")
+
+        students.append({
+            "user_id": row.get("user_id"),
+            "name": user.get("full_name") if user else None,
+            "email": user.get("email") if user else None,
+            "ers_score": row.get("ers_score"),
+            "cv_quality_score": row.get("cv_quality_score"),
+            "trust_index": row.get("trust_index"),
+            "skills": row.get("skills")
+        })
+
+    return students
 
 
 # ------------------------------------------
@@ -92,10 +114,12 @@ def generate_matches(job_id, institution_id):
 
     for student in students:
 
-        score = compute_match_score(student, job)
+        score = compute_match_score(student, job)s
 
         results.append({
-            "user_id": student["user_id"],
+            "name": student.get("name"),
+            "email": student.get("email"),
+            "user_id": student.get("user_id"),
             "match_score": score,
             "ers_score": student.get("ers_score"),
             "cv_quality_score": student.get("cv_quality_score"),
