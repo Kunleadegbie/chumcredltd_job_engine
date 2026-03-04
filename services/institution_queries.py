@@ -37,7 +37,7 @@ def fetch_institution_scores(
     res = (
         supabase
         .table("candidate_scores")
-        .select("user_id, cv_quality_score, trust_index, trust_badge")
+        .select("*")
         .eq("institution_id", institution_id)     
         .execute()
     )
