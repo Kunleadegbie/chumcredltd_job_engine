@@ -77,9 +77,9 @@ institution_id = options[selected_label]
 # LOAD DATA
 # =========================
 
-df = fetch_institution_scores(institution_id)
+scores_df = fetch_institution_scores(institution_id)
 
-if df.empty:
+if scores_df.empty:
     st.warning("No institutional data available yet.")
     st.stop()
 
@@ -87,7 +87,7 @@ if df.empty:
 # KPIs
 # =========================
 
-kpis = compute_institution_kpis(df)
+kpis = compute_institution_kpis(scores_df)
 
 st.subheader("📊 Institutional Snapshot")
 
@@ -120,16 +120,12 @@ skill_gap = calculate_skill_gap(institution_id)
 
 st.subheader("📊 TalentIQ Skill Gap Analysis")
 
-st.dataframe(skill_gap)
+gap_df = pd.DataFrame(skill_gap)
 
-
-import pandas as pd
-import plotly.express as px
-
-df = pd.DataFrame(skill_gap)
+st.dataframe(gap_df)
 
 fig = px.bar(
-    df.head(15),
+    gap_df.head(15),
     x="skill",
     y="gap",
     title="Top Skill Gaps",
@@ -143,20 +139,15 @@ st.plotly_chart(fig)
 
 st.subheader("🏅 Talent Distribution")
 
-st.write("DEBUG df columns:", list(df.columns))
 
-badge_dist = compute_badge_distribution(df)
+badge_dist = compute_badge_distribution(scores_df)
 
-if badge_dist:
-    chart_df = pd.DataFrame({
-        "Badge": list(badge_dist.keys()),
-        "Percentage": list(badge_dist.values())
-    })
+if badge_dist is not None and not badge_dist.empty:
 
     fig = px.bar(
-        chart_df,
-        x="Badge",
-        y="Percentage",
+        badge_dist,
+        x="trust_badge",
+        y="count",
         title="Trust Badge Distribution",
     )
 
@@ -165,7 +156,7 @@ if badge_dist:
 st.divider()
 st.subheader("🏫 Faculty Intelligence")
 
-faculty_df = compute_faculty_performance(df)
+faculty_df = compute_faculty_performance(scores_df)
 
 if faculty_df.empty:
     st.info("Faculty data not yet available.")
@@ -210,7 +201,7 @@ else:
 
 st.subheader("🚨 Students Needing Attention")
 
-at_risk = df[df["trust_badge"] == "Developing"]
+at_risk = scores_df[scores_df["trust_badge"] == "Developing"]
 
 if at_risk.empty:
     st.success("No high-risk students currently.")
