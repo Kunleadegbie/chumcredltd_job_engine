@@ -49,10 +49,15 @@ if st.button("Generate Matches"):
 
     df = pd.DataFrame(results)
 
-    df = df.sort_values("match_score", ascending=False)
+    if df.empty:
+        st.warning("No matches found for the selected job and institution.")
+    else:
+        if "match_score" in df.columns:
+            df = df.sort_values("match_score", ascending=False)
 
-    st.dataframe(df, use_container_width=True)
-  
+        st.dataframe(df, use_container_width=True)
+
+    
 
 
 
