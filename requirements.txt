@@ -8,6 +8,8 @@ pydantic
 tiktoken
 python-docx
 bcrypt
+pdfplumber
+
 
 # PDF extraction backends (match resume_parser.py fallbacks)
 PyMuPDF
@@ -16,7 +18,6 @@ pdfminer.six
 
 plotly>=5.0.0
 
-pdfplumber
 
 
 
