@@ -139,13 +139,23 @@ st.plotly_chart(fig)
 
 st.subheader("🏅 Talent Distribution")
 
-
 badge_dist = compute_badge_distribution(scores_df)
 
 if badge_dist is not None and not badge_dist.empty:
 
+    badge_df = badge_dist.copy()
+
+    # Ensure column names are correct
+    badge_df = badge_df.rename(columns={
+        badge_df.columns[0]: "trust_badge",
+        badge_df.columns[1]: "count"
+    })
+
+    # Remove duplicate columns if any
+    badge_df = badge_df.loc[:, ~badge_df.columns.duplicated()]
+
     fig = px.bar(
-        badge_dist,
+        badge_df,
         x="trust_badge",
         y="count",
         title="Trust Badge Distribution",
@@ -153,24 +163,6 @@ if badge_dist is not None and not badge_dist.empty:
 
     st.plotly_chart(fig, use_container_width=True)
 
-st.divider()
-st.subheader("🏫 Faculty Intelligence")
-
-faculty_df = compute_faculty_performance(scores_df)
-
-if faculty_df.empty:
-    st.info("Faculty data not yet available.")
-else:
-    st.dataframe(faculty_df, use_container_width=True)
-
-    fig = px.bar(
-        faculty_df,
-        x="faculty",
-        y="employer_ready_pct",
-        title="Employer-Ready % by Faculty",
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 st.subheader("🧠 Skills Gap Heatmap")
