@@ -45,4 +45,15 @@ if st.button("Generate Matches"):
 
     st.subheader("Top Candidates")
 
-    st.dataframe(results)
+    import pandas as pd
+
+    df = pd.DataFrame(results)
+
+    df = df.sort_values("match_score", ascending=False)
+
+    st.dataframe(df, use_container_width=True)
+  
+
+
+
+
