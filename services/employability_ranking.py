@@ -2,6 +2,8 @@
 
 from services.supabase_client import supabase
 import os
+from supabase import create_client
+import pandas as pd
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
