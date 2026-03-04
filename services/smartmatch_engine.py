@@ -6,31 +6,47 @@ from services.supabase_client import supabase
 # ------------------------------------------
 def get_students(institution_id):
 
+    # Step 1: get candidate scores
     result = (
         supabase
         .table("candidate_scores")
-        .select("""
-            user_id,
-            ers_score,
-            cv_quality_score,
-            trust_index,
-            skills,
-            users:users!candidate_scores_user_id_fkey(full_name,email)
-        """)
+        .select("user_id, ers_score, cv_quality_score, trust_index, skills")
         .eq("institution_id", institution_id)
         .execute()
     )
 
+    candidate_rows = result.data
+
+    if not candidate_rows:
+        return []
+
+    # Step 2: collect user_ids
+    user_ids = [row["user_id"] for row in candidate_rows]
+
+    # Step 3: fetch user info
+    users_result = (
+        supabase
+        .table("users")
+        .select("id, full_name, email")
+        .in_("id", user_ids)
+        .execute()
+    )
+
+    users = users_result.data
+
+    # convert to dictionary
+    user_map = {u["id"]: u for u in users}
+
     students = []
 
-    for row in result.data:
+    for row in candidate_rows:
 
-        user = row.get("users")
+        user = user_map.get(row["user_id"], {})
 
         students.append({
-            "user_id": row.get("user_id"),
-            "name": user.get("full_name") if user else None,
-            "email": user.get("email") if user else None,
+            "user_id": row["user_id"],
+            "name": user.get("full_name"),
+            "email": user.get("email"),
             "ers_score": row.get("ers_score"),
             "cv_quality_score": row.get("cv_quality_score"),
             "trust_index": row.get("trust_index"),
@@ -38,7 +54,6 @@ def get_students(institution_id):
         })
 
     return students
-
 
 # ------------------------------------------
 # GET JOB REQUIREMENTS
