@@ -38,8 +38,7 @@ def fetch_institution_scores(
         supabase
         .table("candidate_scores")
         .select("*")
-        .eq("institution_id", institution_id)
-        .limit(limit)
+        .eq("institution_id", institution_id)     
         .execute()
     )
 
