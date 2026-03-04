@@ -1,0 +1,48 @@
+import streamlit as st
+from services.smartmatch_engine import generate_matches
+from services.supabase_client import supabase
+from components.ui import hide_streamlit_sidebar
+from components.sidebar import render_sidebar
+
+render_sidebar()
+
+
+st.title("🤖 TalentIQ SmartMatch Engine")
+
+st.markdown("Automatically match candidates to jobs.")
+
+# --------------------------------------
+# SELECT JOB
+# --------------------------------------
+
+jobs = supabase.table("job_postings").select("id, job_title").execute().data
+
+job_options = {j["job_title"]: j["id"] for j in jobs}
+
+selected_job = st.selectbox("Select Job", list(job_options.keys()))
+
+job_id = job_options[selected_job]
+
+# --------------------------------------
+# SELECT INSTITUTION
+# --------------------------------------
+
+institutions = supabase.table("institutions").select("id, name").execute().data
+
+inst_options = {i["name"]: i["id"] for i in institutions}
+
+selected_inst = st.selectbox("Select Institution", list(inst_options.keys()))
+
+institution_id = inst_options[selected_inst]
+
+# --------------------------------------
+# RUN MATCH
+# --------------------------------------
+
+if st.button("Generate Matches"):
+
+    results = generate_matches(job_id, institution_id)
+
+    st.subheader("Top Candidates")
+
+    st.dataframe(results)

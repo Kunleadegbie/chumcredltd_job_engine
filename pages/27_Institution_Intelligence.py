@@ -6,6 +6,7 @@ import plotly.express as px
 
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
+from services.skill_gap_engine import calculate_skill_gap
 
 from services.employability_ranking import (
     get_top_students,
@@ -110,6 +111,31 @@ c6.metric(
 )
 
 st.divider()
+
+# =========================
+# SKILL GAP
+# =========================
+
+skill_gap = calculate_skill_gap(institution_id)
+
+st.subheader("📊 TalentIQ Skill Gap Analysis")
+
+st.dataframe(skill_gap)
+
+
+import pandas as pd
+import plotly.express as px
+
+df = pd.DataFrame(skill_gap)
+
+fig = px.bar(
+    df.head(15),
+    x="skill",
+    y="gap",
+    title="Top Skill Gaps",
+)
+
+st.plotly_chart(fig)
 
 # =========================
 # TRUST BADGE DISTRIBUTION
