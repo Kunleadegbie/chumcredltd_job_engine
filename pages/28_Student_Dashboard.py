@@ -31,15 +31,21 @@ if not user_id:
 # FETCH INTELLIGENCE
 # =========================
 
-score = get_candidate_score(user_id)
+# Fetch latest candidate score directly
+result = (
+    supabase
+    .table("candidate_scores")
+    .select("*")
+    .eq("user_id", user_id)
+    .order("created_at", desc=True)
+    .limit(1)
+    .execute()
+)
 
-if not score:
-    st.warning(
-        "Your employability intelligence is still being generated. "
-        "Please complete your profile and upload your CV."
-    )
-else:
-    st.success("Employability intelligence ready")
+score = result.data[0] if result.data else None
+
+if score is None:
+    st.info("Your employability intelligence is still being generated. Please complete your profile and upload your CV.")
 
 # =========================
 # HERO STATUS BANNER
