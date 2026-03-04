@@ -1,6 +1,10 @@
 import streamlit as st
 import os
-from datetime import datetime
+from datetime import datetim
+
+from components.ui import hide_streamlit_sidebar
+from components.sidebar import render_sidebar
+
 
 from services.cv_parser import parse_cv
 from services.cv_scoring_engine import generate_cv_scores
@@ -15,6 +19,8 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+render_sidebar()
 
 # ---------------------------------------
 # PAGE TITLE
