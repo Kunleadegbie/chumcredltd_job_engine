@@ -48,46 +48,6 @@ if score is None:
     st.info("Your employability intelligence is still being generated. Please complete your profile and upload your CV.")
 
 # =========================
-# DEBUG
-# =========================
-st.markdown("### 🔎 DEBUG — Student Dashboard")
-
-# 1) Confirm user object + user_id
-st.write("DEBUG user object:", user)
-st.write("DEBUG user_id:", user_id)
-st.write("DEBUG user_id type:", type(user_id).__name__)
-
-# 2) Confirm your Supabase env vars exist (no secrets printed)
-import os
-st.write("DEBUG SUPABASE_URL exists:", bool(os.environ.get("SUPABASE_URL")))
-st.write("DEBUG SERVICE KEY exists:", bool(os.environ.get("SUPABASE_SERVICE_KEY")))
-if os.environ.get("SUPABASE_SERVICE_KEY"):
-    st.write("DEBUG SERVICE KEY length:", len(os.environ.get("SUPABASE_SERVICE_KEY")))
-
-# 3) See what get_candidate_score returns
-try:
-    score_fn = get_candidate_score(user_id)
-    st.write("DEBUG get_candidate_score(user_id):", score_fn)
-except Exception as e:
-    st.error(f"DEBUG get_candidate_score error: {e}")
-
-# 4) Direct query probe (this is the most important)
-try:
-    probe = (
-        supabase
-        .table("candidate_scores")
-        .select("id,user_id,cv_quality_score,trust_index,ers_score,created_at")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .limit(5)
-        .execute()
-    )
-    st.write("DEBUG direct query row count:", len(probe.data or []))
-    st.write("DEBUG direct query rows (top 5):", probe.data)
-except Exception as e:
-    st.error(f"DEBUG direct query error: {e}")
-
-# =========================
 # HERO STATUS BANNER
 # =========================
 
