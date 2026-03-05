@@ -1,11 +1,40 @@
+import streamlit as st
 import os
+import pandas as pd
 from supabase import create_client
 import pandas as pd
+
+import docx
+import pdfplumber
+
+from services.cv_pipeline import process_candidate_cv
+from components.ui import hide_streamlit_sidebar
+from components.sidebar import render_sidebar
+
+# -----------------------------
+# Get Logged-in User
+# -----------------------------
+
+user = st.session_state.get("user")
+
+if not user:
+    st.error("User not logged in.")
+    st.stop()
+
+user_id = user.get("id")
+
+# -----------------------------
+# Supabase Connection
+# -----------------------------
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# -----------------------------
+# Fetch User CV History
+# -----------------------------
 
 res = (
     supabase
@@ -37,13 +66,6 @@ else:
 
     st.info("No previous CV analyses found yet.")
 
-import streamlit as st
-import docx
-import pdfplumber
-
-from services.cv_pipeline import process_candidate_cv
-from components.ui import hide_streamlit_sidebar
-from components.sidebar import render_sidebar
 
 
 # =========================
