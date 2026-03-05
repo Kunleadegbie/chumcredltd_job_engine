@@ -1,38 +1,44 @@
 """
 TalentIQ ATS Compatibility Checker
+Evaluates whether CV structure is ATS-friendly
 """
 
 import re
 
 
-def check_ats(cv_text: str) -> dict:
-    """
-    Basic ATS readiness analysis
-    """
+def check_ats(parsed_cv: dict):
+
+    # Extract CV text from parser output
+    cv_text = parsed_cv.get("cv_text", "")
+
+    # Ensure it is a string
+    if not isinstance(cv_text, str):
+        cv_text = str(cv_text)
+
+    text = cv_text.lower()
 
     score = 0
     issues = []
 
-    text = cv_text.lower()
-
-    # length check
+    # Length check
     if len(text) > 2000:
         score += 20
     else:
         issues.append("CV may be too short")
 
-    # contact information
-    if re.search(r'\b\d{10,}\b', text):
+    # Phone detection
+    if re.search(r"\b\d{10,}\b", text):
         score += 20
     else:
         issues.append("Phone number not detected")
 
+    # Email detection
     if "@" in text:
         score += 20
     else:
         issues.append("Email address missing")
 
-    # sections
+    # Section checks
     if "experience" in text:
         score += 15
     else:
