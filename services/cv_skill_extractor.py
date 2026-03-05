@@ -1,32 +1,39 @@
-import re
+"""
+TalentIQ Skill Extractor
+Extracts skills from parsed CV
+"""
 
-SKILL_LIBRARY = [
-    "python",
-    "sql",
-    "excel",
-    "power bi",
-    "tableau",
-    "machine learning",
-    "statistics",
-    "financial modeling",
-    "project management",
-    "data analysis",
-    "java",
-    "javascript",
-    "react",
-    "node",
-]
+def extract_skills(parsed_cv: dict):
 
-def extract_skills(cv_text):
+    # Extract CV text from parser output
+    cv_text = parsed_cv.get("cv_text", "")
 
     cv_text = cv_text.lower()
 
-    found_skills = []
+    common_skills = [
+        "python",
+        "sql",
+        "excel",
+        "power bi",
+        "machine learning",
+        "data analysis",
+        "statistics",
+        "communication",
+        "leadership",
+        "project management",
+    ]
 
-    for skill in SKILL_LIBRARY:
-        pattern = r"\b" + re.escape(skill) + r"\b"
+    detected_skills = []
 
-        if re.search(pattern, cv_text):
-            found_skills.append(skill)
+    for skill in common_skills:
 
-    return list(set(found_skills))
+        if skill in cv_text:
+            detected_skills.append(skill)
+
+    skill_score = min(len(detected_skills) * 10, 100)
+
+    return {
+        "skills": detected_skills,
+        "skill_score": skill_score,
+        "role_alignment_score": skill_score
+    }
