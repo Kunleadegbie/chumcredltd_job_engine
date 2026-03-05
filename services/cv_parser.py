@@ -1,51 +1,59 @@
 # services/cv_parser.py
 
-import io
-import pdfplumber
-from docx import Document
+"""
+TalentIQ CV Parser
+Extracts basic structure from CV text
+"""
+
+import re
 
 
-def extract_text_from_pdf(file_bytes):
+def parse_cv(cv_text: str) -> dict:
     """
-    Extract text from PDF file.
-    """
-    text = []
-
-    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-        for page in pdf.pages:
-            content = page.extract_text()
-            if content:
-                text.append(content)
-
-    return "\n".join(text)
-
-
-def extract_text_from_docx(file_bytes):
-    """
-    Extract text from Word (.docx) file.
-    """
-    doc = Document(io.BytesIO(file_bytes))
-
-    text = []
-    for paragraph in doc.paragraphs:
-        if paragraph.text:
-            text.append(paragraph.text)
-
-    return "\n".join(text)
-
-
-def parse_cv(uploaded_file):
-    """
-    Detect file type and extract CV text.
+    Parse CV text and extract basic sections
     """
 
-    file_bytes = uploaded_file.read()
+    text = cv_text.lower()
 
-    if uploaded_file.name.lower().endswith(".pdf"):
-        return extract_text_from_pdf(file_bytes)
+    # =========================
+    # BASIC SECTION DETECTION
+    # =========================
 
-    elif uploaded_file.name.lower().endswith(".docx"):
-        return extract_text_from_docx(file_bytes)
+    sections = {
+        "education": bool(re.search(r"\beducation\b", text)),
+        "experience": bool(re.search(r"\bexperience\b", text)),
+        "skills": bool(re.search(r"\bskills\b", text)),
+        "projects": bool(re.search(r"\bprojects\b", text)),
+    }
 
-    else:
-        raise ValueError("Unsupported file format. Please upload PDF or DOCX.")
+    # =========================
+    # SIMPLE SKILL DETECTION
+    # =========================
+
+    common_skills = [
+        "python",
+        "sql",
+        "excel",
+        "power bi",
+        "machine learning",
+        "data analysis",
+        "statistics",
+        "communication",
+        "leadership"
+    ]
+
+    detected_skills = []
+
+    for skill in common_skills:
+        if skill in text:
+            detected_skills.append(skill)
+
+    # =========================
+    # OUTPUT
+    # =========================
+
+    return {
+        "cv_text": cv_text,
+        "sections": sections,
+        "skills": detected_skills
+    }
