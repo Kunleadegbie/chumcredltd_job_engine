@@ -90,7 +90,7 @@ def render_sidebar() -> None:
         safe_page_link("pages/28_Student_Dashboard.py","🎓 My Intelligence")  
         safe_page_link("pages/29_CV_Analyzer.py", "🧠 CV Intelligence Engine")
         safe_page_link("pages/30_SmartMatch.py", "🎯 SmartMatch Engine")
-        safe_page_link("pages/31_Employer_Jobs.py", "💼 Employer Jobs") 
+        safe_page_link("pages/31_CV_Analysis_History.py", "💼 CV Analysis History") 
         safe_page_link("pages/32_Employer_Talent_Explorer.py", "🏢 Talent Explorer")
         safe_page_link("pages/33_Employer_Jobs.py", "💼 Employer Jobs")
 
