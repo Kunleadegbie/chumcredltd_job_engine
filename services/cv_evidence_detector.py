@@ -1,34 +1,43 @@
+"""
+TalentIQ Evidence Detector
+Detects quantifiable evidence in CV (metrics, numbers, achievements)
+"""
+
 import re
 
-def detect_evidence(cv_text):
 
+def detect_evidence(parsed_cv: dict):
+
+    # Extract text from parser output
+    cv_text = parsed_cv.get("cv_text", "")
+
+    # Ensure text is string
+    if not isinstance(cv_text, str):
+        cv_text = str(cv_text)
+
+    # Find numeric indicators
     numbers = re.findall(r"\d+", cv_text)
 
-    action_words = [
-        "led",
-        "developed",
-        "built",
-        "implemented",
-        "designed",
-        "optimized",
+    evidence_score = min(len(numbers) * 5, 100)
+
+    # Specificity indicators
+    keywords = [
+        "improved",
         "increased",
         "reduced",
-        "improved",
         "managed",
+        "led",
+        "delivered",
+        "achieved"
     ]
 
-    action_count = 0
+    text_lower = cv_text.lower()
 
-    cv_text_lower = cv_text.lower()
+    keyword_hits = sum(1 for k in keywords if k in text_lower)
 
-    for word in action_words:
-        if word in cv_text_lower:
-            action_count += 1
+    specificity_score = min(keyword_hits * 10, 100)
 
-    number_score = min(len(numbers) * 10, 100)
-
-    action_score = min(action_count * 12, 100)
-
-    evidence_score = int((number_score + action_score) / 2)
-
-    return evidence_score
+    return {
+        "evidence_score": evidence_score,
+        "specificity_score": specificity_score
+    }
