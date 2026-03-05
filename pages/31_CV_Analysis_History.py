@@ -3,12 +3,12 @@ from services.cv_pipeline import process_candidate_cv
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
-st.set_page_config(page_title="TalentIQ CV Analyzer", layout="wide")
+st.set_page_config(page_title="TalentIQ CV Analysis History", layout="wide")
 hide_streamlit_sidebar()
 render_sidebar()
 
 
-st.title("TalentIQ CV Analyzer")
+st.title("TalentIQ CV Analysis History")
 
 user = st.session_state.get("user")
 
