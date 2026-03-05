@@ -1,3 +1,42 @@
+import os
+from supabase import create_client
+import pandas as pd
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+res = (
+    supabase
+    .table("candidate_scores")
+    .select("*")
+    .eq("user_id", user_id)
+    .order("created_at", desc=True)
+    .execute()
+)
+
+data = res.data
+
+if data:
+
+    df = pd.DataFrame(data)
+
+    st.dataframe(
+        df[[
+            "created_at",
+            "cv_quality_score",
+            "trust_index",
+            "ers_score",
+            "trust_badge"
+        ]],
+        use_container_width=True
+    )
+
+else:
+
+    st.info("No previous CV analyses found yet.")
+
 import streamlit as st
 import docx
 import pdfplumber
