@@ -20,6 +20,9 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+
+st.set_page_config(page_title="CV Intelligence Engine", layout="wide")
+hide_streamlit_sidebar()
 render_sidebar()
 
 # ---------------------------------------

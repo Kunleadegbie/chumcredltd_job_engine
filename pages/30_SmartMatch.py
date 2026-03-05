@@ -4,6 +4,8 @@ from services.supabase_client import supabase
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
+st.set_page_config(page_title="SmartMatch Engine", layout="wide")
+hide_streamlit_sidebar()
 render_sidebar()
 
 

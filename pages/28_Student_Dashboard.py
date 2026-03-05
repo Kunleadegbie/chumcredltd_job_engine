@@ -18,6 +18,7 @@ from services.employer_queries import get_candidate_score
 
 st.set_page_config(page_title="Student Dashboard", layout="wide")
 
+hide_streamlit_sidebar()
 render_sidebar()
 
 st.title("🎓 My Employability Intelligence")
