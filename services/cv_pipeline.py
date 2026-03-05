@@ -1,3 +1,8 @@
+"""
+TalentIQ CV Processing Pipeline
+Runs full CV intelligence workflow
+"""
+
 from services.cv_parser import parse_cv
 from services.cv_skill_extractor import extract_skills
 from services.cv_evidence_detector import detect_evidence
@@ -6,32 +11,46 @@ from services.cv_scoring_engine import compute_scores
 from services.cv_score_writer import write_scores
 
 
-def process_candidate_cv(user_id, cv_text):
+def process_candidate_cv(user_id: str, cv_text: str):
 
-    # Step 1: Parse CV
+    # =========================
+    # PARSE CV
+    # =========================
+
     parsed = parse_cv(cv_text)
 
-    # Step 2: Extract skills
+    # =========================
+    # SKILL EXTRACTION
+    # =========================
+
     skills = extract_skills(parsed)
 
-    # Step 3: Detect evidence
+    # =========================
+    # EVIDENCE DETECTION
+    # =========================
+
     evidence = detect_evidence(parsed)
 
-    # Step 4: ATS compatibility
+    # =========================
+    # ATS CHECK
+    # =========================
+
     ats_result = check_ats(parsed)
 
-    # Step 5: Compute scoring
+    # =========================
+    # SCORE COMPUTATION
+    # =========================
+
     scores = compute_scores(
-        parsed_text=parsed,
-        skills=skills,
-        evidence=evidence,
-        ats_result=ats_result
+        skills,
+        evidence,
+        ats_result
     )
 
-    # Step 6: Write scores to database
-    write_scores(
-        user_id=user_id,
-        scores=scores
-    )
+    # =========================
+    # WRITE RESULTS
+    # =========================
+
+    write_scores(user_id, scores)
 
     return scores
