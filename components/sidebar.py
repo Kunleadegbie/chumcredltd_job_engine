@@ -90,6 +90,17 @@ def render_sidebar() -> None:
         safe_page_link("pages/28_Student_Dashboard.py","🎓 My Intelligence")  
         safe_page_link("pages/29_CV_Analyzer.py", "🧠 CV Intelligence Engine")
         safe_page_link("pages/30_SmartMatch.py", "🎯 SmartMatch Engine")
+        safe_page_link("pages/31_Employer_Jobs.py", "💼 Employer Jobs") 
+        safe_page_link("pages/32_Employer_Talent_Explorer.py", "🏢 Talent Explorer")
+        safe_page_link("pages/33_Employer_Jobs.py", "💼 Employer Jobs")
+
+        st.divider()
+
+        # ==================================================
+        # 🧭 JOB EXPLORER
+        # ==================================================
+        st.markdown("### 🧭 Job Explorers")
+
         safe_page_link("pages/3_Job_Search.py", "🔍 Job Search")
         safe_page_link("pages/4_Saved_Jobs.py", "💾 Saved Jobs")
 
