@@ -175,9 +175,6 @@ if st.button("Analyze My CV"):
 
     st.success("CV analysis completed successfully.")
 
-# =========================
-# HISTORY SECTION 
-# =========================
 
 # -----------------------------
 # Fetch User CV History
