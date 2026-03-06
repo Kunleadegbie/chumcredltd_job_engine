@@ -107,6 +107,8 @@ if st.button("🚀 Analyze CV"):
 
                 parsed = parse_cv(cv_text)
 
+                st.write("DEBUG parsed CV:", parsed)
+
             # ---------------------------------------
             # STEP 2: GENERATE SCORES
             # ---------------------------------------
@@ -214,7 +216,17 @@ if st.button("🚀 Analyze CV"):
             }
 
 
-            st.json(breakdown)
+           
+
+
+            import pandas as pd
+
+            breakdown_df = pd.DataFrame(
+                list(breakdown.items()),
+                columns=["Component", "Score"]
+            )
+
+            st.table(breakdown_df)
 
             st.divider()
 
