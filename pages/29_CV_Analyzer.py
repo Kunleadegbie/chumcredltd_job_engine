@@ -7,7 +7,7 @@ from components.sidebar import render_sidebar
 
 
 from services.cv_parser import parse_cv
-from services.cv_scoring_engine import generate_scores
+from services.cv_scoring_engine import compute_scores
 
 from supabase import create_client
 
@@ -104,7 +104,7 @@ if st.button("🚀 Analyze CV"):
             # STEP 2: GENERATE SCORES
             # ---------------------------------------
 
-            scores = generate_scores(cv_text, target_role)
+            scores = compute_scores(cv_text, target_role)
 
             # ---------------------------------------
             # STEP 3: SAVE TO DATABASE
