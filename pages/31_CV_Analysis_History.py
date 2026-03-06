@@ -210,15 +210,46 @@ if st.button("Analyze My CV"):
 
     st.success("CV analysis completed successfully.")
 
-
 # =========================
-# HISTORY SECTION (placeholder)
+# HISTORY SECTION 
 # =========================
-
-st.markdown("---")
 
 st.subheader("Previous CV Analyses")
 
-st.info(
-    "Your previous CV analyses will appear here as you upload new versions."
+res = (
+    supabase
+    .table("candidate_scores")
+    .select("*")
+    .eq("user_id", user_id)
+    .order("created_at", desc=True)
+    .execute()
 )
+
+rows = res.data
+
+# DEBUG — remove later
+st.write("DEBUG rows returned:", rows)
+
+if rows and len(rows) > 0:
+
+    df = pd.DataFrame(rows)
+
+    display_cols = [
+        "created_at",
+        "cv_quality_score",
+        "trust_index",
+        "ers_score",
+        "trust_badge"
+    ]
+
+    existing_cols = [c for c in display_cols if c in df.columns]
+
+    st.dataframe(
+        df[existing_cols],
+        use_container_width=True
+    )
+
+else:
+
+    st.info("No previous CV analyses found yet.")
+
