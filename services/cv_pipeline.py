@@ -50,7 +50,7 @@ def process_candidate_cv(user_id: str, cv_text: str):
     # =========================
     # WRITE RESULTS
     # =========================
-
+    print("DEBUG writing scores:", user_id, scores)
     write_scores(user_id, scores)
 
     return scores
