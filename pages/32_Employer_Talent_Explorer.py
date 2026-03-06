@@ -59,7 +59,7 @@ for r in data:
     records.append({
         "Candidate": candidate.get("full_name"),
         "Email": candidate.get("email"),
-        "Institution": institution.get("name"),
+        "Institution": institution.get("name") if institution else "Unknown",
         "ERS": r.get("ers_score"),
         "Trust Badge": r.get("trust_badge"),
         "CV Score": r.get("cv_quality_score"),
