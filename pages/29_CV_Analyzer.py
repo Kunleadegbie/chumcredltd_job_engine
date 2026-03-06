@@ -140,8 +140,8 @@ if st.button("🚀 Analyze CV"):
             )
 
 
-
-            scores = compute_scores(parsed)
+            scores = compute_scores(parsed, evidence, ats_data)
+         
 
             # ---------------------------------------
             # STEP 3: SAVE TO DATABASE
