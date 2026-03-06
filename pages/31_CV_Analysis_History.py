@@ -227,6 +227,7 @@ res = (
 
 rows = res.data
 
+st.write("DEBUG logged user_id:", user_id)
 # DEBUG — remove later
 st.write("DEBUG rows returned:", rows)
 
