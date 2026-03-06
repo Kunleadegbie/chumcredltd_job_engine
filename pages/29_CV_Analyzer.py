@@ -145,24 +145,27 @@ if st.button("🚀 Analyze CV"):
 
             # ---------------------------------------
             # STEP 3: SAVE TO DATABASE
-            # ---------------------------------------
+            # ---------------------------------------  
 
             payload = {
                 "user_id": user_id,
-                "cv_quality_score": scores["cv_quality_score"],
-                "cv_quality_band": scores["cv_quality_band"],
-                "trust_index": scores["trust_index"],
-                "trust_badge": scores["trust_badge"],
-                "completeness_score": scores["completeness_score"],
-                "role_alignment_score": scores["role_alignment_score"],
-                "evidence_score": scores["evidence_score"],
-                "specificity_score": scores["specificity_score"],
-                "ats_score": scores["ats_score"],
-                "professional_score": scores["professional_score"],
-                "ers_score": scores["ers_score"],
+                "cv_quality_score": scores.get("cv_quality_score", 0),
+                "cv_quality_band": scores.get("cv_quality_band", "Developing"),
+                "trust_index": scores.get("trust_index", 0),
+                "trust_badge": scores.get("trust_badge", "Developing"),
+                "completeness_score": scores.get("completeness_score", 0),
+                "role_alignment_score": scores.get("role_alignment_score", 0),
+                "evidence_score": scores.get("evidence_score", 0),
+                "specificity_score": scores.get("specificity_score", 0),
+                "ats_score": scores.get("ats_score", 0),
+                "professional_score": scores.get("professional_score", 0),
+                "ers_score": scores.get("ers_score", 0),
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()
             }
+
+
+            
 
             supabase.table("candidate_scores").insert(payload).execute()
 
