@@ -94,11 +94,18 @@ if st.button("🚀 Analyze CV"):
             # STEP 1: PARSE CV
             # ---------------------------------------
 
-            cv_text = parse_cv(uploaded_file)
+            if uploaded_file is not None:
 
-            if not cv_text or len(cv_text) < 100:
-                st.error("CV text could not be extracted properly.")
-                st.stop()
+                file_bytes = uploaded_file.read()
+
+                try:
+                    cv_text = file_bytes.decode("utf-8", errors="ignore")
+                except:
+                    cv_text = str(file_bytes)
+
+                parsed = parse_cv(cv_text)
+
+            
 
             # ---------------------------------------
             # STEP 2: GENERATE SCORES
