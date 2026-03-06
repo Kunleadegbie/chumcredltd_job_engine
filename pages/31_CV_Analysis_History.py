@@ -32,41 +32,6 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# -----------------------------
-# Fetch User CV History
-# -----------------------------
-
-res = (
-    supabase
-    .table("candidate_scores")
-    .select("*")
-    .eq("user_id", user_id)
-    .order("created_at", desc=True)
-    .execute()
-)
-
-data = res.data
-
-if data:
-
-    df = pd.DataFrame(data)
-
-    st.dataframe(
-        df[[
-            "created_at",
-            "cv_quality_score",
-            "trust_index",
-            "ers_score",
-            "trust_badge"
-        ]],
-        use_container_width=True
-    )
-
-else:
-
-    st.info("No previous CV analyses found yet.")
-
-
 
 # =========================
 # PAGE CONFIG
@@ -214,7 +179,9 @@ if st.button("Analyze My CV"):
 # HISTORY SECTION 
 # =========================
 
-st.subheader("Previous CV Analyses")
+# -----------------------------
+# Fetch User CV History
+# -----------------------------
 
 res = (
     supabase
@@ -225,32 +192,25 @@ res = (
     .execute()
 )
 
-rows = res.data
+data = res.data
 
-st.write("DEBUG logged user_id:", user_id)
-# DEBUG — remove later
-st.write("DEBUG rows returned:", rows)
+if data:
 
-if rows and len(rows) > 0:
-
-    df = pd.DataFrame(rows)
-
-    display_cols = [
-        "created_at",
-        "cv_quality_score",
-        "trust_index",
-        "ers_score",
-        "trust_badge"
-    ]
-
-    existing_cols = [c for c in display_cols if c in df.columns]
+    df = pd.DataFrame(data)
 
     st.dataframe(
-        df[existing_cols],
+        df[[
+            "created_at",
+            "cv_quality_score",
+            "trust_index",
+            "ers_score",
+            "trust_badge"
+        ]],
         use_container_width=True
     )
 
 else:
 
     st.info("No previous CV analyses found yet.")
+
 
