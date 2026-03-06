@@ -203,15 +203,16 @@ if st.button("🚀 Analyze CV"):
             st.divider()
 
             st.subheader("🔍 Component Breakdown")
-
+  
             breakdown = {
-                "Completeness Score": scores["completeness_score"],
-                "Role Alignment": scores["role_alignment_score"],
-                "Evidence Strength": scores["evidence_score"],
-                "Specificity": scores["specificity_score"],
-                "ATS Compatibility": scores["ats_score"],
-                "Professional Quality": scores["professional_score"]
+                "Completeness Score": scores.get("completeness_score", 0),
+                "Role Alignment": scores.get("role_alignment_score", 0),
+                "Evidence Strength": scores.get("evidence_score", 0),
+                "Specificity": scores.get("specificity_score", 0),
+                "ATS Compatibility": scores.get("ats_score", 0),
+                "Professional Quality": scores.get("professional_score", 0)
             }
+
 
             st.json(breakdown)
 
