@@ -107,7 +107,7 @@ if st.button("🚀 Analyze CV"):
 
                 parsed = parse_cv(cv_text)
 
-                st.write("DEBUG parsed CV:", parsed)
+              
 
             # ---------------------------------------
             # STEP 2: GENERATE SCORES
