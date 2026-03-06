@@ -147,6 +147,7 @@ if st.button("🚀 Analyze CV"):
             # STEP 3: SAVE TO DATABASE
             # ---------------------------------------  
 
+
             payload = {
                 "user_id": user_id,
                 "cv_quality_score": scores.get("cv_quality_score", 0),
@@ -164,7 +165,6 @@ if st.button("🚀 Analyze CV"):
                 "updated_at": datetime.utcnow().isoformat()
             }
 
-
             
 
             supabase.table("candidate_scores").insert(payload).execute()
@@ -180,13 +180,13 @@ if st.button("🚀 Analyze CV"):
             col1, col2, col3 = st.columns(3)
 
             with col1:
-                st.metric("CV Quality Score", scores["cv_quality_score"])
+                st.metric("CV Quality Score", scores.get("cv_quality_score", 0))
 
             with col2:
-                st.metric("Trust Index", scores["trust_index"])
+                st.metric("Trust Index", scores.get("trust_index", 0))
 
             with col3:
-                st.metric("Employability Readiness (ERS)", scores["ers_score"])
+                st.metric("Employability Readiness (ERS)", scores.get("ers_score", 0))
 
             st.divider()
 
@@ -194,11 +194,11 @@ if st.button("🚀 Analyze CV"):
 
             with col4:
                 st.markdown("### 🎖 Trust Badge")
-                st.success(scores["trust_badge"])
+                st.success(scores.get("trust_badge", "Developing"))
 
             with col5:
                 st.markdown("### 📈 CV Quality Band")
-                st.info(scores["cv_quality_band"])
+                st.info(scores.get("cv_quality_band", "Developing"))
 
             st.divider()
 
