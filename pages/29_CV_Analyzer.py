@@ -2,9 +2,12 @@ import streamlit as st
 import os
 from datetime import datetime
 
+from services.cv_skill_extractor import extract_skills
+from services.cv_evidence_detector import detect_evidence
+from services.cv_ats_checker import check_ats
+
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
-
 
 from services.cv_parser import parse_cv
 from services.cv_scoring_engine import compute_scores
@@ -19,7 +22,6 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
 
 st.set_page_config(page_title="CV Intelligence Engine", layout="wide")
 hide_streamlit_sidebar()
@@ -105,13 +107,41 @@ if st.button("🚀 Analyze CV"):
 
                 parsed = parse_cv(cv_text)
 
-            
-
             # ---------------------------------------
             # STEP 2: GENERATE SCORES
             # ---------------------------------------
+            
+            # ---------------------------------------
+            # STEP 2: EXTRACT SKILLS
+            # ---------------------------------------
 
-            scores = compute_scores(cv_text, target_role)
+            skills = extract_skills(cv_text)
+
+            # ---------------------------------------
+            # STEP 3: DETECT EVIDENCE
+            # ---------------------------------------
+
+            evidence = detect_evidence(cv_text)
+
+            # ---------------------------------------
+            # STEP 4: ATS CHECK
+            # ---------------------------------------
+
+            ats_data = check_ats(cv_text)
+
+            # ---------------------------------------
+            # STEP 5: GENERATE SCORES
+            # ---------------------------------------
+
+            scores = compute_scores(
+                parsed,
+                evidence,
+                ats_data
+            )
+
+
+
+            scores = compute_scores(parsed)
 
             # ---------------------------------------
             # STEP 3: SAVE TO DATABASE
