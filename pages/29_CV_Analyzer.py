@@ -115,19 +115,19 @@ if st.button("🚀 Analyze CV"):
             # STEP 2: EXTRACT SKILLS
             # ---------------------------------------
 
-            skills = extract_skills(cv_text)
+            skills = extract_skills(parsed)
 
             # ---------------------------------------
             # STEP 3: DETECT EVIDENCE
             # ---------------------------------------
 
-            evidence = detect_evidence(cv_text)
+            evidence = detect_evidence(parsed)
 
             # ---------------------------------------
             # STEP 4: ATS CHECK
             # ---------------------------------------
 
-            ats_data = check_ats(cv_text)
+            ats_data = check_ats(parsed)
 
             # ---------------------------------------
             # STEP 5: GENERATE SCORES
