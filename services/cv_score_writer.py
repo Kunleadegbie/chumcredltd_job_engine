@@ -31,17 +31,20 @@ def write_scores(user_id, scores):
         "created_at": datetime.utcnow().isoformat()
     }
 
-    try:
 
+    try:
         res = (
             supabase
             .table("candidate_scores")
             .insert(payload)
             .execute()
         )
+        print("INSERT RESULT:", res)
+    except Exception as e:
+        print("INSERT ERROR:", e)
 
-        print("DEBUG insert result:", res)
 
+    
         return res
 
     except Exception as e:
