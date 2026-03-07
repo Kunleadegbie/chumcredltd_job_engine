@@ -2,8 +2,9 @@
 # config/supabase_client.py — Robust Clients (Anon + Service) + PKCE
 # ==========================================================
 # ======================================================
+# ======================================================
 # config/supabase_client.py
-# Stable Supabase client configuration
+# Stable Supabase configuration for TalentIQ
 # ======================================================
 
 import os
@@ -11,25 +12,23 @@ from supabase import create_client, ClientOptions
 
 
 # ------------------------------------------------------
-# Environment Variables
+# Load environment variables
 # ------------------------------------------------------
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
-
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
-
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
 
 # ------------------------------------------------------
-# Client Options
+# Client options (used for user authentication)
 # ------------------------------------------------------
 
 OPTIONS = ClientOptions(flow_type="pkce")
 
 
 # ------------------------------------------------------
-# Public Client (used by app users)
+# Public client (used by normal users)
 # ------------------------------------------------------
 
 supabase = create_client(
@@ -40,7 +39,7 @@ supabase = create_client(
 
 
 # ------------------------------------------------------
-# Admin Client (used for platform admin operations)
+# Admin client (used only for admin operations)
 # ------------------------------------------------------
 
 supabase_admin = create_client(
