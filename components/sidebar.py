@@ -1,5 +1,5 @@
 # ==========================================================
-# components/sidebar.py — FULL RESTORED + GROUPED (STABLE)
+# components/sidebar.py — PROFESSIONAL LAYERED SIDEBAR
 # ==========================================================
 
 import os
@@ -7,9 +7,10 @@ import streamlit as st
 
 
 # ==========================================================
-# SAFE PAGE CHECK (robust to working-directory differences)
+# SAFE PAGE CHECK
 # ==========================================================
-_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # /app
+
+_ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def _abs_path(p: str) -> str:
     return p if os.path.isabs(p) else os.path.join(_ROOT_DIR, p)
@@ -29,8 +30,9 @@ def safe_page_link(page_path: str, label: str) -> None:
 
 
 # ==========================================================
-# Institution membership check
+# INSTITUTION MEMBERSHIP CHECK
 # ==========================================================
+
 def _is_institution_member(user_app_id: str) -> bool:
     try:
         if not user_app_id:
@@ -46,8 +48,10 @@ def _is_institution_member(user_app_id: str) -> bool:
             .limit(1)
             .execute()
         )
+
         rows = r.data or []
         return len(rows) > 0
+
     except Exception:
         return False
 
@@ -55,9 +59,9 @@ def _is_institution_member(user_app_id: str) -> bool:
 # ==========================================================
 # SIDEBAR RENDER
 # ==========================================================
-def render_sidebar() -> None:
 
-    # 🚨 DO NOTHING if not authenticated
+def render_sidebar():
+
     if not st.session_state.get("authenticated"):
         return
 
@@ -82,24 +86,24 @@ def render_sidebar() -> None:
         st.divider()
 
         # ==================================================
-        # 🎓 STUDENT / CORE
+        # 🎓 STUDENT ECOSYSTEM
         # ==================================================
-        st.markdown("### 🎓 Student / Core")
+
+        st.markdown("### 🎓 Student Intelligence")
 
         safe_page_link("pages/2_Dashboard.py", "📊 Dashboard")
-        safe_page_link("pages/28_Student_Dashboard.py","🎓 My Intelligence")  
-        safe_page_link("pages/29_CV_Analyzer.py", "🧠 CV Intelligence Engine")
+        safe_page_link("pages/28_Student_Dashboard.py", "🧠 My Intelligence")
+        safe_page_link("pages/29_CV_Analyzer.py", "📄 CV Intelligence Engine")
         safe_page_link("pages/30_SmartMatch.py", "🎯 SmartMatch Engine")
-        safe_page_link("pages/31_CV_Analysis_History.py", "💼 CV Analysis History") 
-        safe_page_link("pages/32_Employer_Talent_Explorer.py", "🏢 Talent Explorer")
-        safe_page_link("pages/33_Employer_Jobs.py", "💼 Employer Jobs")
+        safe_page_link("pages/31_CV_Analysis_History.py", "📚 CV Analysis History")
 
         st.divider()
 
         # ==================================================
-        # 🧭 JOB EXPLORER
+        # 🔎 JOB EXPLORER
         # ==================================================
-        st.markdown("### 🧭 Job Explorers")
+
+        st.markdown("### 🔎 Job Explorer")
 
         safe_page_link("pages/3_Job_Search.py", "🔍 Job Search")
         safe_page_link("pages/4_Saved_Jobs.py", "💾 Saved Jobs")
@@ -107,9 +111,10 @@ def render_sidebar() -> None:
         st.divider()
 
         # ==================================================
-        # 🤖 AI TOOLS
+        # 🤖 AI CAREER TOOLS
         # ==================================================
-        st.markdown("### 🤖 AI Tools")
+
+        st.markdown("### 🤖 AI Career Tools")
 
         safe_page_link("pages/3a_Match_Score.py", "📈 Match Score")
         safe_page_link("pages/3b_Skills.py", "🧠 Skills Extraction")
@@ -119,40 +124,51 @@ def render_sidebar() -> None:
         safe_page_link("pages/3i_Tailor_CV_to_Job.py", "🧩 Tailor CV to Job")
         safe_page_link("pages/3f_Job_Recommendations.py", "🎯 Job Recommendations")
         safe_page_link("pages/3g_ATS_SmartMatch.py", "🧬 ATS SmartMatch")
-        safe_page_link("pages/3h_InterviewIQ.py", "🧠 InterviewIQ™")
+        safe_page_link("pages/3h_InterviewIQ.py", "🧠 InterviewIQ")
 
         st.divider()
 
         # ==================================================
-        # 🏛 INSTITUTION
+        # 🏛 INSTITUTION ECOSYSTEM
         # ==================================================
-        if show_institutions:
-            st.markdown("### 🏛 Institution")
 
-            safe_page_link("pages/16_Institution_Executive_Dashboard.py", "🏛️ Institution Dashboard")
-            safe_page_link("pages/18_Institution_Subscription.py", "🏛️ Institution Subscription")
+        if show_institutions:
+
+            st.markdown("### 🏛 Institution Intelligence")
+
+            safe_page_link("pages/16_Institution_Executive_Dashboard.py", "🏛 Institution Dashboard")
+            safe_page_link("pages/27_Institution_Intelligence.py", "🎓 Talent Intelligence")
+            safe_page_link("pages/18_Institution_Subscription.py", "💳 Institution Subscription")
 
             st.divider()
 
         # ==================================================
-        # 🏢 EMPLOYER
+        # 🏢 EMPLOYER ECOSYSTEM
         # ==================================================
+
         if role in ["employer", "admin"]:
-            st.markdown("### 🏢 Employer")
+
+            st.markdown("### 🏢 Employer Intelligence")
 
             safe_page_link("pages/23_Employer_Dashboard.py", "🏢 Employer Dashboard")
-            safe_page_link("pages/24_Employer_Post_Job.py", "📝 Post a Job")
+            safe_page_link("pages/24_Employer_Post_Job.py", "📝 Post Job")
             safe_page_link("pages/25_Employer_Manage_Jobs.py", "📋 Manage Jobs")
+            safe_page_link("pages/32_Employer_Talent_Explorer.py", "🔎 Talent Explorer")
+            safe_page_link("pages/33_Employer_Jobs.py", "💼 Employer Jobs")
             safe_page_link("pages/22_Employer_Subscription.py", "💳 Employer Subscription")
 
             if role == "admin":
-                safe_page_link("pages/26_Admin_Employer_Subscription_Approvals.py", "✅ Employer Subscription Approvals")
+                safe_page_link(
+                    "pages/26_Admin_Employer_Subscription_Approvals.py",
+                    "✅ Employer Subscription Approvals"
+                )
 
             st.divider()
 
         # ==================================================
-        # 💳 GENERAL SUBSCRIPTION + SUPPORT
+        # 💳 SUBSCRIPTIONS & SUPPORT
         # ==================================================
+
         st.markdown("### 💳 Subscription & Support")
 
         safe_page_link("pages/10_subscription.py", "💳 Personal Subscription")
@@ -163,29 +179,29 @@ def render_sidebar() -> None:
         # ==================================================
         # 🛡 ADMIN PANEL
         # ==================================================
+
         if role == "admin":
-            st.markdown("### 🛡 Admin Panel")
+
+            st.markdown("### 🛡 Platform Administration")
 
             safe_page_link("pages/12_Admin_Payments.py", "💼 Payment Approvals")
-            safe_page_link("pages/19_Admin_Institution_Payments.py", "🏛️ Institution Payments")
+            safe_page_link("pages/19_Admin_Institution_Payments.py", "🏛 Institution Payments")
             safe_page_link("pages/9_Admin_Revenue.py", "💰 Revenue Dashboard")
             safe_page_link("pages/13_Admin_Credit_Usage.py", "📊 Credit Usage")
-            safe_page_link("pages/15_Admin_Users.py", "👥 Users Profile")
-            safe_page_link("pages/17_Admin_institution.py", "🏛️ Institutions")
+            safe_page_link("pages/15_Admin_Users.py", "👥 User Profiles")
+            safe_page_link("pages/17_Admin_institution.py", "🏛 Institutions")
 
             if email in admin_emails:
-                safe_page_link("pages/16_Admin_User_Details.py", "🛡️ User Details")
+                safe_page_link("pages/16_Admin_User_Details.py", "🛡 User Details")
 
-            safe_page_link("pages/19_Government_Executive_Dashboard.py", "🏛️ Government Executive")
-   
-            safe_page_link("pages/27_Institution_Intelligence.py", "🎓 Institution Intelligence")   
-
+            safe_page_link("pages/19_Government_Executive_Dashboard.py", "🏛 Government Executive")
 
             st.divider()
 
         # ==================================================
-        # 🌍 PUBLIC
+        # 🌍 PUBLIC INTELLIGENCE
         # ==================================================
+
         st.markdown("### 🌍 Public Intelligence")
 
         safe_page_link("pages/21_Public_Institution_Ranking.py", "🏆 National Ranking")
@@ -195,7 +211,9 @@ def render_sidebar() -> None:
         # ==================================================
         # LOGOUT
         # ==================================================
+
         if st.button("🚪 Logout", key="sidebar_logout_button"):
+
             try:
                 from config.supabase_client import supabase
                 supabase.auth.sign_out()
