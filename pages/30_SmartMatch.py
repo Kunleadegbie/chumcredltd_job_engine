@@ -38,8 +38,12 @@ with col2:
     )
 
 # Determine job query
-job_query = typed_job if typed_job.strip() else selected_job
-
+if typed_job.strip():
+    job_query = typed_job.strip()
+    job_id = None
+else:
+    job_query = selected_job
+    job_id = job_options[selected_job]
 # --------------------------------------
 # SELECT INSTITUTION
 # --------------------------------------
@@ -58,7 +62,7 @@ institution_id = inst_options[selected_inst]
 
 if st.button("Generate Matches"):
 
-    results = generate_matches(job_query, institution_id)
+    results = generate_matches(job_query, institution_id, job_id)
 
     st.subheader("Top Candidates")
 

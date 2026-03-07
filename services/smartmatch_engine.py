@@ -119,7 +119,7 @@ def compute_match_score(student, job):
 # GENERATE MATCHES
 # ------------------------------------------
 
-def generate_matches(job_id, institution_id):
+def generate_matches(job_query, institution_id, job_id=None):
 
     job = get_job(job_id)
 
