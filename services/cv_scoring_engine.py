@@ -64,9 +64,30 @@ def compute_scores(
     return {
         "cv_quality_score": cv_quality_score,
         "role_alignment_score": role_alignment,
+        "completeness_score": completeness_score,
         "evidence_score": evidence_score,
         "specificity_score": specificity_score,
         "ats_score": ats_score,
+        # ---------------------------------------
+        # COMPLETENESS SCORE
+        # ---------------------------------------
+
+        skills = skill_data.get("skills") or skill_data.get("extracted_skills") or []
+
+        skill_count = len(skills)
+
+        if skill_count >= 10:
+            completeness_score = 100
+        elif skill_count >= 7:
+            completeness_score = 80
+        elif skill_count >= 5:
+            completeness_score = 60
+        elif skill_count >= 3:
+            completeness_score = 40
+        elif skill_count >= 1:
+            completeness_score = 20
+        else:
+            completeness_score = 0
         "professional_score": professional_score,
         "trust_index": trust_index,
         "trust_badge": trust_badge,
