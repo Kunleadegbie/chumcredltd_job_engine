@@ -68,15 +68,35 @@ uploaded_file = st.file_uploader(
     type=["pdf", "docx"]
 )
 
-target_role = st.selectbox(
-    "Target Career Role",
-    [
-        "Data Analyst",
-        "Software Engineer",
-        "Finance Analyst",
-        "Marketing Analyst"
-    ]
-)
+st.markdown("### Target Career Role")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    preset_role = st.selectbox(
+        "Select common roles (optional)",
+        [
+            "",
+            "Data Analyst",
+            "Software Engineer",
+            "Finance Analyst",
+            "Marketing Manager",
+            "Computer Scientist",
+            "Business Development Officer",
+            "Sales Manager",
+            "Sales Operations Manager",
+            "Marketing Analyst"
+        ]
+    )
+
+with col2:
+    custom_role = st.text_input(
+        "Or type your target role",
+        placeholder="Example: AI Engineer, Cybersecurity Analyst, Product Manager"
+    )
+
+# Determine final role
+target_role = custom_role if custom_role.strip() else preset_role
 
 # ---------------------------------------
 # ANALYZE CV BUTTON
@@ -140,9 +160,6 @@ if st.button("🚀 Analyze CV"):
                 evidence,
                 ats_data
             )
-
-
-            scores = compute_scores(parsed, evidence, ats_data)
          
 
             # ---------------------------------------
@@ -236,7 +253,7 @@ if st.button("🚀 Analyze CV"):
 
             st.subheader("🛠 TalentIQ Improvement Coach")
 
-            ers = scores["ers_score"]
+            ers = scores.get("ers_score", 0)
 
             if ers >= 85:
                 st.success("Excellent CV. You are strongly positioned for employers.")

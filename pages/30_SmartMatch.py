@@ -17,13 +17,28 @@ st.markdown("Automatically match candidates to jobs.")
 # SELECT JOB
 # --------------------------------------
 
+st.markdown("### Job Preference")
+
 jobs = supabase.table("job_postings").select("id, job_title").execute().data
 
 job_options = {j["job_title"]: j["id"] for j in jobs}
 
-selected_job = st.selectbox("Select Job", list(job_options.keys()))
+col1, col2 = st.columns(2)
 
-job_id = job_options[selected_job]
+with col1:
+    selected_job = st.selectbox(
+        "Select existing job (optional)",
+        list(job_options.keys())
+    )
+
+with col2:
+    typed_job = st.text_input(
+        "Or type your preferred job role",
+        placeholder="Example: Data Scientist, AI Engineer, Risk Analyst"
+    )
+
+# Determine job query
+job_query = typed_job if typed_job.strip() else selected_job
 
 # --------------------------------------
 # SELECT INSTITUTION
@@ -43,7 +58,7 @@ institution_id = inst_options[selected_inst]
 
 if st.button("Generate Matches"):
 
-    results = generate_matches(job_id, institution_id)
+    results = generate_matches(job_query, institution_id)
 
     st.subheader("Top Candidates")
 
