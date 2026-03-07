@@ -68,6 +68,7 @@ def compute_scores(
         "evidence_score": evidence_score,
         "specificity_score": specificity_score,
         "ats_score": ats_score,
+
         # ---------------------------------------
         # COMPLETENESS SCORE
         # ---------------------------------------
@@ -77,7 +78,7 @@ def compute_scores(
         skill_count = len(skills)
 
         if skill_count >= 10:
-            completeness_score = 100
+           completeness_score = 100
         elif skill_count >= 7:
             completeness_score = 80
         elif skill_count >= 5:
@@ -87,7 +88,7 @@ def compute_scores(
         elif skill_count >= 1:
             completeness_score = 20
         else:
-            completeness_score = 0
+            completeness_score = 0 
         "professional_score": professional_score,
         "trust_index": trust_index,
         "trust_badge": trust_badge,
