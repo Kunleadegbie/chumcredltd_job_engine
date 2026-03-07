@@ -1,17 +1,20 @@
 # ==========================================================
 # config/supabase_client.py — Robust Clients (Anon + Service) + PKCE
 # ==========================================================
-
-import os
 from supabase import create_client
-from supabase.client import ClientOptions
+import os
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "").strip()
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
 
-if not SUPABASE_URL:
-    raise RuntimeError("❌ SUPABASE_URL is missing in environment variables.")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+
+# Public client (normal users)
+supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+# Admin client (server operations)
+supabase_admin = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
 
 # ----------------------------------------------------------
 # Choose a default key for the normal client:
