@@ -31,7 +31,7 @@ from services.institution_queries import (
 from services.institution_queries import compute_faculty_performance
 
 st.set_page_config(page_title="Institution Intelligence", layout="wide")
-
+hide_streamlit_sidebar()
 render_sidebar()
 
 st.title("🎓 TalentIQ Institutional Intelligence Dashboard")
