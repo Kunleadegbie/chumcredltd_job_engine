@@ -41,9 +41,12 @@ with col2:
 if typed_job.strip():
     job_query = typed_job.strip()
     job_id = None
-else:
+elif selected_job:
     job_query = selected_job
-    job_id = job_options[selected_job]
+    job_id = job_options.get(selected_job)
+else:
+    st.warning("Please select or type a job role.")
+    st.stop()
 # --------------------------------------
 # SELECT INSTITUTION
 # --------------------------------------
