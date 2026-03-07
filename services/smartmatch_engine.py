@@ -121,11 +121,16 @@ def compute_match_score(student, job):
 
 def generate_matches(job_query, institution_id, job_id=None):
 
+    # Determine job source
     if job_id:
         job = get_job(job_id)
-        role = job.get("job_title")
     else:
-        role = job_query
+        # Create a virtual job object when user types manually
+        job = {
+            "job_title": job_query,
+            "skills": [],
+            "minimum_ers": 0
+        }
 
     students = get_students(institution_id)
 
