@@ -3,11 +3,16 @@
 # ==========================================================
 # ======================================================
 # config/supabase_client.py
+# Stable Supabase client configuration
 # ======================================================
 
 import os
 from supabase import create_client, ClientOptions
 
+
+# ------------------------------------------------------
+# Environment Variables
+# ------------------------------------------------------
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 
@@ -16,11 +21,16 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
 
-# ======================================================
-# Public client (for normal users)
-# ======================================================
+# ------------------------------------------------------
+# Client Options
+# ------------------------------------------------------
 
 OPTIONS = ClientOptions(flow_type="pkce")
+
+
+# ------------------------------------------------------
+# Public Client (used by app users)
+# ------------------------------------------------------
 
 supabase = create_client(
     SUPABASE_URL,
@@ -29,14 +39,15 @@ supabase = create_client(
 )
 
 
-# ======================================================
-# Admin client (for server operations)
-# ======================================================
+# ------------------------------------------------------
+# Admin Client (used for platform admin operations)
+# ------------------------------------------------------
 
 supabase_admin = create_client(
     SUPABASE_URL,
     SUPABASE_SERVICE_KEY
 )
+
 # ----------------------------------------------------------
 # PKCE option (needed for ?code=... flows like password recovery)
 # ----------------------------------------------------------
