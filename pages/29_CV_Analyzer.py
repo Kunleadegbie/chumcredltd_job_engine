@@ -155,8 +155,8 @@ if st.button("🚀 Analyze CV"):
             # STEP 5: GENERATE SCORES
             # ---------------------------------------
 
-            scores = compute_scores(
-                parsed,
+            scores = compute_scores(                
+                skills,
                 evidence,
                 ats_data
             )
