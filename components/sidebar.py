@@ -138,7 +138,7 @@ def render_sidebar():
 
         if role in ["admin", "recruiter", "institution_admin"]:
 
-            st.markdown("### 🎓 Institution Intelligence"
+            st.sidebar.markdown("### 🎓 Institution Intelligence"
 
             safe_page_link("pages/16_Institution_Executive_Dashboard.py", "🏛 Institution Dashboard")
             safe_page_link("pages/27_Institution_Intelligence.py", "🎓 Talent Intelligence")
