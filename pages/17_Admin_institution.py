@@ -246,4 +246,5 @@ with tab2:
     else:
         st.dataframe(members, use_container_width=True, hide_index=True)
 
+
 st.caption("Chumcred TalentIQ — Admin Panel © 2025")

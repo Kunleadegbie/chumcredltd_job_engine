@@ -152,3 +152,21 @@ def register_user(full_name: str, phone: str, email: str, password: str):
 
     except Exception as e:
         return False, f"Registration error: {e}"
+
+
+def login_user(email, password):
+
+    user = supabase.table("users") \
+        .select("*") \
+        .eq("email", email) \
+        .execute()
+
+    if not user.data:
+        return "User not found"
+
+    user = user.data[0]
+
+    if user["status"] != "active":
+        return "Account not activated"
+
+    # password verification continues

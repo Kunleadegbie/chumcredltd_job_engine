@@ -131,13 +131,21 @@ def render_sidebar():
         # ==================================================
         # 🏛 INSTITUTION ECOSYSTEM
         # ==================================================
+        
+        # ============================================
+        # INSTITUTION LAYER
+        # ============================================
 
-        if show_institutions:
+        if role in ["admin", "recruiter", "institution_admin"]:
 
-            st.markdown("### 🏛 Institution Intelligence")
+            st.markdown("### 🎓 Institution Intelligence"
 
             safe_page_link("pages/16_Institution_Executive_Dashboard.py", "🏛 Institution Dashboard")
             safe_page_link("pages/27_Institution_Intelligence.py", "🎓 Talent Intelligence")
+            safe_page_link("pages/34_Import_Students.py", "📥 Import Students")
+            safe_page_link("pages/35_Student_Activation.py", "🔑 Student Activation")
+            safe_page_link("pages/36_Activation_Monitor.py", "📈 Activation Monitor")
+            safe_page_link("pages/37_Faculty_Employability_Analytics.py", "🏫 Faculty Employability Analytics")
             safe_page_link("pages/18_Institution_Subscription.py", "💳 Institution Subscription")
 
             st.divider()

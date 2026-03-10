@@ -390,6 +390,44 @@ except Exception:
     pass
 # ---- END PATCH ----
 
+# =========================================================
+# STUDENT EMPLOYABILITY INTELLIGENCE
+# =========================================================
+
+st.subheader("🎓 Student Employability Intelligence")
+
+student_scores = (
+    supabase_admin.table("candidate_scores")
+    .select("user_id, ers_score, trust_index, faculty")
+    .eq("institution_id", selected_inst_id)
+    .execute()
+)
+
+student_rows = student_scores.data or []
+
+if student_rows:
+
+    import pandas as pd
+
+    df_students = pd.DataFrame(student_rows)
+
+    total_students = df_students["user_id"].nunique()
+    analyzed = len(df_students)
+
+    avg_ers = df_students["ers_score"].mean()
+    avg_trust = df_students["trust_index"].mean()
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("Students Analyzed", total_students)
+    col2.metric("CV Analyses", analyzed)
+    col3.metric("Average ERS", round(avg_ers,1))
+    col4.metric("Trust Index", round(avg_trust,1))
+
+else:
+    st.info("No student employability intelligence available yet.")
+
+
 # =========================
 # KPI CARDS
 # =========================
