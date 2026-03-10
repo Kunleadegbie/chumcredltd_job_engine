@@ -3,14 +3,12 @@ import pandas as pd
 import plotly.express as px
 
 from config.supabase_client import supabase_admin
-
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
 st.set_page_config(page_title="Student Activation Monitor", layout="wide")
 hide_streamlit_sidebar()
 render_sidebar()
-
 
 st.title("📊 Student Activation Monitor")
 
@@ -21,57 +19,50 @@ if not user:
     st.stop()
 
 user_id = user.get("id")
+user_role = (user.get("role") or "").lower()
 
-# ---------------------------------------------------
-# GET INSTITUTION MEMBERSHIP
-# ---------------------------------------------------
+admin_override = user_role == "admin"
 
-membership = (
-    supabase_admin.table("institution_members")
-    .select("institution_id, member_role")
-    .eq("user_id", user_id)
-    .execute()
-)
+if not admin_override:
 
-members = membership.data or []
+    membership = (
+        supabase_admin.table("institution_members")
+        .select("institution_id, member_role")
+        .eq("user_id", user_id)
+        .execute()
+    )
 
-if not members:
-    st.error("You are not assigned to any institution.")
-    st.stop()
+    members = membership.data or []
 
-institution_id = members[0]["institution_id"]
-role = (members[0]["member_role"] or "").lower()
+    if not members:
+        st.error("You are not assigned to any institution.")
+        st.stop()
 
-if role not in ["admin", "recruiter"]:
-    st.error("Only institution admins can access this page.")
-    st.stop()
+    institution_id = members[0]["institution_id"]
 
-# ---------------------------------------------------
-# FETCH STUDENTS
-# ---------------------------------------------------
+else:
+    institution_id = None
 
-students = (
+query = (
     supabase_admin.table("users")
     .select("id,full_name,matric_number,status,created_at,activated_at,faculty")
-    .eq("institution_id", institution_id)
     .eq("role", "student")
-    .execute()
 )
+
+if not admin_override:
+    query = query.eq("institution_id", institution_id)
+
+students = query.execute()
 
 rows = students.data or []
 
 if not rows:
-    st.info("No students found for this institution.")
+    st.info("No students found.")
     st.stop()
 
 df = pd.DataFrame(rows)
 
-# ---------------------------------------------------
-# SUMMARY METRICS
-# ---------------------------------------------------
-
 total_students = len(df)
-
 activated = len(df[df["status"] == "active"])
 pending = len(df[df["status"] == "pending_activation"])
 
@@ -86,27 +77,13 @@ col4.metric("Activation Rate", f"{activation_rate:.1f}%")
 
 st.divider()
 
-# ---------------------------------------------------
-# STATUS DISTRIBUTION
-# ---------------------------------------------------
-
 st.subheader("Activation Status Distribution")
 
 status_counts = df["status"].value_counts().reset_index()
 status_counts.columns = ["status", "count"]
 
-fig = px.pie(
-    status_counts,
-    names="status",
-    values="count",
-    title="Student Activation Status"
-)
-
+fig = px.pie(status_counts, names="status", values="count")
 st.plotly_chart(fig)
-
-# ---------------------------------------------------
-# ACTIVATION TREND
-# ---------------------------------------------------
 
 if "activated_at" in df.columns:
 
@@ -122,19 +99,8 @@ if "activated_at" in df.columns:
     )
 
     if not trend.empty:
-
-        fig = px.line(
-            trend,
-            x="activated_at",
-            y="count",
-            title="Daily Activations"
-        )
-
+        fig = px.line(trend, x="activated_at", y="count")
         st.plotly_chart(fig)
-
-# ---------------------------------------------------
-# STUDENT LIST
-# ---------------------------------------------------
 
 st.subheader("Student Activation List")
 
@@ -147,7 +113,4 @@ display_cols = [
     "activated_at"
 ]
 
-st.dataframe(
-    df[display_cols],
-    use_container_width=True
-)
+st.dataframe(df[display_cols], use_container_width=True)

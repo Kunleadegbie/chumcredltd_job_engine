@@ -3,14 +3,12 @@ import pandas as pd
 import plotly.express as px
 
 from config.supabase_client import supabase_admin
-
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
 st.set_page_config(page_title="Faculty Employability Analytics", layout="wide")
 hide_streamlit_sidebar()
 render_sidebar()
-
 
 st.title("🎓 Faculty Employability Analytics")
 
@@ -21,41 +19,39 @@ if not user:
     st.stop()
 
 user_id = user.get("id")
+user_role = (user.get("role") or "").lower()
 
-# ----------------------------------------------------
-# GET INSTITUTION
-# ----------------------------------------------------
+admin_override = user_role == "admin"
 
-membership = (
-    supabase_admin.table("institution_members")
-    .select("institution_id, member_role")
-    .eq("user_id", user_id)
-    .execute()
-)
+if not admin_override:
 
-members = membership.data or []
+    membership = (
+        supabase_admin.table("institution_members")
+        .select("institution_id, member_role")
+        .eq("user_id", user_id)
+        .execute()
+    )
 
-if not members:
-    st.error("You are not assigned to any institution.")
-    st.stop()
+    members = membership.data or []
 
-institution_id = members[0]["institution_id"]
-role = (members[0]["member_role"] or "").lower()
+    if not members:
+        st.error("You are not assigned to any institution.")
+        st.stop()
 
-if role not in ["admin", "recruiter"]:
-    st.error("Access denied.")
-    st.stop()
+    institution_id = members[0]["institution_id"]
 
-# ----------------------------------------------------
-# FETCH STUDENT SCORES
-# ----------------------------------------------------
+else:
+    institution_id = None
 
-scores = (
+query = (
     supabase_admin.table("candidate_scores")
     .select("user_id, ers_score, trust_index, faculty")
-    .eq("institution_id", institution_id)
-    .execute()
 )
+
+if not admin_override:
+    query = query.eq("institution_id", institution_id)
+
+scores = query.execute()
 
 rows = scores.data or []
 
@@ -64,10 +60,6 @@ if not rows:
     st.stop()
 
 df = pd.DataFrame(rows)
-
-# ----------------------------------------------------
-# FACULTY SUMMARY
-# ----------------------------------------------------
 
 faculty_summary = (
     df.groupby("faculty")
@@ -83,12 +75,7 @@ faculty_summary["avg_ers"] = faculty_summary["avg_ers"].round(2)
 faculty_summary["avg_trust"] = faculty_summary["avg_trust"].round(2)
 
 st.subheader("Faculty Employability Ranking")
-
 st.dataframe(faculty_summary, use_container_width=True)
-
-# ----------------------------------------------------
-# BAR CHART
-# ----------------------------------------------------
 
 fig = px.bar(
     faculty_summary,
@@ -98,10 +85,6 @@ fig = px.bar(
 )
 
 st.plotly_chart(fig)
-
-# ----------------------------------------------------
-# STUDENT READINESS DISTRIBUTION
-# ----------------------------------------------------
 
 st.subheader("Student Readiness Distribution")
 

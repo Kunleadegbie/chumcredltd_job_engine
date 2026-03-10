@@ -9,118 +9,80 @@ st.set_page_config(page_title="Import Students", layout="wide")
 hide_streamlit_sidebar()
 render_sidebar()
 
-
 st.title("📥 Import Students (CSV)")
 
 user = st.session_state.get("user")
+
 if not user:
     st.error("Please login.")
     st.stop()
 
 user_id = user.get("id")
+user_role = (user.get("role") or "").lower()
 
 # --------------------------------------------------
-# GET INSTITUTION
+# ADMIN OVERRIDE
 # --------------------------------------------------
 
-membership = (
-    supabase_admin.table("institution_members")
-    .select("institution_id, member_role")
-    .eq("user_id", user_id)
-    .execute()
-)
+admin_override = user_role == "admin"
 
-members = membership.data or []
+if admin_override:
+    institution_id = None
+else:
 
-if not members:
-    st.error("You are not assigned to any institution.")
-    st.stop()
+    membership = (
+        supabase_admin.table("institution_members")
+        .select("institution_id, member_role")
+        .eq("user_id", user_id)
+        .execute()
+    )
 
-institution_id = members[0]["institution_id"]
-role = (members[0]["member_role"] or "").lower()
+    members = membership.data or []
 
-if role not in ["admin", "recruiter"]:
-    st.error("Only institution admins can import students.")
-    st.stop()
+    if not members:
+        st.error("You are not assigned to any institution.")
+        st.stop()
+
+    institution_id = members[0]["institution_id"]
+    role = (members[0]["member_role"] or "").lower()
+
+    if role not in ["admin", "recruiter"]:
+        st.error("Only institution admins can import students.")
+        st.stop()
 
 # --------------------------------------------------
 # FILE UPLOAD
 # --------------------------------------------------
 
-df["Matric_Number"] = df["Matric_Number"].astype(str).str.strip()
-df["Full_Name"] = df["Full_Name"].astype(str).str.strip()
-df["Faculty"] = df["Faculty"].astype(str).str.strip()
-df = df.drop_duplicates(subset=["Matric_Number"])
-
 st.subheader("Upload Student CSV")
 
-uploaded_file = st.file_uploader(
-    "Upload CSV file",
-    type=["csv"]
-)
+uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
 
 if uploaded_file:
 
     try:
-        df = pd.read_csv(uploaded_file) 
-       
-
-    except Exception as e:
+        df = pd.read_csv(uploaded_file)
+    except Exception:
         st.error("Failed to read CSV file.")
         st.stop()
 
     st.write("Preview of uploaded file:")
     st.dataframe(df.head())
 
-
-    records = []
-
-    for _, row in df.iterrows():
-        records.append({
-            "full_name": row["Full_Name"],
-            "matric_number": str(row["Matric_Number"]),
-            "faculty": row["Faculty"],
-            "department": row.get("Department"),
-            "level": row.get("Level"),
-            "institution_id": institution_id,
-            "role": "student",
-            "status": "pending_activation"
-       })
-
-
-    # --------------------------------------------------
-    # VALIDATE COLUMNS
-    # --------------------------------------------------
-
-    required_columns = [
-        "Matric_Number",
-        "Full_Name",
-        "Faculty"
-    ]
-
+    required_columns = ["Matric_Number", "Full_Name", "Faculty"]
     missing = [c for c in required_columns if c not in df.columns]
 
     if missing:
         st.error(f"Missing required columns: {missing}")
         st.stop()
 
-    # --------------------------------------------------
-    # CLEAN DATA
-    # --------------------------------------------------
-
     df = df.drop_duplicates(subset=["Matric_Number"])
-
     df["Matric_Number"] = df["Matric_Number"].astype(str).str.strip()
     df["Full_Name"] = df["Full_Name"].astype(str).str.strip()
     df["Faculty"] = df["Faculty"].astype(str).str.strip()
 
     total_rows = len(df)
-
     st.info(f"{total_rows} students ready for import.")
-
-    # --------------------------------------------------
-    # IMPORT BUTTON
-    # --------------------------------------------------
 
     if st.button("Import Students"):
 
@@ -131,14 +93,16 @@ if uploaded_file:
 
             matric = row["Matric_Number"]
 
-            # Check duplicate
-            existing = (
+            query = (
                 supabase_admin.table("users")
                 .select("id")
                 .eq("matric_number", matric)
-                .eq("institution_id", institution_id)
-                .execute()
             )
+
+            if not admin_override:
+                query = query.eq("institution_id", institution_id)
+
+            existing = query.execute()
 
             if existing.data:
                 skipped += 1
@@ -163,22 +127,3 @@ if uploaded_file:
 
         st.success(f"{inserted} students imported successfully.")
         st.warning(f"{skipped} rows skipped (duplicates or errors).")
-
-
-def batch_insert_students(records, batch_size=1000):
-
-    total = len(records)
-    inserted = 0
-
-    for i in range(0, total, batch_size):
-
-        batch = records[i:i + batch_size]
-
-        try:
-            supabase_admin.table("users").insert(batch).execute()
-            inserted += len(batch)
-
-        except Exception as e:
-            print("Batch failed:", e)
-
-    return inserted
