@@ -1,8 +1,10 @@
 # ==============================================================
 # Dashboard.py — Fully Redesigned Professional Dashboard-final fix
 # ==============================================================
-from components.sidebar import render_sidebar
+
 import streamlit as st
+
+from components.sidebar import render_sidebar
 
 if not st.session_state.get("authenticated"):
     st.switch_page("app.py")
