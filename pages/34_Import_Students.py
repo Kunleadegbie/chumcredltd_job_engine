@@ -113,6 +113,7 @@ if uploaded_file:
                 "matric_number": matric,
                 "faculty": row["Faculty"],
                 "department": row.get("Department"),
+                "program": row.get("Program"),
                 "level": row.get("Level"),
                 "institution_id": institution_id,
                 "role": "student",

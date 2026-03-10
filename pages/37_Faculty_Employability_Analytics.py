@@ -45,7 +45,7 @@ else:
 
 query = (
     supabase_admin.table("candidate_scores")
-    .select("user_id, ers_score, trust_index, faculty")
+    .select("user_id, ers_score, trust_index, faculty, program")
 )
 
 if not admin_override:
