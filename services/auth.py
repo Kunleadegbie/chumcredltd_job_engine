@@ -38,14 +38,18 @@ def login_user(email: str, password: str):
         role = "user"
         full_name = ""
 
+        # ----------------------------------------------------
         # Pull metadata from Supabase Auth
+        # ----------------------------------------------------
         try:
             md = getattr(auth_user, "user_metadata", None) or {}
             full_name = (md.get("full_name") or "").strip()
         except Exception:
             pass
 
+        # ----------------------------------------------------
         # Pull additional info from users_app table
+        # ----------------------------------------------------
         try:
             u = (
                 supabase.table("users_app")
@@ -63,11 +67,36 @@ def login_user(email: str, password: str):
         except Exception:
             pass
 
+        # ----------------------------------------------------
+        # Fetch Institution Membership Role
+        # ----------------------------------------------------
+        member_role = None
+
+        try:
+            membership = (
+                supabase
+                .table("institution_members")
+                .select("member_role")
+                .eq("user_id", auth_user.id)
+                .limit(1)
+                .execute()
+            )
+
+            if membership.data:
+                member_role = membership.data[0].get("member_role")
+
+        except Exception:
+            pass
+
+        # ----------------------------------------------------
+        # Create session user object
+        # ----------------------------------------------------
         user_dict = {
             "id": auth_user.id,
             "email": auth_user.email,
             "full_name": full_name,
             "role": role,
+            "member_role": member_role,
             "access_token": getattr(session, "access_token", None) if session else None,
             "refresh_token": getattr(session, "refresh_token", None) if session else None,
         }
@@ -110,7 +139,9 @@ def register_user(full_name: str, phone: str, email: str, password: str):
         auth_user = res.user
         user_id = auth_user.id
 
+        # ----------------------------------------------------
         # Create user profile
+        # ----------------------------------------------------
         try:
             existing = (
                 supabase.table("users_app")
@@ -132,7 +163,9 @@ def register_user(full_name: str, phone: str, email: str, password: str):
         except Exception as e:
             return False, f"Profile provisioning failed: {e}"
 
+        # ----------------------------------------------------
         # Create Freemium subscription
+        # ----------------------------------------------------
         try:
             now = datetime.now(timezone.utc)
             freemium = PLANS["FREEMIUM"]
