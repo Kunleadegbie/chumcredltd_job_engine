@@ -134,14 +134,8 @@ def render_sidebar():
         # ============================================
         # 🏛 INSTITUTION ECOSYSTEM
         # ============================================
-
-        # Global role from users table
-        role = user.get("role")
-
-        # Institution membership role
-        member_role = user.get("member_role")
-
-        if role in ["admin"] or member_role in ["admin", "recruiter", "institution_admin"]:
+      
+        if member_role in ["admin", "recruiter"]:
 
             st.markdown("### 🎓 Institution Intelligence")
 
@@ -189,6 +183,19 @@ def render_sidebar():
 
         st.divider()
 
+        # ==================================================
+        # 🛡 INSTITUTE ADMIN
+        # ==================================================
+
+        if role == "institute_admin":
+
+            st.markdown("### ⚙ Institute Admin")
+
+            safe_page_link("pages/17_Admin_institution.py", "🏛 Institutions")
+
+
+            st.divider()
+    
         # ==================================================
         # 🛡 ADMIN PANEL
         # ==================================================
