@@ -134,6 +134,8 @@ def render_sidebar():
         # ============================================
         # 🏛 INSTITUTION ECOSYSTEM
         # ============================================
+
+        member_role = (user.get("member_role") or "").lower()
       
         if member_role in ["admin", "recruiter"]:
 
