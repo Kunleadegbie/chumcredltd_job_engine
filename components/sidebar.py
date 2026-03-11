@@ -128,15 +128,20 @@ def render_sidebar():
 
         st.divider()
 
-        # ==================================================
-        # 🏛 INSTITUTION ECOSYSTEM
-        # ==================================================
         
+
+
         # ============================================
-        # INSTITUTION LAYER
+        # 🏛 INSTITUTION ECOSYSTEM
         # ============================================
 
-        if role in ["admin", "recruiter", "institution_admin"]:
+        # Global role from users table
+        role = user.get("role")
+
+        # Institution membership role
+        member_role = user.get("member_role")
+
+        if role in ["admin"] or member_role in ["admin", "recruiter", "institution_admin"]:
 
             st.markdown("### 🎓 Institution Intelligence")
 
