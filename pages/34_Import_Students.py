@@ -20,6 +20,35 @@ if not user:
 user_id = user.get("id")
 user_role = (user.get("role") or "").lower()
 
+# =========================================================
+# BATCH INSERT STUDENTS
+# =========================================================
+
+def batch_insert_students(records):
+    """
+    Insert many students at once using Supabase batch insert
+    """
+
+    from config.supabase_client import supabase
+
+    try:
+
+        response = (
+            supabase
+            .table("users_app")
+            .insert(records)
+            .execute()
+        )
+
+        if response.data:
+            return len(response.data)
+
+        return 0
+
+    except Exception as e:
+        st.error(f"Batch insert failed: {e}")
+        return 0
+
 # --------------------------------------------------
 # ADMIN OVERRIDE
 # --------------------------------------------------
