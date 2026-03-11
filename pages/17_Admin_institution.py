@@ -15,14 +15,24 @@ from config.supabase_client import supabase, supabase_admin
 
 
 # =========================================================
-# AUTH GUARD (ADMIN ONLY)
+# AUTH GUARD (ADMIN / INSTITUTION ADMIN)
 # =========================================================
+
 if not st.session_state.get("authenticated"):
     st.switch_page("app.py")
     st.stop()
 
 user = st.session_state.get("user") or {}
-if (user.get("role") or "").lower() != "admin":
+
+role = (user.get("role") or "").lower()
+member_role = (user.get("member_role") or "").lower()
+
+# Allow access for:
+# 1. Platform Admin
+# 2. Institution Admin
+# 3. Institution Member Admin
+
+if role not in ["admin", "institute_admin"] and member_role != "admin":
     st.error("Admin access required.")
     st.stop()
 
