@@ -137,7 +137,7 @@ def render_sidebar():
 
         member_role = (user.get("member_role") or "").lower()
       
-        if member_role in ["admin", "recruiter", "institute_admin"]:
+        if role == "institute_admin" or member_role in ["admin", "recruiter"]:
 
             st.markdown("### 🎓 Institution Intelligence")
 
@@ -189,7 +189,7 @@ def render_sidebar():
         # 🛡 INSTITUTE ADMIN
         # ==================================================
 
-        if role == "institute_admin":
+        if role in ["institute_admin", "admin"]:
 
             st.markdown("### ⚙ Institute Admin")
 
