@@ -90,10 +90,20 @@ uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
 if uploaded_file:
 
     try:
+        # Read CSV
         df = pd.read_csv(uploaded_file)
 
         # Normalize column names
         df.columns = df.columns.str.strip().str.lower()
+
+        # Define required columns (lowercase)
+        required_cols = ["matric_number", "full_name", "email", "faculty"]
+
+        missing = [c for c in required_cols if c not in df.columns]
+
+        if missing:
+            st.error(f"Missing required columns: {missing}")
+            st.stop()
 
     except Exception:
         st.error("Failed to read CSV file.")
@@ -113,6 +123,7 @@ if uploaded_file:
     df["Matric_Number"] = df["Matric_Number"].astype(str).str.strip()
     df["Full_Name"] = df["Full_Name"].astype(str).str.strip()
     df["Faculty"] = df["Faculty"].astype(str).str.strip()
+    df["matric_number"] = df["matric_number"].astype(str)
 
     total_rows = len(df)
     st.info(f"{total_rows} students ready for import.")
