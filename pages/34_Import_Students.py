@@ -89,28 +89,13 @@ if uploaded_file:
         inserted = 0
         skipped = 0
 
+        records = []
+
         for _, row in df.iterrows():
 
-            matric = row["Matric_Number"]
-
-            query = (
-                supabase_admin.table("users")
-                .select("id")
-                .eq("matric_number", matric)
-            )
-
-            if not admin_override:
-                query = query.eq("institution_id", institution_id)
-
-            existing = query.execute()
-
-            if existing.data:
-                skipped += 1
-                continue
-
-            data = {
+            records.append({
                 "full_name": row["Full_Name"],
-                "matric_number": matric,
+                "matric_number": str(row["Matric_Number"]),
                 "faculty": row["Faculty"],
                 "department": row.get("Department"),
                 "program": row.get("Program"),
@@ -118,13 +103,33 @@ if uploaded_file:
                 "institution_id": institution_id,
                 "role": "student",
                 "status": "pending_activation"
-            }
+           })
 
-            try:
-                supabase_admin.table("users").insert(data).execute()
-                inserted += 1
-            except Exception:
-                skipped += 1
+        # ---------------------------------------
+        # FAST BATCH INSERT
+        # ---------------------------------------
+
+        inserted = batch_insert_students(records)
 
         st.success(f"{inserted} students imported successfully.")
+
         st.warning(f"{skipped} rows skipped (duplicates or errors).")
+
+
+def batch_insert_students(records, batch_size=1000):
+
+    total = len(records)
+    inserted = 0
+
+    for i in range(0, total, batch_size):
+
+        batch = records[i:i + batch_size]
+
+        try:
+            supabase_admin.table("users").insert(batch).execute()
+            inserted += len(batch)
+
+        except Exception as e:
+            print("Batch failed:", e)
+
+    return inserted
