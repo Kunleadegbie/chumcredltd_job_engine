@@ -91,6 +91,10 @@ if uploaded_file:
 
     try:
         df = pd.read_csv(uploaded_file)
+
+        # Normalize column names
+        df.columns = df.columns.str.strip().str.lower()
+
     except Exception:
         st.error("Failed to read CSV file.")
         st.stop()
@@ -118,22 +122,27 @@ if uploaded_file:
         inserted = 0
         skipped = 0
 
+
         records = []
 
         for _, row in df.iterrows():
-
             records.append({
-                "full_name": row["Full_Name"],
-                "matric_number": str(row["Matric_Number"]),
-                "faculty": row["Faculty"],
-                "department": row.get("Department"),
-                "program": row.get("Program"),
-                "level": row.get("Level"),
-                "institution_id": institution_id,
+                "full_name": row["full_name"],
+                "email": row["email"],
                 "role": "student",
-                "status": "pending_activation"
-           })
+                "faculty": row["faculty"],
+                "department": row["department"],
+                "program": row["program"],
+                "matric_number": row["matric_number"],
+                "level": row["level"],
+                "institution_id": institution_id,
+                "status": "pending_activation",
+                "is_active": True,
+                "credit_balance": 0,
+                "subscription_plan": "FREEMIUM"
+            })
 
+        
         # ---------------------------------------
         # FAST BATCH INSERT
         # ---------------------------------------
