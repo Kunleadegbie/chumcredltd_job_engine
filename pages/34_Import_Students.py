@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from config.supabase_client import supabase_admin
-
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
@@ -20,34 +19,30 @@ if not user:
 user_id = user.get("id")
 user_role = (user.get("role") or "").lower()
 
+
 # =========================================================
 # BATCH INSERT STUDENTS
 # =========================================================
 
-def batch_insert_students(records):
-    """
-    Insert many students at once using Supabase batch insert
-    """
+def batch_insert_students(records, batch_size=1000):
 
-    from config.supabase_client import supabase
+    total = len(records)
+    inserted = 0
 
-    try:
+    for i in range(0, total, batch_size):
 
-        response = (
-            supabase
-            .table("users_app")
-            .insert(records)
-            .execute()
-        )
+        batch = records[i:i + batch_size]
 
-        if response.data:
-            return len(response.data)
+        try:
+            supabase_admin.table("users_app").insert(batch).execute()
+            inserted += len(batch)
 
-        return 0
+        except Exception as e:
+            st.error(f"Batch insert failed: {e}")
+            return inserted
 
-    except Exception as e:
-        st.error(f"Batch insert failed: {e}")
-        return 0
+    return inserted
+
 
 # --------------------------------------------------
 # ADMIN OVERRIDE
@@ -57,6 +52,7 @@ admin_override = user_role == "admin"
 
 if admin_override:
     institution_id = None
+
 else:
 
     membership = (
@@ -79,6 +75,7 @@ else:
         st.error("Only institution admins can import students.")
         st.stop()
 
+
 # --------------------------------------------------
 # FILE UPLOAD
 # --------------------------------------------------
@@ -90,20 +87,76 @@ uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
 if uploaded_file:
 
     try:
-        # Read CSV
+
+        # --------------------------------------------------
+        # READ CSV
+        # --------------------------------------------------
+
         df = pd.read_csv(uploaded_file)
 
-        # Normalize column names
-        df.columns = df.columns.str.strip().str.lower()
+        # --------------------------------------------------
+        # CLEAN HEADER NAMES
+        # --------------------------------------------------
 
-        # Define required columns (lowercase)
-        required_cols = ["matric_number", "full_name", "email", "faculty"]
+        df.columns = df.columns.str.strip()
 
-        missing = [c for c in required_cols if c not in df.columns]
+        # --------------------------------------------------
+        # MAP HEADER VARIANTS (UPPER + LOWER CASE)
+        # --------------------------------------------------
+
+        column_map = {
+            "Matric_Number": "matric_number",
+            "matric_number": "matric_number",
+
+            "Full_Name": "full_name",
+            "full_name": "full_name",
+
+            "Faculty": "faculty",
+            "faculty": "faculty",
+
+            "Department": "department",
+            "department": "department",
+
+            "Program": "program",
+            "program": "program",
+
+            "Level": "level",
+            "level": "level",
+
+            "Email": "email",
+            "email": "email"
+        }
+
+        df = df.rename(columns=column_map)
+
+        # --------------------------------------------------
+        # REQUIRED COLUMNS
+        # --------------------------------------------------
+
+        required_columns = ["matric_number", "full_name", "faculty"]
+
+        missing = [c for c in required_columns if c not in df.columns]
 
         if missing:
             st.error(f"Missing required columns: {missing}")
             st.stop()
+
+        # --------------------------------------------------
+        # CLEAN DATA
+        # --------------------------------------------------
+
+        df["matric_number"] = df["matric_number"].astype(str).str.strip()
+        df["full_name"] = df["full_name"].astype(str).str.strip()
+        df["faculty"] = df["faculty"].astype(str).str.strip()
+
+        if "email" in df.columns:
+            df["email"] = df["email"].astype(str).str.strip()
+
+        # Prevent Excel scientific notation corruption
+        df["matric_number"] = df["matric_number"].astype(str)
+
+        # Remove duplicates
+        df = df.drop_duplicates(subset=["matric_number"])
 
     except Exception:
         st.error("Failed to read CSV file.")
@@ -112,73 +165,47 @@ if uploaded_file:
     st.write("Preview of uploaded file:")
     st.dataframe(df.head())
 
-    required_columns = ["Matric_Number", "Full_Name", "Faculty"]
-    missing = [c for c in required_columns if c not in df.columns]
-
-    if missing:
-        st.error(f"Missing required columns: {missing}")
-        st.stop()
-
-    df = df.drop_duplicates(subset=["Matric_Number"])
-    df["Matric_Number"] = df["Matric_Number"].astype(str).str.strip()
-    df["Full_Name"] = df["Full_Name"].astype(str).str.strip()
-    df["Faculty"] = df["Faculty"].astype(str).str.strip()
-    df["matric_number"] = df["matric_number"].astype(str)
-
     total_rows = len(df)
+
     st.info(f"{total_rows} students ready for import.")
 
+    # --------------------------------------------------
+    # IMPORT BUTTON
+    # --------------------------------------------------
+
     if st.button("Import Students"):
-
-        inserted = 0
-        skipped = 0
-
 
         records = []
 
         for _, row in df.iterrows():
+
             records.append({
+
                 "full_name": row["full_name"],
-                "email": row["email"],
+                "email": row.get("email"),
+
                 "role": "student",
-                "faculty": row["faculty"],
-                "department": row["department"],
-                "program": row["program"],
+
+                "faculty": row.get("faculty"),
+                "department": row.get("department"),
+                "program": row.get("program"),
+                "level": row.get("level"),
+
                 "matric_number": row["matric_number"],
-                "level": row["level"],
+
                 "institution_id": institution_id,
+
                 "status": "pending_activation",
                 "is_active": True,
+
                 "credit_balance": 0,
                 "subscription_plan": "FREEMIUM"
-            })
 
-        
-        # ---------------------------------------
-        # FAST BATCH INSERT
-        # ---------------------------------------
+            })
 
         inserted = batch_insert_students(records)
 
+        skipped = total_rows - inserted
+
         st.success(f"{inserted} students imported successfully.")
-
         st.warning(f"{skipped} rows skipped (duplicates or errors).")
-
-
-def batch_insert_students(records, batch_size=1000):
-
-    total = len(records)
-    inserted = 0
-
-    for i in range(0, total, batch_size):
-
-        batch = records[i:i + batch_size]
-
-        try:
-            supabase_admin.table("users").insert(batch).execute()
-            inserted += len(batch)
-
-        except Exception as e:
-            print("Batch failed:", e)
-
-    return inserted
