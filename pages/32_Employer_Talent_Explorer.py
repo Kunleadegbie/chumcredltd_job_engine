@@ -35,15 +35,14 @@ res = (
         trust_badge,
         cv_quality_score,
         trust_index,
-        users(full_name,email),
-        institutions(name)
+        users_app(full_name,email,faculty,program,institution_id)
     """)
     .order("ers_score", desc=True)
     .limit(500)
     .execute()
 )
 
-data = res.data
+data = res.data or []
 
 if not data:
     st.warning("No candidate data available yet.")
@@ -53,13 +52,13 @@ records = []
 
 for r in data:
 
-    candidate = r.get("users", {})
-    institution = r.get("institutions", {})
+    candidate = r.get("users_app") or {}
 
     records.append({
         "Candidate": candidate.get("full_name"),
         "Email": candidate.get("email"),
-        "Institution": institution.get("name") if institution else "Unknown",
+        "Faculty": candidate.get("faculty"),
+        "Program": candidate.get("program"),
         "ERS": r.get("ers_score"),
         "Trust Badge": r.get("trust_badge"),
         "CV Score": r.get("cv_quality_score"),
@@ -96,11 +95,11 @@ df["Skills"] = df.index.map(
 
 st.sidebar.header("Filter Candidates")
 
-institutions = ["All"] + sorted(df["Institution"].dropna().unique().tolist())
+faculties = ["All"] + sorted(df["Faculty"].dropna().unique().tolist())
 
-selected_institution = st.sidebar.selectbox(
-    "Institution",
-    institutions
+selected_faculty = st.sidebar.selectbox(
+    "Faculty",
+    faculties
 )
 
 min_ers = st.sidebar.slider(
@@ -116,8 +115,8 @@ skill_filter = st.sidebar.text_input(
 
 filtered = df.copy()
 
-if selected_institution != "All":
-    filtered = filtered[filtered["Institution"] == selected_institution]
+if selected_faculty != "All":
+    filtered = filtered[filtered["Faculty"] == selected_faculty]
 
 filtered = filtered[filtered["ERS"] >= min_ers]
 
