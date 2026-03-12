@@ -61,6 +61,12 @@ st.markdown(
 st.title("🏛 Institution Student Subscription Control")
 st.caption("Activate Freemium or Paid subscription for institution students.")
 
+# ---------------------------------------------------------
+# SHOW SUCCESS MESSAGE AFTER ACTION
+# ---------------------------------------------------------
+if "activation_msg" in st.session_state:
+    st.success(st.session_state["activation_msg"])
+    del st.session_state["activation_msg"]
 
 # ---------------------------------------------------------
 # LOAD INSTITUTIONS
@@ -196,13 +202,13 @@ for s in students:
     with col4:
         if st.button("Freemium", key=f"free_{s['id']}"):
             activate_freemium(s["id"])
-            st.success("Freemium activated")
+            st.session_state["activation_msg"] = f"Freemium activated for {s.get('full_name')}"
             st.rerun()
 
     with col5:
         if st.button("Paid", key=f"paid_{s['id']}"):
             activate_paid(s["id"])
-            st.success("Paid subscription activated")
+            st.session_state["activation_msg"] = f"Paid subscription activated for {s.get('full_name')}"
             st.rerun()
 
 
