@@ -150,7 +150,7 @@ if st.button("Analyze My CV"):
     with st.spinner("Analyzing your CV..."):
 
         result = process_candidate_cv(
-            user_id="f2553781-320c-444f-aef5-dcd81f2cedb1",
+            user_id=user_id,
             cv_text=cv_text
         )
 
