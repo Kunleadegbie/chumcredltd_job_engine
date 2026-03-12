@@ -23,49 +23,74 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # =========================
-# FETCH CANDIDATE DATA
+# FETCH CANDIDATE SCORES
 # =========================
 
-res = (
+score_res = (
     supabase
     .table("candidate_scores")
-    .select("""
-        user_id,
-        ers_score,
-        trust_badge,
-        cv_quality_score,
-        trust_index,
-        users_app(full_name,email,faculty,program,institution_id)
-    """)
+    .select("user_id, ers_score, trust_badge, cv_quality_score, trust_index")
     .order("ers_score", desc=True)
     .limit(500)
     .execute()
 )
 
-data = res.data or []
+scores = score_res.data or []
 
-if not data:
+if not scores:
     st.warning("No candidate data available yet.")
     st.stop()
 
-records = []
+score_df = pd.DataFrame(scores)
 
-for r in data:
+# =========================
+# FETCH USER PROFILES
+# =========================
 
-    candidate = r.get("users_app") or {}
+user_ids = score_df["user_id"].dropna().tolist()
 
-    records.append({
-        "Candidate": candidate.get("full_name"),
-        "Email": candidate.get("email"),
-        "Faculty": candidate.get("faculty"),
-        "Program": candidate.get("program"),
-        "ERS": r.get("ers_score"),
-        "Trust Badge": r.get("trust_badge"),
-        "CV Score": r.get("cv_quality_score"),
-        "Trust Index": r.get("trust_index")
-    })
+profile_res = (
+    supabase
+    .table("users_app")
+    .select("id, full_name, email, faculty, program, institution_id")
+    .in_("id", user_ids)
+    .execute()
+)
 
-df = pd.DataFrame(records)
+profiles = profile_res.data or []
+
+if profiles:
+    profile_df = pd.DataFrame(profiles).rename(columns={"id": "user_id"})
+else:
+    profile_df = pd.DataFrame(columns=["user_id", "full_name", "email", "faculty", "program", "institution_id"])
+
+# =========================
+# MERGE SCORES + PROFILES
+# =========================
+
+df = score_df.merge(profile_df, on="user_id", how="left")
+
+# =========================
+# FETCH INSTITUTION NAMES
+# =========================
+
+institution_ids = df["institution_id"].dropna().unique().tolist()
+
+institution_map = {}
+
+if len(institution_ids) > 0:
+    institution_res = (
+        supabase
+        .table("institutions")
+        .select("id, name")
+        .in_("id", institution_ids)
+        .execute()
+    )
+
+    institutions = institution_res.data or []
+    institution_map = {row["id"]: row["name"] for row in institutions if row.get("id")}
+
+df["Institution"] = df["institution_id"].map(institution_map).fillna("Unknown")
 
 # =========================
 # FETCH SKILLS
@@ -81,13 +106,28 @@ skill_res = (
 skills = skill_res.data or []
 
 skill_map = {}
-
 for s in skills:
-    skill_map.setdefault(s["user_id"], []).append(s["skill"])
+    uid = s.get("user_id")
+    skill = s.get("skill")
+    if uid and skill:
+        skill_map.setdefault(uid, []).append(skill)
 
-df["Skills"] = df.index.map(
-    lambda i: ", ".join(skill_map.get(data[i]["user_id"], []))
-)
+df["Skills"] = df["user_id"].map(lambda uid: ", ".join(skill_map.get(uid, [])))
+
+# =========================
+# RENAME COLUMNS FOR DISPLAY
+# =========================
+
+df = df.rename(columns={
+    "full_name": "Candidate",
+    "email": "Email",
+    "faculty": "Faculty",
+    "program": "Program",
+    "ers_score": "ERS",
+    "trust_badge": "Trust Badge",
+    "cv_quality_score": "CV Score",
+    "trust_index": "Trust Index"
+})
 
 # =========================
 # FILTERS
@@ -95,7 +135,7 @@ df["Skills"] = df.index.map(
 
 st.sidebar.header("Filter Candidates")
 
-faculties = ["All"] + sorted(df["Faculty"].dropna().unique().tolist())
+faculties = ["All"] + sorted([f for f in df["Faculty"].dropna().unique().tolist() if str(f).strip()])
 
 selected_faculty = st.sidebar.selectbox(
     "Faculty",
@@ -109,20 +149,18 @@ min_ers = st.sidebar.slider(
     60
 )
 
-skill_filter = st.sidebar.text_input(
-    "Search Skill"
-)
+skill_filter = st.sidebar.text_input("Search Skill")
 
 filtered = df.copy()
 
 if selected_faculty != "All":
     filtered = filtered[filtered["Faculty"] == selected_faculty]
 
-filtered = filtered[filtered["ERS"] >= min_ers]
+filtered = filtered[filtered["ERS"].fillna(0) >= min_ers]
 
 if skill_filter:
     filtered = filtered[
-        filtered["Skills"].str.contains(skill_filter, case=False, na=False)
+        filtered["Skills"].fillna("").str.contains(skill_filter, case=False, na=False)
     ]
 
 # =========================
@@ -133,8 +171,21 @@ st.subheader("Top Candidates Across TalentIQ Network")
 
 filtered = filtered.sort_values("ERS", ascending=False)
 
+display_cols = [
+    "Candidate",
+    "Email",
+    "Faculty",
+    "Program",
+    "Institution",
+    "ERS",
+    "Trust Badge",
+    "CV Score",
+    "Trust Index",
+    "Skills"
+]
+
 st.dataframe(
-    filtered,
+    filtered[display_cols],
     use_container_width=True
 )
 
