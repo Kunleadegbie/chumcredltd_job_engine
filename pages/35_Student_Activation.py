@@ -12,15 +12,15 @@ st.title("🎓 Activate Your TalentIQ Account")
 
 matric = st.text_input("Matric Number")
 email = st.text_input("Email Address")
-password = st.text_input("Create Password", type="password")
 
 if st.button("Activate Account"):
 
     matric = matric.strip()
 
+    # Check if student exists
     student = (
         supabase_admin
-        .table("users_app")     # corrected table
+        .table("users_app")
         .select("*")
         .eq("matric_number", matric)
         .execute()
@@ -32,11 +32,11 @@ if st.button("Activate Account"):
         st.error("Matric number not found.")
         st.stop()
 
+    # Update student record
     supabase_admin.table("users_app").update({
         "email": email.strip(),
-        "password": password,
         "status": "active",
         "is_active": True
     }).eq("matric_number", matric).execute()
 
-    st.success("Account activated. You can now login.")
+    st.success("Account activated successfully. You can now login.")
