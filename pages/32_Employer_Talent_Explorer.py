@@ -146,7 +146,7 @@ min_ers = st.sidebar.slider(
     "Minimum Employability Score",
     0,
     100,
-    60
+    10
 )
 
 skill_filter = st.sidebar.text_input("Search Skill")
