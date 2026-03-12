@@ -2,12 +2,13 @@ import streamlit as st
 import os
 import pandas as pd
 from supabase import create_client
-import pandas as pd
 
 import docx
 import pdfplumber
 
 from services.cv_pipeline import process_candidate_cv
+from services.credit_engine import validate_and_charge, deduct_credit
+
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
 
@@ -32,7 +33,6 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-
 # =========================
 # PAGE CONFIG
 # =========================
@@ -45,13 +45,11 @@ st.set_page_config(
 hide_streamlit_sidebar()
 render_sidebar()
 
-
 # =========================
 # PAGE TITLE
 # =========================
 
 st.title("TalentIQ CV Analysis History")
-
 
 # =========================
 # USER AUTH CHECK
@@ -65,21 +63,16 @@ if not user:
 
 user_id = user["id"]
 
-
 # =========================
 # FILE TEXT EXTRACTION
 # =========================
 
 def extract_text_from_pdf(file):
-
     text = ""
 
     with pdfplumber.open(file) as pdf:
-
         for page in pdf.pages:
-
             page_text = page.extract_text()
-
             if page_text:
                 text += page_text + "\n"
 
@@ -87,13 +80,9 @@ def extract_text_from_pdf(file):
 
 
 def extract_text_from_docx(file):
-
     document = docx.Document(file)
-
     text = "\n".join([p.text for p in document.paragraphs])
-
     return text
-
 
 # =========================
 # CV INPUT SECTION
@@ -112,12 +101,18 @@ cv_text_input = st.text_area(
     placeholder="Paste your CV here if you prefer not to upload a file..."
 )
 
-
 # =========================
 # ANALYZE BUTTON
 # =========================
 
 if st.button("Analyze My CV"):
+
+    # CREDIT VALIDATION
+    allowed, msg = validate_and_charge(user_id, "cv_analysis_history")
+
+    if not allowed:
+        st.error(msg)
+        st.stop()
 
     cv_text = ""
 
@@ -128,32 +123,25 @@ if st.button("Analyze My CV"):
     if uploaded_file is not None:
 
         if uploaded_file.type == "application/pdf":
-
             cv_text = extract_text_from_pdf(uploaded_file)
 
         elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-
             cv_text = extract_text_from_docx(uploaded_file)
-
 
     # -------------------------
     # OPTION 2: PASTE TEXT
     # -------------------------
 
     elif cv_text_input.strip():
-
         cv_text = cv_text_input
-
 
     # -------------------------
     # NO INPUT
     # -------------------------
 
     else:
-
         st.warning("Please upload a CV or paste CV text before analyzing.")
         st.stop()
-
 
     # =========================
     # RUN CV ANALYSIS
@@ -161,13 +149,16 @@ if st.button("Analyze My CV"):
 
     with st.spinner("Analyzing your CV..."):
 
-
         result = process_candidate_cv(
             user_id="f2553781-320c-444f-aef5-dcd81f2cedb1",
             cv_text=cv_text
         )
 
-        
+    # =========================
+    # DEDUCT CREDIT
+    # =========================
+
+    success, balance = deduct_credit(user_id, "cv_analysis_history")
 
     # =========================
     # SUCCESS MESSAGE
@@ -175,6 +166,8 @@ if st.button("Analyze My CV"):
 
     st.success("CV analysis completed successfully.")
 
+    if success:
+        st.info(f"10 credits deducted. Remaining balance: {balance}")
 
 # -----------------------------
 # Fetch User CV History
@@ -207,7 +200,4 @@ if data:
     )
 
 else:
-
     st.info("No previous CV analyses found yet.")
-
-

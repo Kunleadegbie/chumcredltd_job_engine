@@ -5,12 +5,12 @@ from datetime import datetime
 from services.cv_skill_extractor import extract_skills
 from services.cv_evidence_detector import detect_evidence
 from services.cv_ats_checker import check_ats
+from services.cv_parser import parse_cv
+from services.cv_scoring_engine import compute_scores
+from services.credit_engine import validate_and_charge, deduct_credit
 
 from components.ui import hide_streamlit_sidebar
 from components.sidebar import render_sidebar
-
-from services.cv_parser import parse_cv
-from services.cv_scoring_engine import compute_scores
 
 from supabase import create_client
 
@@ -104,6 +104,12 @@ target_role = custom_role if custom_role.strip() else preset_role
 
 if st.button("🚀 Analyze CV"):
 
+    # CREDIT VALIDATION
+    allowed, msg = validate_and_charge(user_id, "cv_intelligence_engine")
+    if not allowed:
+        st.error(msg)
+        st.stop()
+
     if uploaded_file is None:
         st.warning("Please upload your CV first.")
         st.stop()
@@ -116,23 +122,15 @@ if st.button("🚀 Analyze CV"):
             # STEP 1: PARSE CV
             # ---------------------------------------
 
-            if uploaded_file is not None:
+            file_bytes = uploaded_file.read()
 
-                file_bytes = uploaded_file.read()
+            try:
+                cv_text = file_bytes.decode("utf-8", errors="ignore")
+            except Exception:
+                cv_text = str(file_bytes)
 
-                try:
-                    cv_text = file_bytes.decode("utf-8", errors="ignore")
-                except:
-                    cv_text = str(file_bytes)
+            parsed = parse_cv(cv_text)
 
-                parsed = parse_cv(cv_text)
-
-              
-
-            # ---------------------------------------
-            # STEP 2: GENERATE SCORES
-            # ---------------------------------------
-            
             # ---------------------------------------
             # STEP 2: EXTRACT SKILLS
             # ---------------------------------------
@@ -155,17 +153,15 @@ if st.button("🚀 Analyze CV"):
             # STEP 5: GENERATE SCORES
             # ---------------------------------------
 
-            scores = compute_scores(                
+            scores = compute_scores(
                 skills,
                 evidence,
                 ats_data
             )
-         
 
             # ---------------------------------------
-            # STEP 3: SAVE TO DATABASE
-            # ---------------------------------------  
-
+            # STEP 6: SAVE TO DATABASE
+            # ---------------------------------------
 
             payload = {
                 "user_id": user_id,
@@ -184,15 +180,22 @@ if st.button("🚀 Analyze CV"):
                 "updated_at": datetime.utcnow().isoformat()
             }
 
-            
-
             supabase.table("candidate_scores").insert(payload).execute()
 
             # ---------------------------------------
-            # STEP 4: DISPLAY RESULTS
+            # STEP 7: DEDUCT CREDIT
+            # ---------------------------------------
+
+            success, balance = deduct_credit(user_id, "cv_intelligence_engine")
+
+            # ---------------------------------------
+            # STEP 8: DISPLAY RESULTS
             # ---------------------------------------
 
             st.success("CV analysis completed successfully!")
+
+            if success:
+                st.info(f"20 credits deducted. Remaining balance: {balance}")
 
             st.subheader("📊 Your TalentIQ Employability Intelligence")
 
@@ -222,7 +225,7 @@ if st.button("🚀 Analyze CV"):
             st.divider()
 
             st.subheader("🔍 Component Breakdown")
-  
+
             breakdown = {
                 "Completeness Score": scores.get("completeness_score", 0),
                 "Role Alignment": scores.get("role_alignment_score", 0),
@@ -231,10 +234,6 @@ if st.button("🚀 Analyze CV"):
                 "ATS Compatibility": scores.get("ats_score", 0),
                 "Professional Quality": scores.get("professional_score", 0)
             }
-
-
-           
-
 
             import pandas as pd
 
@@ -265,6 +264,5 @@ if st.button("🚀 Analyze CV"):
                 st.warning("Your CV needs improvement. Consider strengthening experience, skills and achievements.")
 
         except Exception as e:
-
             st.error("An error occurred during CV analysis.")
             st.exception(e)
