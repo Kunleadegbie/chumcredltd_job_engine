@@ -8,7 +8,6 @@ st.set_page_config(page_title="Activate Your TalentIQ Account", layout="wide")
 hide_streamlit_sidebar()
 render_sidebar()
 
-
 st.title("🎓 Activate Your TalentIQ Account")
 
 matric = st.text_input("Matric Number")
@@ -17,8 +16,11 @@ password = st.text_input("Create Password", type="password")
 
 if st.button("Activate Account"):
 
+    matric = matric.strip()
+
     student = (
-        supabase_admin.table("users")
+        supabase_admin
+        .table("users_app")     # corrected table
         .select("*")
         .eq("matric_number", matric)
         .execute()
@@ -28,13 +30,13 @@ if st.button("Activate Account"):
 
     if not rows:
         st.error("Matric number not found.")
+        st.stop()
 
-    else:
+    supabase_admin.table("users_app").update({
+        "email": email.strip(),
+        "password": password,
+        "status": "active",
+        "is_active": True
+    }).eq("matric_number", matric).execute()
 
-        supabase_admin.table("users").update({
-            "email": email,
-            "password": password,
-            "status": "active"
-        }).eq("matric_number", matric).execute()
-
-        st.success("Account activated. You can now login.")
+    st.success("Account activated. You can now login.")
