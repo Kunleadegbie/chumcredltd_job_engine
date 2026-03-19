@@ -97,15 +97,20 @@ def _find_user_app_by_email(email: str):
     return rows[0] if rows else None
 
 def _list_members(institution_id: str, limit: int = 500):
+    """
+    Uses the VIEW: institution_members_with_user
+    Returns friendly columns: full_name, email, member_role, created_at
+    """
     r = (
-        supabase_admin.table("institution_members")
-        .select("id,institution_id,user_id,member_role,created_at")
+        supabase_admin.table("institution_members_with_user")
+        .select("full_name,email,member_role,created_at")
         .eq("institution_id", institution_id)
         .order("created_at", desc=True)
         .limit(limit)
         .execute()
     )
     return r.data or []
+
 
 
 # =========================================================
@@ -247,6 +252,7 @@ with tab2:
         except Exception as e:
             st.error(f"Failed to add member: {e}")
 
+
     st.write("---")
     st.subheader("Current members")
 
@@ -254,7 +260,28 @@ with tab2:
     if not members:
         st.info("No members assigned yet.")
     else:
-        st.dataframe(members, use_container_width=True, hide_index=True)
+        # Show only the columns we want, nicely labeled
+        import pandas as pd
+
+        df = pd.DataFrame(members)
+
+        # Ensure expected columns exist even if some values are null
+        for col in ["full_name", "email", "member_role", "created_at"]:
+            if col not in df.columns:
+                df[col] = ""
+
+        df = df.rename(
+            columns={
+                "full_name": "Name",
+                "email": "Email",
+                "member_role": "Role",
+                "created_at": "Date added",
+            }
+        )
+
+        df = df[["Name", "Email", "Role", "Date added"]]
+
+        st.dataframe(df, use_container_width=True, hide_index=True)
 
 
 st.caption("Chumcred TalentIQ — Admin Panel © 2025")
