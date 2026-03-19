@@ -98,19 +98,43 @@ def _find_user_app_by_email(email: str):
 
 def _list_members(institution_id: str, limit: int = 500):
     """
-    Uses the VIEW: institution_members_with_user
-    Returns friendly columns: full_name, email, member_role, created_at
+    Prefer VIEW institution_members_with_user for Name/Email.
+    Fallback to institution_members if view isn't in schema cache yet.
     """
-    r = (
-        supabase_admin.table("institution_members_with_user")
-        .select("full_name,email,member_role,created_at")
-        .eq("institution_id", institution_id)
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
-    )
-    return r.data or []
-
+    try:
+        r = (
+            supabase_admin.table("institution_members_with_user")
+            .select("full_name,email,member_role,created_at")
+            .eq("institution_id", institution_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return r.data or []
+    except Exception:
+        # fallback: show ids only (won't break the page)
+        r = (
+            supabase_admin.table("institution_members")
+            .select("user_id,member_role,created_at")
+            .eq("institution_id", institution_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        rows = r.data or []
+        # normalize keys so the UI block works
+        out = []
+        for x in rows:
+            out.append(
+                {
+                    "full_name": "",
+                    "email": "",
+                    "member_role": x.get("member_role"),
+                    "created_at": x.get("created_at"),
+                    "user_id": x.get("user_id"),
+                }
+            )
+        return out
 
 
 # =========================================================
@@ -282,6 +306,7 @@ with tab2:
         df = df[["Name", "Email", "Role", "Date added"]]
 
         st.dataframe(df, use_container_width=True, hide_index=True)
+
 
 
 st.caption("Chumcred TalentIQ — Admin Panel © 2025")
