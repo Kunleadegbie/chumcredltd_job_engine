@@ -1,6 +1,5 @@
-
 # ==============================================================
-# 3h_InterviewIQ.py — Interactive Interview Intelligence
+# 3h_InterviewIQ.py — Interactive Interview Intelligence (FIXED)
 # ==============================================================
 
 import streamlit as st
@@ -18,12 +17,9 @@ from services.utils import (
 from config.supabase_client import supabase
 from services.ai_engine import ai_run
 
-render_sidebar()
-
-
 
 # ---------------------------------------------------------
-# PAGE CONFIG
+# PAGE CONFIG (MUST BE FIRST STREAMLIT COMMAND)
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="InterviewIQ — TalentIQ",
@@ -31,18 +27,17 @@ st.set_page_config(
     layout="wide"
 )
 
+hide_streamlit_sidebar()
+render_sidebar()
+
 st.markdown(
     """
     <style>
         /* Hide Streamlit default page navigation */
-        [data-testid="stSidebarNav"] {
-            display: none;
-        }
+        [data-testid="stSidebarNav"] { display: none !important; }
 
         /* Remove extra top spacing Streamlit adds */
-        section[data-testid="stSidebar"] > div:first-child {
-            padding-top: 0rem;
-        }
+        section[data-testid="stSidebar"] > div:first-child { padding-top: 0rem; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -55,8 +50,6 @@ st.markdown(
 if "authenticated" not in st.session_state or not st.session_state.authenticated:
     st.switch_page("app.py")
     st.stop()
-
-
 
 user = st.session_state.get("user")
 if not user:
@@ -80,17 +73,11 @@ if not subscription or subscription.get("subscription_status") != "active":
 # ---------------------------------------------------------
 # SESSION STATE INIT
 # ---------------------------------------------------------
-if "interview_started" not in st.session_state:
-    st.session_state.interview_started = False
-
-if "questions" not in st.session_state:
-    st.session_state.questions = []
-
-if "answers" not in st.session_state:
-    st.session_state.answers = {}
-
-if "interview_completed" not in st.session_state:
-    st.session_state.interview_completed = False
+st.session_state.setdefault("interview_started", False)
+st.session_state.setdefault("questions", [])
+st.session_state.setdefault("answers", {})
+st.session_state.setdefault("interview_completed", False)
+st.session_state.setdefault("result", "")
 
 
 # ---------------------------------------------------------
@@ -106,13 +93,13 @@ st.divider()
 # ---------------------------------------------------------
 if not st.session_state.interview_started:
 
-    role = st.text_input("Target Job Role", placeholder="e.g. Data Analyst")
-    experience = st.selectbox("Experience Level", ["Entry Level", "Mid Level", "Senior Level"])
-    interview_type = st.selectbox("Interview Type", ["Behavioral", "Technical", "General"])
+    role = st.text_input("Target Job Role", placeholder="e.g. Data Analyst", key="iq_role")
+    experience = st.selectbox("Experience Level", ["Entry Level", "Mid Level", "Senior Level"], key="iq_exp")
+    interview_type = st.selectbox("Interview Type", ["Behavioral", "Technical", "General"], key="iq_type")
 
     st.markdown("**Cost:** 10 credits per interview session")
 
-    if st.button("🎤 Start Interview"):
+    if st.button("🎤 Start Interview", key="iq_start"):
 
         if not role.strip():
             st.warning("Please enter a job role.")
@@ -122,12 +109,7 @@ if not st.session_state.interview_started:
             st.error("❌ Insufficient credits.")
             st.stop()
 
-        ok, msg = deduct_credits(user_id, 10)
-        if not ok:
-            st.error(msg)
-            st.stop()
-
-        # Generate interview questions
+        # Generate interview questions FIRST (so users don't pay if AI fails)
         question_prompt = f"""
 Generate exactly 5 {interview_type.lower()} interview questions
 for a {experience.lower()} candidate applying for the role of {role}.
@@ -136,14 +118,35 @@ Return only the numbered questions.
 
         questions_text = ai_run(question_prompt)
 
+        # Handle AI failures gracefully
+        if questions_text == "__AI_QUOTA_EXCEEDED__":
+            st.error("⚠️ InterviewIQ is temporarily unavailable (AI quota reached). Please try again later.")
+            st.stop()
+
+        if questions_text in ("__AI_TEMP_ERROR__", "__AI_UNKNOWN_ERROR__"):
+            st.error("⚠️ InterviewIQ is temporarily unavailable. Please try again shortly.")
+            st.stop()
+
         questions = [
             q.strip("- ").strip()
-            for q in questions_text.split("\n")
+            for q in (questions_text or "").split("\n")
             if q.strip()
         ][:5]
 
+        if len(questions) < 3:
+            st.error("⚠️ Could not generate interview questions right now. Please try again.")
+            st.stop()
+
+        # Deduct credits ONLY after successful question generation
+        ok, msg = deduct_credits(user_id, 10)
+        if not ok:
+            st.error(msg)
+            st.stop()
+
         st.session_state.questions = questions
         st.session_state.interview_started = True
+        st.session_state.interview_completed = False
+        st.session_state.result = ""
         st.rerun()
 
 
@@ -159,10 +162,11 @@ if st.session_state.interview_started and not st.session_state.interview_complet
         st.session_state.answers[idx] = st.text_area(
             f"Your Answer to Question {idx}",
             value=st.session_state.answers.get(idx, ""),
-            height=120
+            height=120,
+            key=f"iq_ans_{idx}",
         )
 
-    if st.button("📊 Submit Answers for Evaluation"):
+    if st.button("📊 Submit Answers for Evaluation", key="iq_submit"):
 
         # Build evaluation prompt
         evaluation_prompt = f"""
@@ -185,7 +189,7 @@ INTERVIEW QUESTIONS & ANSWERS:
 """
 
         for idx, question in enumerate(st.session_state.questions, start=1):
-            evaluation_prompt += f"\nQ{idx}: {question}\nA{idx}: {st.session_state.answers[idx]}\n"
+            evaluation_prompt += f"\nQ{idx}: {question}\nA{idx}: {st.session_state.answers.get(idx,'')}\n"
 
         evaluation_prompt += """
 Return results strictly in this format:
@@ -215,7 +219,16 @@ Provide a rewritten example answer.
         with st.spinner("Evaluating interview responses…"):
             result = ai_run(evaluation_prompt)
 
-        # Save output
+        # Handle AI failures gracefully (no crash)
+        if result == "__AI_QUOTA_EXCEEDED__":
+            st.error("⚠️ Evaluation unavailable (AI quota reached). Please try again later.")
+            st.stop()
+
+        if result in ("__AI_TEMP_ERROR__", "__AI_UNKNOWN_ERROR__"):
+            st.error("⚠️ Evaluation temporarily unavailable. Please try again shortly.")
+            st.stop()
+
+        # Save output (best-effort)
         try:
             supabase.table("ai_outputs").insert({
                 "user_id": user_id,
@@ -244,7 +257,7 @@ if st.session_state.interview_completed:
     st.markdown("## 📊 InterviewIQ Results")
     st.write(st.session_state.result)
 
-    if st.button("🔄 Start New Interview"):
+    if st.button("🔄 Start New Interview", key="iq_restart"):
         for key in ["interview_started", "questions", "answers", "interview_completed", "result"]:
             st.session_state.pop(key, None)
         st.rerun()

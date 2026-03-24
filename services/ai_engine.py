@@ -1,26 +1,100 @@
 # ==============================================================
-# ai_engine.py — Unified AI Engine (Option A: Plain Text Output)
+# ai_engine.py — Unified AI Engine (Stable + Quota Safe)
 # ==============================================================
+
+import os
+from typing import List, Dict, Any
 
 from openai import OpenAI
-import os
+from openai import RateLimitError, APIError, APITimeoutError
 
+
+# --------------------------------------------------------------
+# OpenAI Client (single instance)
+# --------------------------------------------------------------
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# ==============================================================
-# HELPER FOR AI RESPONSES
-# ==============================================================
+DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
 
-def run_ai(prompt: str) -> str:
-    """Runs a simple text-completion AI request (Option A)."""
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2,
+
+# --------------------------------------------------------------
+# Core LLM Caller (shared)
+# --------------------------------------------------------------
+def _call_llm(
+    messages: List[Dict[str, str]],
+    temperature: float = 0.2,
+    max_tokens: int = 1800,
+    model: str | None = None,
+) -> str:
+    """
+    Unified LLM call.
+    Raises exceptions to be handled by wrapper functions.
+    """
+    use_model = (model or DEFAULT_MODEL).strip() or DEFAULT_MODEL
+
+    resp = client.chat.completions.create(
+        model=use_model,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
     )
 
-    ai_output = response.choices[0].message.content
-    return ai_output.strip()
+    return (resp.choices[0].message.content or "").strip()
+
+
+def run_ai(prompt: str) -> str:
+    """
+    Simple text AI request used by older tools (kept for backward compatibility).
+    NOTE: This version will raise if OpenAI fails. Use ai_run() for safe sentinel behavior.
+    """
+    prompt = (prompt or "").strip()
+    if not prompt:
+        return ""
+
+    return _call_llm(
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+        max_tokens=1800,
+    )
+
+
+# ==============================================================
+# INTERVIEWIQ — SAFE GENERIC AI RUNNER (returns sentinels on error)
+# ==============================================================
+
+def ai_run(prompt: str) -> str:
+    """
+    Generic AI execution function for non-task-specific prompts
+    (e.g. InterviewIQ, Career Coaching, Q&A).
+
+    Returns sentinel strings on failure so UI can handle gracefully:
+      - "__AI_QUOTA_EXCEEDED__"
+      - "__AI_TEMP_ERROR__"
+      - "__AI_UNKNOWN_ERROR__"
+    """
+    prompt = (prompt or "").strip()
+    if not prompt:
+        return ""
+
+    try:
+        return _call_llm(
+            messages=[
+                {"role": "system", "content": "You are a professional career intelligence AI."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.4,
+            max_tokens=1800,
+        )
+
+    except RateLimitError:
+        # Includes insufficient_quota
+        return "__AI_QUOTA_EXCEEDED__"
+
+    except (APITimeoutError, APIError):
+        return "__AI_TEMP_ERROR__"
+
+    except Exception:
+        return "__AI_UNKNOWN_ERROR__"
 
 
 # ==============================================================
@@ -128,6 +202,10 @@ def ai_generate_resume_rewrite(resume_text: str) -> str:
     prompt = f"""
 Rewrite the resume professionally using clean formatting, strong action verbs, and ATS-friendly structure.
 
+STRICT RULES:
+- Do NOT remove tools/skills/certifications/job titles/metrics that exist in the CV
+- Do NOT invent employers/roles/dates/metrics
+
 RESUME:
 {resume_text}
 
@@ -158,107 +236,17 @@ FORMAT:
 """
     return run_ai(prompt)
 
-# ==========================================================
-# INTERVIEWIQ — INTERVIEW PREPARATION AI
-# ==========================================================
-def ai_run_interview(prompt: str) -> str:
-    """
-    Runs InterviewIQ AI prompt and returns structured interview feedback.
-    """
-    return ai_generate_cover_letter(prompt)
-
 
 # ==========================================================
-# GENERIC AI RUNNER (USED BY MULTIPLE AI TOOLS)
+# GENERIC AI GENERATOR + Tailor CV to Job (kept)
 # ==========================================================
-def ai_run(prompt: str) -> str:
-    """
-    Generic AI execution function for non-task-specific prompts
-    (e.g. InterviewIQ, Career Coaching, Q&A).
-    """
-
-    from openai import OpenAI
-    import os
-
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a professional career intelligence AI."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.4
-    )
-
-    return response.choices[0].message.content.strip()
-
-
-# ==========================================================
-# ADDITIONS — Generic generator + Tailor CV to Job
-# (Safe: does not modify existing functions)
-# ==========================================================
-
-import os
-
-def _call_llm(messages, temperature: float = 0.2, max_tokens: int = 1800) -> str:
-    """
-    Robust LLM caller that tries to reuse whatever this project already uses.
-    Supports:
-    - New OpenAI client style: client.chat.completions.create(...)
-    - Legacy openai.ChatCompletion.create(...)
-    """
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
-
-    # 1) If this module already has `client = OpenAI(...)`
-    _client = globals().get("client", None)
-    if _client is not None:
-        try:
-            resp = _client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            return (resp.choices[0].message.content or "").strip()
-        except Exception:
-            # fall through
-            pass
-
-    # 2) Legacy openai module style
-    try:
-        import openai  # noqa
-        if hasattr(openai, "ChatCompletion"):
-            resp = openai.ChatCompletion.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            return (resp["choices"][0]["message"]["content"] or "").strip()
-    except Exception:
-        pass
-
-    raise RuntimeError(
-        "No compatible LLM client found in services/ai_engine.py. "
-        "Ensure you have an OpenAI client initialized (client = OpenAI(...)) "
-        "or legacy openai.ChatCompletion available."
-    )
-
 
 def ai_generate(prompt: str) -> str:
     """
     Generic text generator used by tools that supply a full prompt.
+    Uses safe ai_run so quota errors don't crash pages.
     """
-    prompt = (prompt or "").strip()
-    if not prompt:
-        return ""
-
-    messages = [
-        {"role": "system", "content": "You are a helpful, concise career assistant that writes ATS-friendly content."},
-        {"role": "user", "content": prompt},
-    ]
-    return _call_llm(messages)
+    return ai_run(prompt)
 
 
 def ai_tailor_resume_to_job(resume_text: str, job_description: str) -> str:
@@ -313,6 +301,4 @@ CANDIDATE CV:
 \"\"\"{resume_text}\"\"\"
 """.strip()
 
-    return ai_generate(prompt)
-
-
+    return ai_run(prompt)
