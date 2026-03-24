@@ -24,12 +24,31 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+
+# ✅ FIX APPLIED: Move function definition ABOVE first call
+def _get_latest_cv_score(user_id: str):
+    try:
+        r = (
+            supabase.table("candidate_scores")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        rows = r.data or []
+        return rows[0] if rows else None
+    except Exception:
+        return None
+
+
 # ---------------------------------------
 # PAGE CONFIG (MUST BE FIRST STREAMLIT COMMAND)
 # ---------------------------------------
 st.set_page_config(page_title="CV Intelligence Engine", layout="wide")
 hide_streamlit_sidebar()
 render_sidebar()
+
 
 # ---------------------------------------
 # HELPERS
@@ -111,6 +130,41 @@ if not user:
 
 user_id = user.get("id")
 
+
+# ---------------------------------------
+# LAST CV ANALYSIS (SAVED)
+# ---------------------------------------
+st.markdown("## 🕒 Last CV Analysis (Saved)")
+
+latest = _get_latest_cv_score(user_id)
+
+if not latest:
+    st.info("No saved CV analysis yet. Upload your CV and run your first analysis.")
+else:
+    c1, c2, c3 = st.columns(3)
+    c1.metric("CV Quality Score", latest.get("cv_quality_score", 0))
+    c2.metric("Trust Index", latest.get("trust_index", 0))
+    c3.metric("Employability Readiness (ERS)", latest.get("ers_score", 0))
+
+    st.caption(f"Last analyzed: {latest.get('created_at', '—')}")
+
+    st.divider()
+
+    breakdown = {
+        "Completeness Score": latest.get("completeness_score", 0),
+        "Role Alignment": latest.get("role_alignment_score", 0),
+        "Evidence Strength": latest.get("evidence_score", 0),
+        "Specificity": latest.get("specificity_score", 0),
+        "ATS Compatibility": latest.get("ats_score", 0),
+        "Professional Quality": latest.get("professional_score", 0),
+    }
+
+    df_last = pd.DataFrame(list(breakdown.items()), columns=["Component", "Score"])
+    st.table(df_last)
+
+st.markdown("---")
+
+
 # ---------------------------------------
 # CV UPLOAD
 # ---------------------------------------
@@ -149,6 +203,7 @@ with col2:
     )
 
 target_role = custom_role.strip() if custom_role.strip() else preset_role
+
 
 # ---------------------------------------
 # ANALYZE CV BUTTON
@@ -212,7 +267,7 @@ if st.button("🚀 Analyze CV"):
 
             payload = {
                 "user_id": user_id,
-                "target_role": target_role or None,  # safe extra field if your table has it
+                "target_role": target_role or None,
                 "cv_quality_score": scores.get("cv_quality_score", 0),
                 "cv_quality_band": scores.get("cv_quality_band", "Developing"),
                 "trust_index": scores.get("trust_index", 0),
@@ -228,8 +283,6 @@ if st.button("🚀 Analyze CV"):
                 "updated_at": now_iso
             }
 
-            # If your candidate_scores table does NOT have target_role, this will error.
-            # To avoid breaking production, insert without it if insert fails.
             try:
                 supabase.table("candidate_scores").insert(payload).execute()
             except Exception:
@@ -286,8 +339,6 @@ if st.button("🚀 Analyze CV"):
                 "ATS Compatibility": scores.get("ats_score", 0),
                 "Professional Quality": scores.get("professional_score", 0)
             }
-
-            import pandas as pd
 
             breakdown_df = pd.DataFrame(
                 list(breakdown.items()),
