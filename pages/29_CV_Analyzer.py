@@ -2,6 +2,7 @@ import streamlit as st
 import os
 from datetime import datetime
 from io import BytesIO
+import pandas as pd
 
 from services.cv_skill_extractor import extract_skills
 from services.cv_evidence_detector import detect_evidence
