@@ -56,6 +56,35 @@ def _is_institution_member(user_app_id: str) -> bool:
         return False
 
 
+def _get_institution_member_role(user_app_id: str) -> str:
+    """
+    Get the member_role from institution_members for the logged-in user.
+    This is the key fix: session_state.user typically does NOT include member_role.
+    """
+    try:
+        if not user_app_id:
+            return ""
+
+        from config.supabase_client import supabase
+
+        r = (
+            supabase
+            .table("institution_members")
+            .select("member_role")
+            .eq("user_id", user_app_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        rows = r.data or []
+        if not rows:
+            return ""
+        return (rows[0].get("member_role") or "").lower().strip()
+
+    except Exception:
+        return ""
+
+
 # ==========================================================
 # SIDEBAR RENDER
 # ==========================================================
@@ -71,6 +100,9 @@ def render_sidebar():
     user_app_id = user.get("id")
 
     show_institutions = (role == "admin") or _is_institution_member(user_app_id)
+
+    # ✅ FIX: pull institution member_role from DB (not session_state.user)
+    institution_member_role = _get_institution_member_role(user_app_id)
 
     admin_emails = {
         "chumcred@gmail.com",
@@ -128,16 +160,14 @@ def render_sidebar():
 
         st.divider()
 
-        
-
-
         # ============================================
         # 🏛 INSTITUTION ECOSYSTEM
         # ============================================
 
-        member_role = (user.get("member_role") or "").lower()
-      
-        if role in ["institute_admin", "admin"] or member_role in ["admin", "recruiter"]:
+        # ✅ Show institution section if:
+        # - platform role is admin / institute_admin
+        # - OR user is a member of any institution AND has member_role admin/recruiter
+        if (role in ["institute_admin", "admin"]) or (show_institutions and institution_member_role in ["admin", "recruiter"]):
 
             st.markdown("### 🎓 Institution Intelligence")
 
@@ -195,9 +225,8 @@ def render_sidebar():
 
             safe_page_link("pages/17_Admin_institution.py", "🏛 Institutions")
 
-
             st.divider()
-    
+
         # ==================================================
         # 🛡 ADMIN PANEL
         # ==================================================
