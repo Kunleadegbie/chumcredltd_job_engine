@@ -38,10 +38,11 @@ st.markdown(
 # ==========================================================
 # SESSION DEFAULTS
 # ==========================================================
-st.session_state.setdefault("authenticated", False)
-st.session_state.setdefault("user", None)
-st.session_state.setdefault("show_forgot", False)
-st.session_state.setdefault("reset_email_value", "")
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if "user" not in st.session_state:
+    st.session_state.user = None
 
 
 # ==========================================================
@@ -58,6 +59,60 @@ if st.session_state.authenticated and st.session_state.user:
 st.image("assets/talentiq_logo.png", width=280)
 st.title("🔐 Welcome to Chumcred TalentIQ")
 st.caption("AI-powered tools for job seekers, career growth, and talent acceleration.")
+
+
+# ==========================================================
+# TALENTIQ STORY (LANDING SECTION)
+# ==========================================================
+st.markdown("""
+### 🚀 Turn Potential Into Opportunity — Faster
+**Chumcred TalentIQ** is an AI-powered employability and talent-acceleration platform that helps people move from **“I’m looking for work”** to **“I’m job-ready and getting interviews.”**
+
+**What TalentIQ does in simple terms**
+- **CV Intelligence:** Upload your CV and get a clear employability score, strengths, gaps, and improvements.
+- **SmartMatch:** Get matched to relevant roles/internships and understand why you fit (or what to improve).
+- **InterviewIQ:** Practice interview questions for your role and get structured feedback to improve fast.
+
+**Who it’s for**
+- Students, graduates, and early-career professionals
+- Career switchers and job seekers
+- Institutions and programmes running employability or internship cohorts
+
+**Why it matters**
+- Reduces guesswork and improves the quality of applications
+- Helps candidates present real evidence and measurable achievements
+- Gives programme owners visibility: onboarding, readiness uplift, and outcomes
+""")
+
+# ✅ Trusted banner (separate block — correct placement)
+st.markdown("""
+<div style="
+    margin-top: 0.6rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid rgba(49, 51, 63, 0.12);
+    border-radius: 12px;
+    background: rgba(49, 51, 63, 0.03);
+">
+<b>Trusted by programmes & institutions</b> — TalentIQ is being adopted for employability readiness, internship support, and cohort reporting across training and placement initiatives.
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+<div id="auth-section"></div>
+""")
+
+colA, colB, colC = st.columns([1, 1, 1])
+with colA:
+    st.success("✅ CV Quality + ATS Readiness")
+with colB:
+    st.info("🎯 Matching + Shortlisting Support")
+with colC:
+    st.warning("🧠 Interview Practice + Scoring")
+
+st.markdown("""
+**Get started below** — sign in if you already have an account, or create a new one in under a minute.
+""")
+
 
 tab_login, tab_register = st.tabs(["🔓 Sign In", "📝 Register"])
 
@@ -88,99 +143,43 @@ with tab_login:
             pass
 
         auth_session = supabase.auth.get_session()
-        if not auth_session or not auth_session.user:
-            st.error("Authentication error.")
+
+        if not auth_session:
+            st.error("Unable to create authentication session.")
             st.stop()
 
-        auth_user = auth_session.user
-
-        role_resp = (
-            supabase
-            .table("users_app")
-            .select("role")
-            .eq("id", auth_user.id)
-            .single()
-            .execute()
-        )
-
-        role = role_resp.data["role"] if role_resp.data else "user"
-
         st.session_state.authenticated = True
-        st.session_state.user = {
-            "id": auth_user.id,
-            "email": auth_user.email,
-            "full_name": user.get("full_name"),
-            "role": role,
-        }
+        st.session_state.user = user
 
+        st.success("Login successful. Redirecting...")
         st.switch_page("pages/2_Dashboard.py")
-
-    # ------------------------------
-    # FORGOT PASSWORD (EMAIL ONLY)
-    # ------------------------------
-    if st.button("Forgot password?"):
-        st.session_state.show_forgot = True
-
-    if st.session_state.show_forgot:
-        st.session_state.reset_email_value = st.text_input(
-            "Enter your email to reset password",
-            value=st.session_state.reset_email_value,
-            key="reset_email_input",
-        )
-
-        if st.button("Send reset link", key="send_reset_link"):
-            email_to_reset = (st.session_state.reset_email_value or "").strip()
-
-            if not email_to_reset or "@" not in email_to_reset:
-                st.error("Enter a valid email address.")
-                st.stop()
-
-            try:
-                supabase.auth.reset_password_for_email(
-                    email_to_reset,
-                    options={"redirect_to": "https://talentiq.chumcred.com/reset_password"},
-                )
-                st.success("Password reset link sent to your email.")
-                st.session_state.show_forgot = False
-            except Exception as e:
-                st.error(f"Reset email failed: {e}")
 
 
 # ==========================================================
 # REGISTER TAB
 # ==========================================================
 with tab_register:
-    full_name = st.text_input("Full Name")
-    phone = st.text_input("Phone (International format)")
-    reg_email = st.text_input("Email")
-    reg_pw = st.text_input("Password", type="password")
-    confirm = st.text_input("Confirm Password", type="password")
+    full_name = st.text_input("Full Name", key="reg_full_name")
+    reg_email = st.text_input("Email", key="reg_email")
+    reg_password = st.text_input("Password", type="password", key="reg_password")
 
-    if st.button("Register"):
-        if not full_name or not phone or not reg_email:
-            st.error("All fields are required.")
+    if st.button("Create Account"):
+        if not full_name or not reg_email or not reg_password:
+            st.warning("Please complete all fields.")
             st.stop()
 
-        if reg_pw != confirm:
-            st.error("Passwords do not match.")
+        result = register_user(full_name, reg_email, reg_password)
+
+        if isinstance(result, dict) and result.get("error"):
+            st.error(result["error"])
             st.stop()
 
-        success, msg = register_user(
-            full_name=full_name.strip(),
-            phone=phone.strip(),
-            email=reg_email.strip(),
-            password=reg_pw,
-        )
-
-        if success:
-            st.success(msg)
-            st.info("Verification email sent. Please check your inbox and Spam/Junk folder. Sign in after email confirmation.")
-        else:
-            st.error(msg)
+        st.success("Account created successfully! Please check your email to confirm your account before logging in.")
+        st.info("After confirmation, return to the Sign In tab to login.")
 
 
 # ==========================================================
 # FOOTER
 # ==========================================================
-st.write("---")
-st.caption("Powered by Chumcred Limited © 2025")
+st.markdown("---")
+st.caption("Chumcred TalentIQ © 2026 — AI-powered career intelligence.")
