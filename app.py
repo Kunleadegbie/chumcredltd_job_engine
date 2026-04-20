@@ -70,23 +70,14 @@ st.write(
     "**“I’m looking for work”** to **“I’m job-ready and getting interviews.”**"
 )
 
-# Quick value chips (native, colorful)
-c1, c2, c3 = st.columns(3)
-with c1:
-    st.success("⚡ CV Intelligence")
-with c2:
-    st.info("🎯 SmartMatch")
-with c3:
-    st.warning("🧠 InterviewIQ")
-
 st.divider()
 
-# Feature cards (native)
+# Feature cards (single, non-duplicated)
 st.markdown("### What TalentIQ does in simple terms")
 f1, f2, f3 = st.columns(3)
 
 with f1:
-    st.success("✅ CV Intelligence")
+    st.success("⚡ CV Intelligence")
     st.write(
         "Upload your CV and get a clear employability score, strengths, gaps, ATS readiness, "
         "and improvements you can apply immediately."
@@ -108,13 +99,13 @@ with f3:
 
 st.divider()
 
-# Trusted banner (native)
+# Trusted banner
 st.info(
     "✅ **Trusted by programmes & institutions** — TalentIQ is being adopted for employability readiness, "
     "internship support, and cohort reporting across training and placement initiatives."
 )
 
-# Who it's for (native columns)
+# Who it's for
 st.markdown("### Who it’s for")
 a, b, c = st.columns(3)
 
@@ -132,7 +123,7 @@ with c:
 
 st.divider()
 
-# Why it matters (native “highlight” boxes)
+# Why it matters
 st.markdown("### Why it matters")
 m1, m2, m3 = st.columns(3)
 
@@ -150,9 +141,12 @@ with m3:
 
 st.divider()
 
-# CTA (native)
 st.markdown("### ✅ Get started")
 st.write("Sign in if you already have an account, or create a new account below in under a minute.")
+
+# ✅ FIX 1: Create the tabs BEFORE using tab_login/tab_register
+tab_login, tab_register = st.tabs(["🔓 Sign In", "📝 Register"])
+
 
 # ==========================================================
 # LOGIN TAB
