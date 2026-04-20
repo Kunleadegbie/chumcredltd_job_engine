@@ -1,5 +1,5 @@
 # ==========================================================
-# app.py — AUTH ENTRY POINT (FINAL, NO RESET LOGIC)
+# app.py — AUTH ENTRY POINT (BEAUTIFIED LANDING + SAME AUTH)
 # ==========================================================
 
 import streamlit as st
@@ -29,6 +29,60 @@ st.markdown(
     """
     <style>
         [data-testid="stSidebarNav"] { display: none; }
+
+        /* Make the page feel cleaner */
+        .block-container { padding-top: 1.5rem; padding-bottom: 2rem; max-width: 1100px; }
+        h1, h2, h3 { letter-spacing: -0.02em; }
+
+        /* Button styling (Streamlit default buttons) */
+        div.stButton > button {
+            border-radius: 12px !important;
+            padding: 0.7rem 1rem !important;
+            font-weight: 700 !important;
+        }
+
+        /* Reduce spacing above tabs a bit */
+        .stTabs [data-baseweb="tab-list"] { margin-top: 0.5rem; }
+
+        /* Soft cards look */
+        .ti-card {
+            border: 1px solid rgba(49, 51, 63, 0.12);
+            border-radius: 16px;
+            padding: 14px 14px;
+            background: rgba(49, 51, 63, 0.03);
+        }
+        .ti-hero {
+            border: 1px solid rgba(49, 51, 63, 0.12);
+            border-radius: 20px;
+            padding: 18px 18px;
+            background: linear-gradient(135deg, rgba(53, 153, 255, 0.12), rgba(110, 231, 183, 0.10), rgba(250, 204, 21, 0.08));
+        }
+        .ti-badge {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(49, 51, 63, 0.12);
+            background: rgba(255,255,255,0.55);
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        .ti-muted { color: rgba(49, 51, 63, 0.75); }
+        .ti-small { font-size: 0.95rem; line-height: 1.45rem; }
+        .ti-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        @media (max-width: 900px) {
+            .ti-grid { grid-template-columns: 1fr; }
+        }
+        .ti-title { font-size: 2rem; font-weight: 800; margin: 0; }
+        .ti-subtitle { font-size: 1.05rem; margin-top: 8px; }
+        .ti-divider { height: 1px; background: rgba(49, 51, 63, 0.10); margin: 14px 0; }
+        .ti-kpi { display:flex; gap:10px; flex-wrap: wrap; }
+        .ti-kpi > div { flex: 1; min-width: 200px; }
+        .ti-kpi .ti-card { height: 100%; }
+
+        /* Make tables/captions nicer */
+        .stCaption { margin-top: 0.2rem; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -54,66 +108,109 @@ if st.session_state.authenticated and st.session_state.user:
 
 
 # ==========================================================
-# AUTH UI
+# HEADER
 # ==========================================================
-st.image("assets/talentiq_logo.png", width=280)
-st.title("🔐 Welcome to Chumcred TalentIQ")
-st.caption("AI-powered tools for job seekers, career growth, and talent acceleration.")
-
+st.image("assets/talentiq_logo.png", width=260)
 
 # ==========================================================
-# TALENTIQ STORY (LANDING SECTION)
+# BEAUTIFIED LANDING / STORY SECTION (ONLY)
 # ==========================================================
-st.markdown("""
-### 🚀 Turn Potential Into Opportunity — Faster
-**Chumcred TalentIQ** is an AI-powered employability and talent-acceleration platform that helps people move from **“I’m looking for work”** to **“I’m job-ready and getting interviews.”**
+st.markdown(
+    """
+    <div class="ti-hero">
+        <div>
+            <span class="ti-badge">⚡ CV Intelligence</span>
+            <span class="ti-badge">🎯 SmartMatch</span>
+            <span class="ti-badge">🧠 InterviewIQ</span>
+        </div>
 
-**What TalentIQ does in simple terms**
-- **CV Intelligence:** Upload your CV and get a clear employability score, strengths, gaps, and improvements.
-- **SmartMatch:** Get matched to relevant roles/internships and understand why you fit (or what to improve).
-- **InterviewIQ:** Practice interview questions for your role and get structured feedback to improve fast.
+        <h1 class="ti-title">Turn Potential Into Opportunity — Faster</h1>
+        <div class="ti-subtitle ti-muted">
+            TalentIQ helps people move from <b>“I’m searching”</b> to <b>“I’m job-ready and getting interviews”</b> — with clear scoring,
+            guided improvements, and role-fit matching.
+        </div>
 
-**Who it’s for**
-- Students, graduates, and early-career professionals
-- Career switchers and job seekers
-- Institutions and programmes running employability or internship cohorts
+        <div class="ti-divider"></div>
 
-**Why it matters**
-- Reduces guesswork and improves the quality of applications
-- Helps candidates present real evidence and measurable achievements
-- Gives programme owners visibility: onboarding, readiness uplift, and outcomes
-""")
+        <div class="ti-kpi">
+            <div class="ti-card">
+                <b>✅ Know your employability score</b><br/>
+                <span class="ti-muted ti-small">Upload a CV → see strengths, gaps, ATS readiness, and how to improve.</span>
+            </div>
+            <div class="ti-card">
+                <b>🎯 Get matched to relevant roles</b><br/>
+                <span class="ti-muted ti-small">SmartMatch ranks fit and shows what to fix to increase your chances.</span>
+            </div>
+            <div class="ti-card">
+                <b>🧠 Practice interviews confidently</b><br/>
+                <span class="ti-muted ti-small">InterviewIQ generates questions and gives structured feedback.</span>
+            </div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-# ✅ Trusted banner (separate block — correct placement)
-st.markdown("""
-<div style="
-    margin-top: 0.6rem;
-    padding: 0.7rem 0.9rem;
-    border: 1px solid rgba(49, 51, 63, 0.12);
-    border-radius: 12px;
-    background: rgba(49, 51, 63, 0.03);
-">
-<b>Trusted by programmes & institutions</b> — TalentIQ is being adopted for employability readiness, internship support, and cohort reporting across training and placement initiatives.
-</div>
-""", unsafe_allow_html=True)
+# Social proof / trusted banner
+st.markdown(
+    """
+    <div style="
+        margin-top: 0.75rem;
+        padding: 0.85rem 1rem;
+        border: 1px solid rgba(49, 51, 63, 0.12);
+        border-radius: 16px;
+        background: rgba(49, 51, 63, 0.03);
+    ">
+        <b>Trusted by programmes & institutions</b>
+        <span class="ti-muted"> — TalentIQ is being adopted for employability readiness, internship support, and cohort reporting across training and placement initiatives.</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-st.markdown("""
-<div id="auth-section"></div>
-""")
+# Who it's for + how it works cards
+st.markdown("<div class='ti-divider'></div>", unsafe_allow_html=True)
 
-colA, colB, colC = st.columns([1, 1, 1])
-with colA:
-    st.success("✅ CV Quality + ATS Readiness")
-with colB:
-    st.info("🎯 Matching + Shortlisting Support")
-with colC:
-    st.warning("🧠 Interview Practice + Scoring")
+st.markdown(
+    """
+    <div class="ti-grid">
+        <div class="ti-card">
+            <b>👤 For Job Seekers</b><br/>
+            <span class="ti-muted ti-small">
+                Improve CV quality, raise ATS readiness, match to roles, and practice interviews — all in one place.
+            </span>
+        </div>
+        <div class="ti-card">
+            <b>🏫 For Institutions</b><br/>
+            <span class="ti-muted ti-small">
+                Cohort onboarding, readiness distribution, matching insights, and reporting for internship/placement programmes.
+            </span>
+        </div>
+        <div class="ti-card">
+            <b>🏢 For Employers</b><br/>
+            <span class="ti-muted ti-small">
+                Faster shortlisting with structured profiles and fit scoring (where postings and workflows are enabled).
+            </span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
-st.markdown("""
-**Get started below** — sign in if you already have an account, or create a new one in under a minute.
-""")
+# CTA helper text
+st.markdown(
+    """
+    <div style="margin-top: 0.9rem;" class="ti-muted ti-small">
+        Ready to begin? <b>Sign in</b> if you already have an account, or <b>create a new account</b> below in under a minute.
+    </div>
+    <div id="auth-section"></div>
+    """,
+    unsafe_allow_html=True,
+)
 
-
+# ==========================================================
+# AUTH TABS (UNCHANGED)
+# ==========================================================
 tab_login, tab_register = st.tabs(["🔓 Sign In", "📝 Register"])
 
 
