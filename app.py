@@ -1,4 +1,3 @@
-# app.py
 # ==========================================================
 # app.py — AUTH ENTRY POINT (FINAL, NO RESET LOGIC)
 # ==========================================================
@@ -83,21 +82,27 @@ st.markdown("""
 - Reduces guesswork and improves the quality of applications
 - Helps candidates present real evidence and measurable achievements
 - Gives programme owners visibility: onboarding, readiness uplift, and outcomes
-
-st.markdown("""
-<div style="
-    margin-top: 0.6rem;
-    padding: 0.7rem 0.9rem;
-    border: 1px solid rgba(49, 51, 63, 0.12);
-    border-radius: 12px;
-    background: rgba(49, 51, 63, 0.03);
-">
-<b>Trusted by programmes & institutions</b> — TalentIQ is being adopted for employability readiness, internship support, and cohort reporting across training and placement initiatives.
-</div>
-""", unsafe_allow_html=True)
-
-<div id="auth-section"></div>
 """)
+
+# ✅ Trusted banner MUST be a separate call (not inside the story string)
+st.markdown(
+    """
+    <div style="
+        margin-top: 0.6rem;
+        padding: 0.7rem 0.9rem;
+        border: 1px solid rgba(49, 51, 63, 0.12);
+        border-radius: 12px;
+        background: rgba(49, 51, 63, 0.03);
+    ">
+    <b>Trusted by programmes & institutions</b> — TalentIQ is being adopted for employability readiness, internship support, and cohort reporting across training and placement initiatives.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+# Anchor (optional)
+st.markdown('<div id="auth-section"></div>', unsafe_allow_html=True)
+
 
 colA, colB, colC = st.columns([1, 1, 1])
 with colA:
