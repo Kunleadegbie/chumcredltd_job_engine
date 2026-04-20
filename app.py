@@ -62,63 +62,97 @@ st.caption("AI-powered tools for job seekers, career growth, and talent accelera
 
 
 # ==========================================================
-# TALENTIQ STORY (LANDING SECTION)
+# TALENTIQ STORY (LANDING SECTION) — NO HTML, PREMIUM UI
 # ==========================================================
-st.markdown("""
-### 🚀 Turn Potential Into Opportunity — Faster
-**Chumcred TalentIQ** is an AI-powered employability and talent-acceleration platform that helps people move from **“I’m looking for work”** to **“I’m job-ready and getting interviews.”**
-
-**What TalentIQ does in simple terms**
-- **CV Intelligence:** Upload your CV and get a clear employability score, strengths, gaps, and improvements.
-- **SmartMatch:** Get matched to relevant roles/internships and understand why you fit (or what to improve).
-- **InterviewIQ:** Practice interview questions for your role and get structured feedback to improve fast.
-
-**Who it’s for**
-- Students, graduates, and early-career professionals
-- Career switchers and job seekers
-- Institutions and programmes running employability or internship cohorts
-
-**Why it matters**
-- Reduces guesswork and improves the quality of applications
-- Helps candidates present real evidence and measurable achievements
-- Gives programme owners visibility: onboarding, readiness uplift, and outcomes
-""")
-
-# ✅ Trusted banner MUST be a separate call (not inside the story string)
-st.markdown(
-    """
-    <div style="
-        margin-top: 0.6rem;
-        padding: 0.7rem 0.9rem;
-        border: 1px solid rgba(49, 51, 63, 0.12);
-        border-radius: 12px;
-        background: rgba(49, 51, 63, 0.03);
-    ">
-    <b>Trusted by programmes & institutions</b> — TalentIQ is being adopted for employability readiness, internship support, and cohort reporting across training and placement initiatives.
-    </div>
-    """,
-    unsafe_allow_html=True
+st.markdown("## 🚀 Turn Potential Into Opportunity — Faster")
+st.write(
+    "TalentIQ is an AI-powered employability and talent-acceleration platform that helps you move from "
+    "**“I’m looking for work”** to **“I’m job-ready and getting interviews.”**"
 )
 
-# Anchor (optional)
-st.markdown('<div id="auth-section"></div>', unsafe_allow_html=True)
+# Quick value chips (native, colorful)
+c1, c2, c3 = st.columns(3)
+with c1:
+    st.success("⚡ CV Intelligence")
+with c2:
+    st.info("🎯 SmartMatch")
+with c3:
+    st.warning("🧠 InterviewIQ")
 
+st.divider()
 
-colA, colB, colC = st.columns([1, 1, 1])
-with colA:
-    st.success("✅ CV Quality + ATS Readiness")
-with colB:
-    st.info("🎯 Matching + Shortlisting Support")
-with colC:
-    st.warning("🧠 Interview Practice + Scoring")
+# Feature cards (native)
+st.markdown("### What TalentIQ does in simple terms")
+f1, f2, f3 = st.columns(3)
 
-st.markdown("""
-**Get started below** — sign in if you already have an account, or create a new one in under a minute.
-""")
+with f1:
+    st.success("✅ CV Intelligence")
+    st.write(
+        "Upload your CV and get a clear employability score, strengths, gaps, ATS readiness, "
+        "and improvements you can apply immediately."
+    )
 
+with f2:
+    st.info("🎯 SmartMatch")
+    st.write(
+        "Get matched to relevant roles/internships and understand why you fit — "
+        "plus what to improve to increase your match score."
+    )
 
-tab_login, tab_register = st.tabs(["🔓 Sign In", "📝 Register"])
+with f3:
+    st.warning("🧠 InterviewIQ")
+    st.write(
+        "Practice interview questions for your role and receive structured feedback "
+        "to improve clarity, confidence, and evidence."
+    )
 
+st.divider()
+
+# Trusted banner (native)
+st.info(
+    "✅ **Trusted by programmes & institutions** — TalentIQ is being adopted for employability readiness, "
+    "internship support, and cohort reporting across training and placement initiatives."
+)
+
+# Who it's for (native columns)
+st.markdown("### Who it’s for")
+a, b, c = st.columns(3)
+
+with a:
+    st.write("**🎓 Students & Graduates**")
+    st.caption("Build strong profiles early, improve readiness, and position for internships and entry-level roles.")
+
+with b:
+    st.write("**💼 Job Seekers & Career Switchers**")
+    st.caption("Improve how you present your experience, target the right roles, and practice interviews that feel real.")
+
+with c:
+    st.write("**🏛 Institutions & Programmes**")
+    st.caption("Run cohorts with structured profiling, readiness insights, and reporting for monitoring and outcomes.")
+
+st.divider()
+
+# Why it matters (native “highlight” boxes)
+st.markdown("### Why it matters")
+m1, m2, m3 = st.columns(3)
+
+with m1:
+    st.success("📌 Clear direction")
+    st.caption("Stop guessing. See your real gaps and what to fix to move forward faster.")
+
+with m2:
+    st.info("⚡ Faster shortlisting")
+    st.caption("Improve CV quality and alignment so you look stronger to recruiters and screening systems.")
+
+with m3:
+    st.warning("📊 Accountability & outcomes")
+    st.caption("Programme owners get visibility: onboarding, readiness uplift, matching activity, and success stories.")
+
+st.divider()
+
+# CTA (native)
+st.markdown("### ✅ Get started")
+st.write("Sign in if you already have an account, or create a new account below in under a minute.")
 
 # ==========================================================
 # LOGIN TAB
