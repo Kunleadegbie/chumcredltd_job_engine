@@ -5,7 +5,6 @@
 import streamlit as st
 import sys
 import os
-import textwrap
 
 sys.path.append(os.path.dirname(__file__))
 
@@ -30,119 +29,6 @@ st.markdown(
     """
     <style>
         [data-testid="stSidebarNav"] { display: none; }
-
-        /* Make landing feel premium */
-        .block-container { max-width: 1100px; padding-top: 1.6rem; padding-bottom: 2.2rem; }
-
-        /* Landing components */
-        .ti-hero {
-            border: 1px solid rgba(49, 51, 63, 0.10);
-            border-radius: 24px;
-            padding: 18px 18px;
-            background: linear-gradient(135deg,
-                rgba(56, 189, 248, 0.22),
-                rgba(110, 231, 183, 0.16),
-                rgba(250, 204, 21, 0.14)
-            );
-        }
-        .ti-title {
-            font-size: 2.2rem;
-            font-weight: 900;
-            letter-spacing: -0.02em;
-            margin: 0;
-        }
-        .ti-subtitle {
-            font-size: 1.05rem;
-            margin-top: 8px;
-            color: rgba(49, 51, 63, 0.78);
-            line-height: 1.55rem;
-        }
-        .ti-badges { margin-top: 2px; }
-        .ti-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 7px 12px;
-            border-radius: 999px;
-            border: 1px solid rgba(49, 51, 63, 0.12);
-            background: rgba(255, 255, 255, 0.70);
-            font-size: 0.86rem;
-            font-weight: 750;
-            margin-right: 8px;
-            margin-bottom: 10px;
-        }
-        .ti-divider {
-            height: 1px;
-            background: rgba(49, 51, 63, 0.10);
-            margin: 14px 0;
-        }
-        .ti-kpi {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-        }
-        @media (max-width: 900px) {
-            .ti-kpi { grid-template-columns: 1fr; }
-        }
-        .ti-card {
-            border: 1px solid rgba(49, 51, 63, 0.12);
-            border-radius: 16px;
-            padding: 14px 14px;
-            background: rgba(255, 255, 255, 0.62);
-        }
-        .ti-card b { font-size: 1.02rem; }
-        .ti-card p {
-            margin: 6px 0 0 0;
-            color: rgba(49, 51, 63, 0.78);
-            font-size: 0.95rem;
-            line-height: 1.45rem;
-        }
-
-        .ti-section-title {
-            font-size: 1.05rem;
-            font-weight: 850;
-            margin: 0 0 10px 0;
-            letter-spacing: -0.01em;
-        }
-
-        .ti-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            margin-top: 10px;
-        }
-        @media (max-width: 900px) {
-            .ti-grid { grid-template-columns: 1fr; }
-        }
-
-        .ti-trust {
-            margin-top: 0.8rem;
-            padding: 0.9rem 1rem;
-            border: 1px solid rgba(49, 51, 63, 0.12);
-            border-radius: 16px;
-            background: rgba(49, 51, 63, 0.03);
-        }
-        .ti-trust b { font-weight: 850; }
-        .ti-trust span { color: rgba(49, 51, 63, 0.78); }
-
-        .ti-cta {
-            margin-top: 0.9rem;
-            padding: 0.85rem 1rem;
-            border-radius: 16px;
-            border: 1px solid rgba(49, 51, 63, 0.12);
-            background: rgba(255,255,255,0.55);
-            color: rgba(49, 51, 63, 0.80);
-            font-size: 0.95rem;
-        }
-        .ti-cta b { color: rgba(49, 51, 63, 0.95); }
-
-        /* Buttons feel premium */
-        div.stButton > button {
-            border-radius: 12px !important;
-            padding: 0.7rem 1rem !important;
-            font-weight: 750 !important;
-        }
-
     </style>
     """,
     unsafe_allow_html=True,
@@ -176,121 +62,48 @@ st.caption("AI-powered tools for job seekers, career growth, and talent accelera
 
 
 # ==========================================================
-# TALENTIQ STORY (LANDING SECTION) — REDESIGNED ONLY
+# TALENTIQ STORY (LANDING SECTION)
 # ==========================================================
+st.markdown("""
+### 🚀 Turn Potential Into Opportunity — Faster
+**Chumcred TalentIQ** is an AI-powered employability and talent-acceleration platform that helps people move from **“I’m looking for work”** to **“I’m job-ready and getting interviews.”**
+
+**What TalentIQ does in simple terms**
+- **CV Intelligence:** Upload your CV and get a clear employability score, strengths, gaps, and improvements.
+- **SmartMatch:** Get matched to relevant roles/internships and understand why you fit (or what to improve).
+- **InterviewIQ:** Practice interview questions for your role and get structured feedback to improve fast.
+
+**Who it’s for**
+- Students, graduates, and early-career professionals
+- Career switchers and job seekers
+- Institutions and programmes running employability or internship cohorts
+
+**Why it matters**
+- Reduces guesswork and improves the quality of applications
+- Helps candidates present real evidence and measurable achievements
+- Gives programme owners visibility: onboarding, readiness uplift, and outcomes
+""")
+
+# ✅ Trusted banner MUST be a separate call (not inside the story string)
 st.markdown(
-    textwrap.dedent("""
-    <div class="ti-hero">
-        <div class="ti-badges">
-            <span class="ti-badge">⚡ CV Intelligence</span>
-            <span class="ti-badge">🎯 SmartMatch</span>
-            <span class="ti-badge">🧠 InterviewIQ</span>
-        </div>
-
-        <h1 class="ti-title">Turn Potential Into Opportunity — Faster</h1>
-
-        <div class="ti-subtitle">
-            <b>Chumcred TalentIQ</b> helps you move from <b>“I’m looking for work”</b> to <b>“I’m job-ready and getting interviews.”</b>
-            Get clarity on your CV, get matched to relevant roles, and practice interviews with feedback — all in one place.
-        </div>
-
-        <div class="ti-divider"></div>
-
-        <div class="ti-section-title">What TalentIQ does in simple terms</div>
-
-        <div class="ti-kpi">
-            <div class="ti-card">
-                <b>✅ CV Intelligence</b>
-                <p>Upload your CV and get a clear employability score, strengths, gaps, ATS readiness, and improvements you can apply immediately.</p>
-            </div>
-
-            <div class="ti-card">
-                <b>🎯 SmartMatch</b>
-                <p>Get matched to relevant roles/internships and see why you fit — plus what to improve to increase your match score.</p>
-            </div>
-
-            <div class="ti-card">
-                <b>🧠 InterviewIQ</b>
-                <p>Practice interview questions for your role and receive structured feedback to improve clarity, confidence, and evidence.</p>
-            </div>
-        </div>
+    """
+    <div style="
+        margin-top: 0.6rem;
+        padding: 0.7rem 0.9rem;
+        border: 1px solid rgba(49, 51, 63, 0.12);
+        border-radius: 12px;
+        background: rgba(49, 51, 63, 0.03);
+    ">
+    <b>Trusted by programmes & institutions</b> — TalentIQ is being adopted for employability readiness, internship support, and cohort reporting across training and placement initiatives.
     </div>
-    """),
+    """,
     unsafe_allow_html=True
 )
 
-# Trusted banner (kept, styled nicer)
-st.markdown(
-    textwrap.dedent("""
-    <div class="ti-trust">
-        <b>Trusted by programmes & institutions</b>
-        <span> — TalentIQ is being adopted for employability readiness, internship support, and cohort reporting across training and placement initiatives.</span>
-    </div>
-    """),
-    unsafe_allow_html=True
-)
-
-st.markdown("<div class='ti-divider'></div>", unsafe_allow_html=True)
-
-# Who it's for (cards instead of bullets)
-st.markdown(
-    textwrap.dedent("""
-    <div class="ti-section-title">Who it’s for</div>
-    <div class="ti-grid">
-        <div class="ti-card">
-            <b>🎓 Students & Graduates</b>
-            <p>Build strong profiles early, improve readiness, and position for internships and entry-level opportunities.</p>
-        </div>
-        <div class="ti-card">
-            <b>💼 Job Seekers & Career Switchers</b>
-            <p>Improve how you present your experience, target the right roles, and practice interviews that feel real.</p>
-        </div>
-        <div class="ti-card">
-            <b>🏛 Institutions & Programmes</b>
-            <p>Run cohorts with structured profiling, readiness insights, and reporting for monitoring and outcomes.</p>
-        </div>
-    </div>
-    """),
-    unsafe_allow_html=True
-)
-
-# Why it matters (colorful benefit cards)
-st.markdown(
-    textwrap.dedent("""
-    <div style="margin-top: 12px;">
-        <div class="ti-section-title">Why it matters</div>
-        <div class="ti-grid">
-            <div class="ti-card">
-                <b>📌 Clear direction</b>
-                <p>Stop guessing. See your real gaps and what to fix to move forward quickly.</p>
-            </div>
-            <div class="ti-card">
-                <b>⚡ Faster shortlisting</b>
-                <p>Improve CV quality and alignment so you look stronger to recruiters and screening systems.</p>
-            </div>
-            <div class="ti-card">
-                <b>📊 Accountability & outcomes</b>
-                <p>Programme owners get visibility: onboarding, readiness uplift, matching activity, and success stories.</p>
-            </div>
-        </div>
-    </div>
-    """),
-    unsafe_allow_html=True
-)
-
-# Anchor + CTA before tabs
+# Anchor (optional)
 st.markdown('<div id="auth-section"></div>', unsafe_allow_html=True)
 
-st.markdown(
-    textwrap.dedent("""
-    <div class="ti-cta">
-        <b>Get started below</b> — sign in if you already have an account, or create a new one in under a minute.
-    </div>
-    """),
-    unsafe_allow_html=True
-)
 
-# Existing mini highlight cards (kept; not required but okay)
 colA, colB, colC = st.columns([1, 1, 1])
 with colA:
     st.success("✅ CV Quality + ATS Readiness")
@@ -298,6 +111,10 @@ with colB:
     st.info("🎯 Matching + Shortlisting Support")
 with colC:
     st.warning("🧠 Interview Practice + Scoring")
+
+st.markdown("""
+**Get started below** — sign in if you already have an account, or create a new one in under a minute.
+""")
 
 
 tab_login, tab_register = st.tabs(["🔓 Sign In", "📝 Register"])
