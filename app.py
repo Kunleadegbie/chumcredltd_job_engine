@@ -23,12 +23,22 @@ st.set_page_config(
 
 
 # ==========================================================
-# HIDE DEFAULT NAV
+# HIDE SIDEBAR COMPLETELY + FULL WIDTH  (✅ ONLY CHANGE MADE)
 # ==========================================================
 st.markdown(
     """
     <style>
-        [data-testid="stSidebarNav"] { display: none; }
+        /* Hide the entire Streamlit sidebar */
+        [data-testid="stSidebar"] { display: none !important; }
+        [data-testid="stSidebarNav"] { display: none !important; }
+
+        /* Expand main content to full width */
+        .block-container {
+            max-width: 100% !important;
+            padding-left: 3rem !important;
+            padding-right: 3rem !important;
+            padding-top: 1.5rem !important;
+        }
     </style>
     """,
     unsafe_allow_html=True,
@@ -144,7 +154,7 @@ st.divider()
 st.markdown("### ✅ Get started")
 st.write("Sign in if you already have an account, or create a new account below in under a minute.")
 
-# ✅ FIX 1: Create the tabs BEFORE using tab_login/tab_register
+# ✅ Tabs (must exist before use)
 tab_login, tab_register = st.tabs(["🔓 Sign In", "📝 Register"])
 
 
